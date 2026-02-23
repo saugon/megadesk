@@ -28,8 +28,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupMenuBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "rectangle.3.group", accessibilityDescription: "Megadesk")
-            button.image?.isTemplate = true  // adapts to light/dark menu bar
+            let icon = NSImage(named: "MenuBarIcon")
+            icon?.size = NSSize(width: 18, height: 18)
+            icon?.isTemplate = true
+            button.image = icon
         }
         let menu = NSMenu()
         menu.delegate = self

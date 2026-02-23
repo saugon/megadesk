@@ -15,6 +15,7 @@
 		AA000006 /* StatusStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000006 /* StatusStore.swift */; };
 		AA000007 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000007 /* Session.swift */; };
 		AA000008 /* TerminalFocuser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000008 /* TerminalFocuser.swift */; };
+		AA000009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB000011 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 		AB000008 /* TerminalFocuser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalFocuser.swift; sourceTree = "<group>"; };
 		AB000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AB000010 /* Megadesk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Megadesk.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -50,6 +52,7 @@
 				AB000004 /* ContentView.swift */,
 				AB000005 /* SessionCardView.swift */,
 				AB000006 /* StatusStore.swift */,
+				AB000011 /* Assets.xcassets */,
 				AD000002 /* Models */,
 				AD000003 /* Services */,
 				AB000009 /* Info.plist */,
@@ -147,6 +150,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA000009 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
