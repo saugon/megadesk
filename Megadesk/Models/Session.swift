@@ -26,11 +26,11 @@ struct Session: Identifiable, Codable {
         Date().timeIntervalSince1970 - stateSince
     }
 
-    /// Last hook was PreToolUse and nothing has updated in >8s — Claude is almost
+    /// Last hook was PreToolUse and nothing has updated in >4s — Claude is almost
     /// certainly waiting for the user to approve/deny a command confirmation.
     var needsConfirmation: Bool {
         guard isWorking && lastEvent == "PreToolUse" else { return false }
-        return Date().timeIntervalSince1970 - lastUpdated > 8
+        return Date().timeIntervalSince1970 - lastUpdated > 4
     }
 
     /// Session has been in "waiting" state for >2 minutes — effectively idle.
