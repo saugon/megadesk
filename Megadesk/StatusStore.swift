@@ -208,10 +208,17 @@ final class StatusStore {
                 guard let self else { return }
                 // Collect iTerm session IDs that are no longer present in iTerm2.
                 // Skip fallback sessions (itermSessionId == sessionId) — those aren't iTerm2 sessions.
+                // Also skip recently-updated sessions: inside tmux $ITERM_SESSION_ID can be stale
+                // (e.g. after detach/reattach), but Claude is still actively writing hook events.
+                let staleThreshold = Date().timeIntervalSince1970 - 120
                 let orphanedItermIds = self.sessions
                     .filter { s in
-                        s.itermSessionId != s.sessionId &&
-                        !activeIds.contains(s.itermSessionId)
+                        // Strip tmux pane suffix (format: "{iterm_uuid}:{tmux_pane}") before
+                        // comparing against iTerm2 active IDs, which only know the bare UUID.
+                        let bareId = s.itermSessionId.components(separatedBy: ":").first ?? s.itermSessionId
+                        return s.itermSessionId != s.sessionId &&
+                            !activeIds.contains(bareId) &&
+                            s.lastUpdated < staleThreshold
                     }
                     .map(\.itermSessionId)
 

@@ -57,6 +57,11 @@ def main():
     # ITERM_SESSION_ID is "w0t0p0:UUID" — iTerm2 AppleScript unique id is only the UUID part
     iterm_raw = os.environ.get("ITERM_SESSION_ID", "")
     iterm_session_id = iterm_raw.split(":", 1)[-1] if ":" in iterm_raw else iterm_raw
+    # Inside tmux, all panes of the same iTerm2 tab share $ITERM_SESSION_ID.
+    # Append the tmux pane ID so each pane gets its own card.
+    tmux_pane = os.environ.get("TMUX_PANE", "")
+    if tmux_pane and iterm_session_id:
+        iterm_session_id = f"{iterm_session_id}:{tmux_pane}"
     # If not running inside iTerm2, fall back to session_id so deduplication
     # doesn't collapse all sessions onto the same empty-string key.
     if not iterm_session_id:

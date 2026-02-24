@@ -3,8 +3,10 @@ import AppKit
 
 struct TerminalFocuser {
     static func focusiTerm2(sessionId: String) {
-        // sessionId is the bare UUID (hook script strips the "w0t0p0:" prefix)
-        guard !sessionId.isEmpty else { return }
+        // sessionId is the bare UUID (hook script strips the "w0t0p0:" prefix).
+        // Inside tmux the format is "{uuid}:{tmux_pane}" — strip the suffix.
+        let rawId = sessionId.components(separatedBy: ":").first ?? sessionId
+        guard !rawId.isEmpty else { return }
 
         // `tell s to select` is the canonical iTerm2 AppleScript call:
         // it switches the tab, selects the session, and brings the window to front
@@ -15,7 +17,7 @@ struct TerminalFocuser {
             repeat with w in windows
                 repeat with t in tabs of w
                     repeat with s in sessions of t
-                        if unique id of s is "\(sessionId)" then
+                        if unique id of s is "\(rawId)" then
                             tell t to select
                             tell s to select
                             tell w to select
