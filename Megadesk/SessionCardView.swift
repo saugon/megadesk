@@ -29,7 +29,7 @@ struct LimitedTextField: NSViewRepresentable {
         // Request focus on the next run-loop tick after the view is installed
         if context.coordinator.needsFocus {
             context.coordinator.needsFocus = false
-            DispatchQueue.main.async {
+            DispatchQueue.main.async(qos: .userInteractive) {
                 tf.window?.makeFirstResponder(tf)
             }
         }
@@ -140,7 +140,7 @@ struct SessionCardView: View {
                 } else {
                     Text(displayName)
                         .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                        .foregroundColor(session.isForgotten ? .white.opacity(0.4) : .white)
+                        .foregroundColor(session.isForgotten && !isFlashing ? .white.opacity(0.4) : .white)
                         .lineLimit(1)
                 }
 
@@ -179,11 +179,13 @@ struct SessionCardView: View {
                     .opacity(hasCustomName ? 1 : 0)
                 } else if !isDying {
                     if isFlashing {
-                        ZStack {
+                        ZStack(alignment: .trailing) {
                             Text("⇧ ⌥ + ↑ / ↓")
                                 .font(.system(size: 11, design: .monospaced))
-                                .foregroundColor(.white.opacity(isHovered ? 0 : 0.45))
+                                .foregroundColor(.white.opacity(0.45))
                                 .fixedSize()
+                                .opacity(isHovered ? 0 : 1)
+                                .allowsHitTesting(false)
 
                             Button(action: startEdit) {
                                 Image(systemName: "pencil")
@@ -217,21 +219,26 @@ struct SessionCardView: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isFlashing ? cardBackground.opacity(2.5) : cardBackground)
+                .fill(cardBackground)
                 .animation(.easeInOut(duration: 0.15), value: isHovered)
-                .animation(.easeInOut(duration: 0.2), value: isFlashing)
         )
-        .overlay(alignment: .leading) {
+        .overlay {
             if isFlashing {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.white.opacity(0.7))
-                    .frame(width: 3)
-                    .padding(.vertical, 6)
-                    .padding(.leading, 3)
-                    .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .leading)))
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(
+                        LinearGradient(
+                            colors: [dotColor.opacity(session.isForgotten ? 0.32 : 0.18), .clear],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.15), value: isFlashing)
+        .shadow(color: isFlashing ? dotColor.opacity(session.isForgotten ? 0.5 : 0.3) : .clear,
+                radius: isFlashing && session.isForgotten ? 10 : 6, x: 0, y: 0)
+        .animation(.easeInOut(duration: 0.2), value: isFlashing)
         .contentShape(Rectangle())
     }
 
@@ -296,7 +303,7 @@ struct SessionCardView: View {
         if isDying                   { return .red.opacity(0.8) }
         if session.needsConfirmation { return .cyan.opacity(0.9) }
         if session.isWorking         { return .green.opacity(0.8) }
-        if session.isForgotten       { return Color(white: 0.4) }
+        if session.isForgotten       { return isFlashing ? Color(white: 0.7) : Color(white: 0.4) }
         return .orange.opacity(0.9)
     }
 
