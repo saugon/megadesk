@@ -7,6 +7,10 @@ final class StatusStore {
     var tick: Int = 0  // increments every second to force time re-renders
     var customNames: [String: String] = [:]  // cwd → custom display name
 
+    // MARK: PR Tracking
+    var trackedPRs: [TrackedPR] = []
+    private var prTimer: Timer?
+
     private let sessionsURL: URL = {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return home.appendingPathComponent(".claude/megadesk/sessions")
@@ -21,11 +25,14 @@ final class StatusStore {
         loadSessions()
         startWatching()
         startTimer()
+        loadTrackedPRSlugs()
+        startPRTimer()
     }
 
     deinit {
         watchSource?.cancel()
         timer?.invalidate()
+        prTimer?.invalidate()
         if dirFD >= 0 { close(dirFD) }
     }
 
@@ -151,6 +158,106 @@ final class StatusStore {
             // Reload every tick as a fallback — small JSON files, negligible cost.
             // The file watcher handles instant updates; this catches any missed events.
             self?.loadSessions()
+        }
+    }
+
+    // MARK: - PR Tracking
+
+    func addTrackedPR(repo: String, number: Int) {
+        let id = "\(repo)#\(number)"
+        guard !trackedPRs.contains(where: { $0.id == id }) else { return }
+        trackedPRs.append(TrackedPR(repo: repo, number: number))
+        saveTrackedPRSlugs()
+        fetchPR(repo: repo, number: number)
+    }
+
+    func removeTrackedPR(id: String) {
+        trackedPRs.removeAll { $0.id == id }
+        saveTrackedPRSlugs()
+    }
+
+    private func loadTrackedPRSlugs() {
+        guard let slugs = UserDefaults.standard.stringArray(forKey: "megadesk.trackedPRs") else { return }
+        trackedPRs = slugs.compactMap { slug in
+            guard let (repo, number) = TrackedPR.parse(slug) else { return nil }
+            return TrackedPR(repo: repo, number: number)
+        }
+    }
+
+    private func saveTrackedPRSlugs() {
+        UserDefaults.standard.set(trackedPRs.map(\.id), forKey: "megadesk.trackedPRs")
+    }
+
+    func fetchAllPRs() {
+        for pr in trackedPRs {
+            fetchPR(repo: pr.repo, number: pr.number)
+        }
+    }
+
+    func fetchPR(repo: String, number: Int) {
+        let id = "\(repo)#\(number)"
+        guard let idx = trackedPRs.firstIndex(where: { $0.id == id }) else { return }
+        trackedPRs[idx].fetchState = .loading
+
+        let ghPaths = ["/usr/local/bin/gh", "/opt/homebrew/bin/gh"]
+        guard let ghPath = ghPaths.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
+            trackedPRs[idx].fetchState = .error("gh not found")
+            return
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: ghPath)
+        process.arguments = [
+            "pr", "view", "\(number)",
+            "--repo", repo,
+            "--json", "number,title,author,headRefName,mergeable,mergeStateStatus,statusCheckRollup,url,updatedAt"
+        ]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+
+        // Watchdog: terminate after 15 seconds
+        let watchdog = DispatchWorkItem { process.terminate() }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 15, execute: watchdog)
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            do {
+                try process.run()
+                process.waitUntilExit()
+                watchdog.cancel()
+
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+
+                DispatchQueue.main.async {
+                    guard let self, let i = self.trackedPRs.firstIndex(where: { $0.id == id }) else { return }
+
+                    guard process.terminationStatus == 0 else {
+                        self.trackedPRs[i].fetchState = .error("not found or no auth")
+                        return
+                    }
+
+                    do {
+                        let pr = try JSONDecoder().decode(PullRequest.self, from: data)
+                        self.trackedPRs[i].data = pr
+                        self.trackedPRs[i].fetchState = .loaded
+                    } catch {
+                        self.trackedPRs[i].fetchState = .error("parse error")
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    guard let self, let i = self.trackedPRs.firstIndex(where: { $0.id == id }) else { return }
+                    self.trackedPRs[i].fetchState = .error("gh not found")
+                }
+            }
+        }
+    }
+
+    private func startPRTimer() {
+        fetchAllPRs()
+        prTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
+            self?.fetchAllPRs()
         }
     }
 }

@@ -3,7 +3,7 @@ import AppKit
 
 /// NSViewRepresentable wrapping NSTextField that enforces a character limit at the
 /// AppKit level, catching both keyboard and paste input reliably.
-private struct LimitedTextField: NSViewRepresentable {
+struct LimitedTextField: NSViewRepresentable {
     @Binding var text: String
     let limit: Int
     let font: NSFont
@@ -65,7 +65,7 @@ private struct LimitedTextField: NSViewRepresentable {
 
 /// Transparent overlay that installs an NSTrackingArea with .activeAlways so the
 /// pointing-hand cursor fires even in a nonactivatingPanel (which is never the key window).
-private struct PointingHandCursor: NSViewRepresentable {
+struct PointingHandCursor: NSViewRepresentable {
     func makeNSView(context: Context) -> CursorView { CursorView() }
     func updateNSView(_ nsView: CursorView, context: Context) {}
 

@@ -21,6 +21,8 @@
 		AA000012 /* CompactSessionCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000014 /* CompactSessionCardView.swift */; };
 		AA000013 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000015 /* OnboardingView.swift */; };
 		AA000014 /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000016 /* OnboardingWindowController.swift */; };
+		AA000015 /* PullRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000017 /* PullRequest.swift */; };
+		AA000016 /* PRCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000018 /* PRCardView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXShellScriptBuildPhase section */
@@ -54,6 +56,8 @@
 		AB000014 /* CompactSessionCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactSessionCardView.swift; sourceTree = "<group>"; };
 		AB000015 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		AB000016 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
+		AB000017 /* PullRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PullRequest.swift; sourceTree = "<group>"; };
+		AB000018 /* PRCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRCardView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +79,7 @@
 				AB000003 /* FloatingWindowController.swift */,
 				AB000004 /* ContentView.swift */,
 				AB000005 /* SessionCardView.swift */,
+				AB000018 /* PRCardView.swift */,
 				AB000014 /* CompactSessionCardView.swift */,
 				AB000006 /* StatusStore.swift */,
 				AB000011 /* Assets.xcassets */,
@@ -93,6 +98,7 @@
 			isa = PBXGroup;
 			children = (
 				AB000007 /* Session.swift */,
+				AB000017 /* PullRequest.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -204,6 +210,8 @@
 				AA000012 /* CompactSessionCardView.swift in Sources */,
 				AA000013 /* OnboardingView.swift in Sources */,
 				AA000014 /* OnboardingWindowController.swift in Sources */,
+				AA000015 /* PullRequest.swift in Sources */,
+				AA000016 /* PRCardView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
