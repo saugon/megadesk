@@ -54,14 +54,13 @@ tell application "Finder"
       update without registering applications
       delay 5
       close
+      eject
     end tell
   end tell
 APPLESCRIPT
 
-# Give Finder time to flush .DS_Store before unmounting
-sleep 5
 sync
-hdiutil detach "$MOUNT" -quiet || hdiutil detach "$MOUNT" -force -quiet
+hdiutil detach "$MOUNT" -quiet 2>/dev/null || hdiutil detach "$MOUNT" -force -quiet 2>/dev/null || true
 hdiutil convert "$TMP_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG_OUT" -quiet
 rm -f "$TMP_DMG"
 
