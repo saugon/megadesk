@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: FloatingWindowController?
     private var statusItem: NSStatusItem?
     private var onboardingController: OnboardingWindowController?
+    private var helpController: HelpWindowController?
     private var hotKeyRef: EventHotKeyRef?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -98,6 +99,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         prItem.tag = 10
         menu.addItem(prItem)
         menu.addItem(.separator())
+        let helpItem = NSMenuItem(title: "Help", action: #selector(openHelp), keyEquivalent: "")
+        helpItem.target = self
+        menu.addItem(helpItem)
         menu.addItem(withTitle: "Quit Megadesk", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem?.menu = menu
     }
@@ -114,6 +118,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let key = "megadesk.prTracking"
         let current = UserDefaults.standard.object(forKey: key) as? Bool ?? true
         UserDefaults.standard.set(!current, forKey: key)
+    }
+
+    @objc private func openHelp() {
+        if helpController == nil {
+            helpController = HelpWindowController()
+        }
+        helpController?.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 

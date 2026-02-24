@@ -23,6 +23,8 @@
 		AA000014 /* OnboardingWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000016 /* OnboardingWindowController.swift */; };
 		AA000015 /* PullRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000017 /* PullRequest.swift */; };
 		AA000016 /* PRCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000018 /* PRCardView.swift */; };
+		AA000017 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000019 /* HelpView.swift */; };
+		AA000018 /* HelpWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000020 /* HelpWindowController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXShellScriptBuildPhase section */
@@ -58,6 +60,8 @@
 		AB000016 /* OnboardingWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindowController.swift; sourceTree = "<group>"; };
 		AB000017 /* PullRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PullRequest.swift; sourceTree = "<group>"; };
 		AB000018 /* PRCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRCardView.swift; sourceTree = "<group>"; };
+		AB000019 /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
+		AB000020 /* HelpWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpWindowController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -87,6 +91,8 @@
 				AB000013 /* megadesk-hook.py */,
 				AB000015 /* OnboardingView.swift */,
 				AB000016 /* OnboardingWindowController.swift */,
+				AB000019 /* HelpView.swift */,
+				AB000020 /* HelpWindowController.swift */,
 				AD000002 /* Models */,
 				AD000003 /* Services */,
 				AB000009 /* Info.plist */,
@@ -212,6 +218,8 @@
 				AA000014 /* OnboardingWindowController.swift in Sources */,
 				AA000015 /* PullRequest.swift in Sources */,
 				AA000016 /* PRCardView.swift in Sources */,
+				AA000017 /* HelpView.swift in Sources */,
+				AA000018 /* HelpWindowController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

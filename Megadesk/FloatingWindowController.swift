@@ -128,19 +128,19 @@ final class FloatingWindowController: NSWindowController {
 
     private func handleWindowMove() {
         guard !suppressPositionSave, let panel = window else { return }
+        // Store the top-left point so position stays stable regardless of window height changes.
         UserDefaults.standard.set(Double(panel.frame.origin.x), forKey: "megadesk.windowX")
-        UserDefaults.standard.set(Double(panel.frame.origin.y), forKey: "megadesk.windowY")
+        UserDefaults.standard.set(Double(panel.frame.origin.y + panel.frame.height), forKey: "megadesk.windowY")
     }
 
-    /// Returns the last user-dragged origin if it's still on a visible screen, otherwise nil.
-    private func savedOrigin(for window: NSWindow) -> NSPoint? {
+    /// Returns the last saved top-left point if it's within a visible screen, otherwise nil.
+    private func savedTopLeft(for window: NSWindow) -> NSPoint? {
         guard UserDefaults.standard.object(forKey: "megadesk.windowX") != nil else { return nil }
         let x = UserDefaults.standard.double(forKey: "megadesk.windowX")
         let y = UserDefaults.standard.double(forKey: "megadesk.windowY")
-        let origin = NSPoint(x: x, y: y)
-        let rect = NSRect(origin: origin, size: window.frame.size)
-        guard NSScreen.screens.contains(where: { $0.visibleFrame.intersects(rect) }) else { return nil }
-        return origin
+        let topLeft = NSPoint(x: x, y: y)
+        guard NSScreen.screens.contains(where: { $0.visibleFrame.contains(topLeft) }) else { return nil }
+        return topLeft
     }
 
     private func handleWindowResize() {
@@ -182,8 +182,8 @@ final class FloatingWindowController: NSWindowController {
             self.suppressPositionSave = true
             if let screen = NSScreen.main {
                 let x = screen.visibleFrame.maxX - width - 16
-                let y = screen.visibleFrame.maxY - panel.frame.height - 60
-                panel.setFrame(NSRect(x: x, y: y, width: width, height: panel.frame.height),
+                let topY = screen.visibleFrame.maxY - 60
+                panel.setFrame(NSRect(x: x, y: topY - panel.frame.height, width: width, height: panel.frame.height),
                                display: true, animate: false)
             }
             self.suppressPositionSave = false
@@ -200,19 +200,19 @@ final class FloatingWindowController: NSWindowController {
     func show() {
         guard let window = window else { return }
         if !window.isVisible {
-            let origin: NSPoint
-            if let saved = savedOrigin(for: window) {
-                origin = saved
+            let topLeft: NSPoint
+            if let saved = savedTopLeft(for: window) {
+                topLeft = saved
             } else if let screen = NSScreen.main {
-                origin = NSPoint(
+                topLeft = NSPoint(
                     x: screen.visibleFrame.maxX - window.frame.width - 16,
-                    y: screen.visibleFrame.maxY - window.frame.height - 60
+                    y: screen.visibleFrame.maxY - 60
                 )
             } else {
-                origin = .zero
+                topLeft = NSPoint(x: 0, y: NSScreen.main?.frame.height ?? 800)
             }
             suppressPositionSave = true
-            window.setFrameOrigin(origin)
+            window.setFrameTopLeftPoint(topLeft)
             suppressPositionSave = false
             window.alphaValue = 0
             window.orderFrontRegardless()
