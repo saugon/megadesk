@@ -18,9 +18,15 @@ final class StatusStore {
         return home.appendingPathComponent(".claude/megadesk/sessions")
     }()
 
+    var activeSessionId: String? = nil
+
     private var watchSource: DispatchSourceFileSystemObject?
     private var timer: Timer?
     private var dirFD: Int32 = -1
+    private var focusSessionObserver: Any?
+    private var cycleSessionObserver: Any?
+    private var flashTimer: Timer?
+    private var lastCycleIndex: Int? = nil
 
     init() {
         loadCustomNames()
@@ -29,6 +35,21 @@ final class StatusStore {
         startTimer()
         loadTrackedPRSlugs()
         startPRTimer()
+        focusSessionObserver = NotificationCenter.default.addObserver(
+            forName: .megadeskFocusSession, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let self,
+                  let index = note.userInfo?["index"] as? Int,
+                  index < self.sessions.count else { return }
+            self.focusTerminal(session: self.sessions[index])
+        }
+        cycleSessionObserver = NotificationCenter.default.addObserver(
+            forName: .megadeskCycleSession, object: nil, queue: .main
+        ) { [weak self] note in
+            guard let self else { return }
+            let forward = note.userInfo?["forward"] as? Bool ?? true
+            self.cycleSession(forward: forward)
+        }
     }
 
     deinit {
@@ -36,6 +57,9 @@ final class StatusStore {
         timer?.invalidate()
         prTimer?.invalidate()
         if dirFD >= 0 { close(dirFD) }
+        if let obs = focusSessionObserver { NotificationCenter.default.removeObserver(obs) }
+        if let obs = cycleSessionObserver  { NotificationCenter.default.removeObserver(obs) }
+        flashTimer?.invalidate()
     }
 
     @discardableResult
@@ -43,15 +67,22 @@ final class StatusStore {
         // Fallback sessions (itermSessionId == sessionId) have no associated iTerm2 tab —
         // $ITERM_SESSION_ID wasn't available (e.g. tmux without the env var, or non-iTerm2
         // terminal). We can't focus them but they're not "not found" either.
-        guard session.itermSessionId != session.sessionId else { return true }
+        guard session.itermSessionId != session.sessionId else {
+            activeSessionId = session.sessionId
+            return true
+        }
 
         let found = TerminalFocuser.focusiTerm2(sessionId: session.itermSessionId)
 
         // For tmux sessions the stored iterm_session_id is "{UUID}:{tmux_pane}".
         // If focus fails it means the *original* iTerm2 tab was closed (e.g. after
         // detach/reattach), but Claude is still running inside tmux — don't delete the card.
-        if !found && session.itermSessionId.contains(":") { return true }
+        if !found && session.itermSessionId.contains(":") {
+            activeSessionId = session.sessionId
+            return true
+        }
 
+        if found { activeSessionId = session.sessionId }
         return found
     }
 
@@ -178,6 +209,24 @@ final class StatusStore {
             if (self?.tick ?? 0) % 10 == 0 {
                 self?.checkOrphanedSessions()
             }
+            // Every 2 seconds, sync the active session indicator with iTerm2's current tab.
+            if (self?.tick ?? 0) % 2 == 0 {
+                self?.syncActiveSession()
+            }
+        }
+    }
+
+    private func syncActiveSession() {
+        detectCurrentItermSession { [weak self] currentId in
+            DispatchQueue.main.async {
+                guard let self, let currentId else { return }
+                guard let match = self.sessions.first(where: {
+                    $0.itermSessionId.components(separatedBy: ":").first == currentId
+                }) else { return }
+                if self.activeSessionId != match.sessionId {
+                    self.activeSessionId = match.sessionId
+                }
+            }
         }
     }
 
@@ -258,6 +307,50 @@ final class StatusStore {
             removed = true
         }
         if removed { loadSessions() }
+    }
+
+    // MARK: - Session cycling
+
+    private func cycleSession(forward: Bool) {
+        guard !sessions.isEmpty else { return }
+        // If starting a new cycle, seed lastCycleIndex from the already-tracked activeSessionId
+        // (kept up to date by syncActiveSession every 2s) — no async call needed.
+        if lastCycleIndex == nil, let activeId = activeSessionId,
+           let idx = sessions.firstIndex(where: { $0.sessionId == activeId }) {
+            lastCycleIndex = idx
+        }
+        performCycle(forward: forward)
+    }
+
+    private func performCycle(forward: Bool) {
+        let count = sessions.count
+        let next: Int
+        if let current = lastCycleIndex, current < count {
+            next = forward ? (current + 1) % count : (current - 1 + count) % count
+        } else {
+            next = forward ? 0 : count - 1
+        }
+        lastCycleIndex = next
+        let session = sessions[next]
+        focusTerminal(session: session)  // also sets activeSessionId
+        flashTimer?.invalidate()
+        flashTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
+            self?.lastCycleIndex = nil
+        }
+    }
+
+    private func detectCurrentItermSession(completion: @escaping (String?) -> Void) {
+        let script = """
+        tell application "iTerm2"
+            return unique id of current session of current window
+        end tell
+        """
+        DispatchQueue.global(qos: .userInitiated).async {
+            let appleScript = NSAppleScript(source: script)
+            var error: NSDictionary?
+            let result = appleScript?.executeAndReturnError(&error)
+            completion(result?.stringValue)
+        }
     }
 
     // MARK: - PR Tracking

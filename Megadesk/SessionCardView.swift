@@ -96,6 +96,7 @@ struct SessionCardView: View {
     let tick: Int
     let displayName: String
     let hasCustomName: Bool
+    let isFlashing: Bool
     let onFocus: () -> Bool
     let onDismiss: () -> Void
     let onRename: (String) -> Void
@@ -157,12 +158,14 @@ struct SessionCardView: View {
 
             Spacer()
 
-            // Right column: time on top, edit/revert button below
+            // Right column: time on top, then shortcut/edit slot below
             VStack(alignment: .trailing, spacing: 2) {
                 Text(formatDuration(session.timeInState))
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(.white.opacity(0.35))
 
+                // Shortcut hint and edit button share the same slot:
+                // shortcut visible at rest, edit button replaces it on hover.
                 if isEditing {
                     Button(action: revertToDefault) {
                         Image(systemName: "arrow.counterclockwise")
@@ -174,18 +177,39 @@ struct SessionCardView: View {
                     }
                     .buttonStyle(.plain)
                     .opacity(hasCustomName ? 1 : 0)
-                } else {
-                    Button(action: startEdit) {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.white.opacity(isHovered ? 0.75 : 0.3))
-                            .frame(width: 18, height: 18)
-                            .background(Color.white.opacity(isHovered ? 0.12 : 0))
-                            .clipShape(Circle())
+                } else if !isDying {
+                    if isFlashing {
+                        ZStack {
+                            Text("⇧ ⌥ + ↑ / ↓")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundColor(.white.opacity(isHovered ? 0 : 0.45))
+                                .fixedSize()
+
+                            Button(action: startEdit) {
+                                Image(systemName: "pencil")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.75))
+                                    .frame(width: 18, height: 18)
+                                    .background(Color.white.opacity(0.12))
+                                    .clipShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .opacity(isHovered ? 1 : 0)
+                        }
+                        .animation(.easeInOut(duration: 0.15), value: isHovered)
+                    } else {
+                        Button(action: startEdit) {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.white.opacity(isHovered ? 0.75 : 0.3))
+                                .frame(width: 18, height: 18)
+                                .background(Color.white.opacity(isHovered ? 0.12 : 0))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .opacity(isHovered ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.15), value: isHovered)
                     }
-                    .buttonStyle(.plain)
-                    .opacity(isHovered ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.15), value: isHovered)
                 }
             }
         }
@@ -193,9 +217,21 @@ struct SessionCardView: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(cardBackground)
+                .fill(isFlashing ? cardBackground.opacity(2.5) : cardBackground)
                 .animation(.easeInOut(duration: 0.15), value: isHovered)
+                .animation(.easeInOut(duration: 0.2), value: isFlashing)
         )
+        .overlay(alignment: .leading) {
+            if isFlashing {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.white.opacity(0.7))
+                    .frame(width: 3)
+                    .padding(.vertical, 6)
+                    .padding(.leading, 3)
+                    .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .leading)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.15), value: isFlashing)
         .contentShape(Rectangle())
     }
 

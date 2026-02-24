@@ -14,7 +14,9 @@ private final class EditablePanel: NSPanel {
 }
 
 extension Notification.Name {
-    static let megadeskHideWidget = Notification.Name("megadesk.hideWidget")
+    static let megadeskHideWidget    = Notification.Name("megadesk.hideWidget")
+    static let megadeskFocusSession  = Notification.Name("megadesk.focusSession")
+    static let megadeskCycleSession  = Notification.Name("megadesk.cycleSession")
 }
 
 final class FloatingWindowController: NSWindowController {

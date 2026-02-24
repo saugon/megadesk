@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var onboardingController: OnboardingWindowController?
     private var helpController: HelpWindowController?
     private var hotKeyRef: EventHotKeyRef?
+    private var sessionHotKeyRefs: [EventHotKeyRef?] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Terminate any previously running instance before setting up.
@@ -54,10 +55,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
         InstallEventHandler(
             GetApplicationEventTarget(),
-            { _, _, userData -> OSStatus in
-                guard let ptr = userData else { return noErr }
+            // Parameters: (EventHandlerCallRef, EventRef, userData) — callRef is first, event is second.
+            { _, inEvent, userData -> OSStatus in
+                guard let ptr = userData, let event = inEvent else { return noErr }
+                var hkID = EventHotKeyID()
+                GetEventParameter(event, EventParamName(kEventParamDirectObject),
+                                  EventParamType(typeEventHotKeyID), nil,
+                                  MemoryLayout<EventHotKeyID>.size, nil, &hkID)
+                let capturedID = hkID.id
                 DispatchQueue.main.async {
-                    Unmanaged<AppDelegate>.fromOpaque(ptr).takeUnretainedValue().windowController?.toggle()
+                    let delegate = Unmanaged<AppDelegate>.fromOpaque(ptr).takeUnretainedValue()
+                    if capturedID == 1 {
+                        delegate.windowController?.toggle()
+                    } else if capturedID >= 2 && capturedID <= 10 {
+                        NotificationCenter.default.post(
+                            name: .megadeskFocusSession,
+                            object: nil,
+                            userInfo: ["index": Int(capturedID) - 2]
+                        )
+                    } else if capturedID == 11 || capturedID == 12 {
+                        delegate.windowController?.show()
+                        NotificationCenter.default.post(name: .megadeskCycleSession, object: nil,
+                                                        userInfo: ["forward": capturedID == 12])
+                    }
                 }
                 return noErr
             },
@@ -75,6 +95,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             OptionBits(0),
             &hotKeyRef
         )
+
+        // ⌥⌘1 through ⌥⌘9 — focus session by order (hotkey IDs 2–10)
+        let keyCodes = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
+                        kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9]
+        for (i, keyCode) in keyCodes.enumerated() {
+            var hkID = EventHotKeyID()
+            hkID.signature = 0x4d47444b
+            hkID.id = UInt32(i + 2)
+            var ref: EventHotKeyRef?
+            RegisterEventHotKey(UInt32(keyCode), UInt32(cmdKey | optionKey),
+                                hkID, GetApplicationEventTarget(), OptionBits(0), &ref)
+            sessionHotKeyRefs.append(ref)
+        }
+
+        // ⇧⌥↑ / ⇧⌥↓ — cycle through sessions (hotkey IDs 11/12)
+        for (id, keyCode) in [(11, kVK_UpArrow), (12, kVK_DownArrow)] {
+            var hkID = EventHotKeyID()
+            hkID.signature = 0x4d47444b
+            hkID.id = UInt32(id)
+            var ref: EventHotKeyRef?
+            RegisterEventHotKey(UInt32(keyCode), UInt32(shiftKey | optionKey),
+                                hkID, GetApplicationEventTarget(), OptionBits(0), &ref)
+            sessionHotKeyRefs.append(ref)
+        }
     }
 
     // MARK: - Menu bar
