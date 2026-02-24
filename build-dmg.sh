@@ -64,5 +64,13 @@ hdiutil detach "$MOUNT" -quiet 2>/dev/null || hdiutil detach "$MOUNT" -force -qu
 hdiutil convert "$TMP_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG_OUT" -quiet
 rm -f "$TMP_DMG"
 
+echo "→ Setting DMG icon..."
+ICNS="$APP_PATH/Contents/Resources/AppIcon.icns"
+osascript -l JavaScript - <<JSEOF
+ObjC.import('AppKit');
+var icon = \$.NSImage.alloc.initWithContentsOfFile('$ICNS');
+\$.NSWorkspace.sharedWorkspace.setIconForFileOptions(icon, '$DMG_OUT', 0);
+JSEOF
+
 SIZE=$(du -sh "$DMG_OUT" | cut -f1)
 echo "✓ megadesk-$VERSION.dmg ($SIZE)"
