@@ -6,6 +6,8 @@ DERIVED="/tmp/megadesk-build"
 APP_PATH="$DERIVED/Build/Products/Release/Megadesk.app"
 TMP_DMG="/tmp/megadesk-tmp.dmg"
 VOLUME="Megadesk"
+SIGN_ID="Developer ID Application: Gonzalo Adrián Torres (CHCH97V5ZF)"
+NOTARY_PROFILE="megadesk-notary"
 
 echo "→ Building..."
 xcodebuild \
@@ -17,6 +19,11 @@ xcodebuild \
   CODE_SIGN_IDENTITY="-" \
   CODE_SIGNING_REQUIRED=NO \
   | grep -E "^(error:|warning: |BUILD)"
+
+echo "→ Signing app..."
+codesign --force --deep --options runtime \
+  --sign "$SIGN_ID" \
+  "$APP_PATH"
 
 VERSION=$(defaults read "$APP_PATH/Contents/Info.plist" CFBundleShortVersionString)
 DMG_OUT="/Users/saugon/lambda/megadesk-v2/megadesk-$VERSION.dmg"
@@ -76,5 +83,13 @@ var icon = \$.NSImage.alloc.initWithContentsOfFile('$ICNS');
 \$.NSWorkspace.sharedWorkspace.setIconForFileOptions(icon, '$DMG_OUT', 0);
 JSEOF
 
+echo "→ Notarizing DMG..."
+xcrun notarytool submit "$DMG_OUT" \
+  --keychain-profile "$NOTARY_PROFILE" \
+  --wait
+
+echo "→ Stapling ticket..."
+xcrun stapler staple "$DMG_OUT"
+
 SIZE=$(du -sh "$DMG_OUT" | cut -f1)
-echo "✓ megadesk-$VERSION.dmg ($SIZE)"
+echo "✓ megadesk-$VERSION.dmg ($SIZE) — signed & notarized"
