@@ -16,19 +16,19 @@
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
-	<key>MegadeskBuildDate</key>
-	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>MegadeskBuildDate</key>
+	<string>$(MARKETING_VERSION)</string>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Megadesk needs to control iTerm2 to focus terminal sessions.</string>
 	<key>NSAppleScriptEnabled</key>
 	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
 </dict>
 </plist>

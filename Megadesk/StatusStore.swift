@@ -27,6 +27,7 @@ final class StatusStore {
     private var cycleSessionObserver: Any?
     private var flashTimer: Timer?
     private var lastCycleIndex: Int? = nil
+    private let startupTime = Date()
 
     init() {
         loadCustomNames()
@@ -233,6 +234,9 @@ final class StatusStore {
     /// Queries iTerm2 for all active session IDs and removes session files whose
     /// iTerm2 tab no longer exists (e.g. the user closed the terminal tab).
     private func checkOrphanedSessions() {
+        // Skip for the first 30s after launch — iTerm2 may return an incomplete
+        // session list immediately after Megadesk restarts, causing false deletions.
+        guard Date().timeIntervalSince(startupTime) > 30 else { return }
         let script = """
         tell application "iTerm2"
             set ids to {}

@@ -14,6 +14,11 @@ struct TerminalFocuser {
         // in one atomic operation — avoids the race where `set current tab`
         // fails when the window is already frontmost.
         // Returns true if the session was found, false otherwise.
+        // `tell s to select` is the canonical iTerm2 AppleScript call:
+        // it switches the tab, selects the session, and brings the window to front
+        // in one atomic operation — avoids the race where `set current tab`
+        // fails when the window is already frontmost.
+        // Returns true if the session was found, false otherwise.
         let script = """
         tell application "iTerm2"
             repeat with w in windows
@@ -33,10 +38,11 @@ struct TerminalFocuser {
         end tell
         """
 
-        // Activate Megadesk within the button action so macOS treats it as
-        // user-initiated. This gives us an activation token to transfer focus
-        // to iTerm2 via the `activate` command in the script below.
-        NSApp.activate(ignoringOtherApps: true)
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
 
         var error: NSDictionary?
         if let appleScript = NSAppleScript(source: script) {
