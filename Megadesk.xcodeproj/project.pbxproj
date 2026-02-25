@@ -28,6 +28,8 @@
 		AA000019 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000021 /* AppSettings.swift */; };
 		AA000020 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000022 /* SettingsView.swift */; };
 		AA000021 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000023 /* SettingsWindowController.swift */; };
+		AA000022 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000024 /* Provider.swift */; };
+		AA000023 /* megadesk-codex-hook.py in Resources */ = {isa = PBXBuildFile; fileRef = AB000025 /* megadesk-codex-hook.py */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,6 +56,8 @@
 		AB000021 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		AB000022 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AB000023 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		AB000024 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
+		AB000025 /* megadesk-codex-hook.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "megadesk-codex-hook.py"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -81,6 +85,7 @@
 				AB000011 /* Assets.xcassets */,
 				AB000012 /* HookInstaller.swift */,
 				AB000013 /* megadesk-hook.py */,
+				AB000025 /* megadesk-codex-hook.py */,
 				AB000015 /* OnboardingView.swift */,
 				AB000016 /* OnboardingWindowController.swift */,
 				AB000019 /* HelpView.swift */,
@@ -98,6 +103,7 @@
 		AD000002 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				AB000024 /* Provider.swift */,
 				AB000007 /* Session.swift */,
 				AB000017 /* PullRequest.swift */,
 			);
@@ -189,6 +195,7 @@
 			files = (
 				AA000009 /* Assets.xcassets in Resources */,
 				AA000011 /* megadesk-hook.py in Resources */,
+				AA000023 /* megadesk-codex-hook.py in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -235,6 +242,7 @@
 				AA000019 /* AppSettings.swift in Sources */,
 				AA000020 /* SettingsView.swift in Sources */,
 				AA000021 /* SettingsWindowController.swift in Sources */,
+				AA000022 /* Provider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

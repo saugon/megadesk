@@ -13,7 +13,13 @@ struct CompactSessionCardView: View {
     var body: some View {
         Button(action: handleFocus) {
             VStack(spacing: 3) {
-                StatusDot(color: dotColor, pulse: shouldPulse)
+                ZStack(alignment: .topTrailing) {
+                    StatusDot(color: dotColor, pulse: shouldPulse)
+                    Text(session.provider == .codex ? "X" : "C")
+                        .font(.system(size: 6, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.4))
+                        .offset(x: 6, y: -4)
+                }
                 Text(displayName.prefix(4))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundColor(.white.opacity(0.5))

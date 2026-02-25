@@ -7,7 +7,7 @@ import Darwin
 final class StatusStore {
     var sessions: [Session] = []
     var tick: Int = 0  // increments every second to force time re-renders
-    var customNames: [String: String] = [:]  // itermSessionId → custom display name
+    var customNames: [String: String] = [:]  // terminalSessionId → custom display name
 
     // MARK: PR Tracking
     var trackedPRs: [TrackedPR] = []
@@ -70,20 +70,20 @@ final class StatusStore {
 
     @discardableResult
     func focusTerminal(session: Session) -> Bool {
-        // Fallback sessions (itermSessionId == sessionId) have no associated iTerm2 tab —
+        // Fallback sessions (terminalSessionId == sessionId) have no associated iTerm2 tab —
         // $ITERM_SESSION_ID wasn't available (e.g. tmux without the env var, or non-iTerm2
         // terminal). We can't focus them but they're not "not found" either.
-        guard session.itermSessionId != session.sessionId else {
+        guard session.terminalSessionId != session.sessionId else {
             activeSessionId = session.sessionId
             return true
         }
 
-        let found = TerminalFocuser.focusiTerm2(sessionId: session.itermSessionId)
+        let found = TerminalFocuser.focusiTerm2(sessionId: session.terminalSessionId)
 
-        // For tmux sessions the stored iterm_session_id is "{UUID}:{tmux_pane}".
+        // For tmux sessions the stored terminal_session_id is "{UUID}:{tmux_pane}".
         // If focus fails it means the *original* iTerm2 tab was closed (e.g. after
-        // detach/reattach), but Claude is still running inside tmux — don't delete the card.
-        if !found && session.itermSessionId.contains(":") {
+        // detach/reattach), but the agent is still running inside tmux — don't delete the card.
+        if !found && session.terminalSessionId.contains(":") {
             activeSessionId = session.sessionId
             return true
         }
@@ -93,19 +93,19 @@ final class StatusStore {
     }
 
     func displayName(for session: Session) -> String {
-        customNames[session.itermSessionId] ?? session.projectName
+        customNames[session.terminalSessionId] ?? session.projectName
     }
 
     func hasCustomName(for session: Session) -> Bool {
-        customNames[session.itermSessionId] != nil
+        customNames[session.terminalSessionId] != nil
     }
 
     func setCustomName(session: Session, name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         if trimmed.isEmpty || trimmed == session.projectName {
-            customNames.removeValue(forKey: session.itermSessionId)
+            customNames.removeValue(forKey: session.terminalSessionId)
         } else {
-            customNames[session.itermSessionId] = trimmed
+            customNames[session.terminalSessionId] = trimmed
         }
         saveCustomNames()
     }
@@ -154,13 +154,13 @@ final class StatusStore {
             loaded.append(session)
         }
 
-        // Deduplicate by iTerm session ID — one terminal tab = one card
+        // Deduplicate by terminal session ID — one terminal tab = one card
         var seen: [String: Session] = [:]
         for s in loaded {
-            if let existing = seen[s.itermSessionId] {
-                if s.lastUpdated > existing.lastUpdated { seen[s.itermSessionId] = s }
+            if let existing = seen[s.terminalSessionId] {
+                if s.lastUpdated > existing.lastUpdated { seen[s.terminalSessionId] = s }
             } else {
-                seen[s.itermSessionId] = s
+                seen[s.terminalSessionId] = s
             }
         }
         let deduped = Array(seen.values)
@@ -241,7 +241,7 @@ final class StatusStore {
             DispatchQueue.main.async {
                 guard let self, let currentId else { return }
                 guard let match = self.sessions.first(where: {
-                    $0.itermSessionId.components(separatedBy: ":").first == currentId
+                    $0.terminalSessionId.components(separatedBy: ":").first == currentId
                 }) else { return }
                 if self.activeSessionId != match.sessionId {
                     self.activeSessionId = match.sessionId
@@ -329,32 +329,32 @@ final class StatusStore {
 
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                // Collect iTerm session IDs that are no longer present in iTerm2.
-                // Skip fallback sessions (itermSessionId == sessionId) — those aren't iTerm2 sessions.
+                // Collect terminal session IDs that are no longer present in iTerm2.
+                // Skip fallback sessions (terminalSessionId == sessionId) — those aren't iTerm2 sessions.
                 // Also skip recently-updated sessions: inside tmux $ITERM_SESSION_ID can be stale
-                // (e.g. after detach/reattach), but Claude is still actively writing hook events.
+                // (e.g. after detach/reattach), but the agent is still actively writing hook events.
                 let staleThreshold = Date().timeIntervalSince1970 - 120
-                let orphanedItermIds = self.sessions
+                let orphanedTerminalIds = self.sessions
                     .filter { s in
                         // Strip tmux pane suffix (format: "{iterm_uuid}:{tmux_pane}") before
                         // comparing against iTerm2 active IDs, which only know the bare UUID.
-                        let bareId = s.itermSessionId.components(separatedBy: ":").first ?? s.itermSessionId
-                        return s.itermSessionId != s.sessionId &&
+                        let bareId = s.terminalSessionId.components(separatedBy: ":").first ?? s.terminalSessionId
+                        return s.terminalSessionId != s.sessionId &&
                             !activeIds.contains(bareId) &&
                             s.lastUpdated < staleThreshold
                     }
-                    .map(\.itermSessionId)
+                    .map(\.terminalSessionId)
 
-                for itermId in orphanedItermIds {
-                    self.removeSessionFiles(withItermId: itermId)
+                for terminalId in orphanedTerminalIds {
+                    self.removeSessionFiles(withTerminalId: terminalId)
                 }
             }
         }
     }
 
-    /// Deletes all session JSON files that belong to the given iTerm2 session ID,
+    /// Deletes all session JSON files that belong to the given terminal session ID,
     /// then reloads the session list.
-    private func removeSessionFiles(withItermId itermId: String) {
+    private func removeSessionFiles(withTerminalId terminalId: String) {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: sessionsURL, includingPropertiesForKeys: nil) else { return }
         let decoder = JSONDecoder()
@@ -362,7 +362,7 @@ final class StatusStore {
         for file in files where file.pathExtension == "json" {
             guard let data = try? Data(contentsOf: file),
                   let session = try? decoder.decode(Session.self, from: data),
-                  session.itermSessionId == itermId
+                  session.terminalSessionId == terminalId
             else { continue }
             try? fm.removeItem(at: file)
             removed = true

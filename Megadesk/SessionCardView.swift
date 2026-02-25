@@ -145,6 +145,12 @@ struct SessionCardView: View {
                 }
 
                 HStack(spacing: 4) {
+                    Text(session.provider == .codex ? "X" : "C")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.5))
+                        .frame(width: 14, height: 14)
+                        .background(Color.white.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
                     Text(statusLabel)
                         .font(.system(size: 11))
                         .foregroundColor(labelColor)
