@@ -18,7 +18,7 @@ EVENT_STATE_MAP = {
     "UserPromptSubmit": "working",
     "Stop": "waiting",
     "StopInterrupted": "waiting",
-    "SessionStart": "working",
+    "SessionStart": "waiting",
 }
 
 
