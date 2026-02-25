@@ -32,6 +32,10 @@ echo "  Mounted at $MOUNT"
 
 cp -r "$APP_PATH" "$MOUNT/"
 ln -s /Applications "$MOUNT/Applications"
+
+# Embed custom icon inside the volume so it survives HTTP download
+cp "$APP_PATH/Contents/Resources/AppIcon.icns" "$MOUNT/.VolumeIcon.icns"
+SetFile -a C "$MOUNT"
 sync
 
 # Wait for Finder to discover the newly mounted volume
