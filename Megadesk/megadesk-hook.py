@@ -67,6 +67,18 @@ def main():
     if not iterm_session_id:
         iterm_session_id = session_id
 
+    # Kitty: capture window ID and listen socket for remote control
+    kitty_window_id = os.environ.get("KITTY_WINDOW_ID", "")
+    kitty_listen_on = os.environ.get("KITTY_LISTEN_ON", "")
+
+    # Detect terminal type
+    if kitty_window_id:
+        terminal = "kitty"
+    elif os.environ.get("ITERM_SESSION_ID"):
+        terminal = "iterm2"
+    else:
+        terminal = "unknown"
+
     session_file = SESSIONS_DIR / f"{session_id}.json"
     SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -90,7 +102,10 @@ def main():
         "last_updated": now,
         "tool_name": tool_name,
         "last_event": hook_event,
+        "terminal": terminal,
         "iterm_session_id": iterm_session_id,
+        "kitty_window_id": kitty_window_id,
+        "kitty_listen_on": kitty_listen_on,
     }
 
     # On SessionStart, remove stale files from the same iTerm tab
