@@ -57,6 +57,37 @@ struct TerminalFocuser {
         return false
     }
 
+    @discardableResult
+    static func focusKitty(windowId: String, listenOn: String) -> Bool {
+        guard !windowId.isEmpty, !listenOn.isEmpty else { return false }
+
+        NSApp.activate(ignoringOtherApps: true)
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["kitty", "@", "--to", listenOn, "focus-window", "--match", "id:\(windowId)"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError  = FileHandle.nullDevice
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            print("[Megadesk] kitty @ error: \(error)")
+            return false
+        }
+
+        let success = process.terminationStatus == 0
+
+        if success {
+            NSWorkspace.shared.runningApplications
+                .first { $0.bundleIdentifier == "net.kovidgoyal.kitty" }?
+                .activate()
+        }
+
+        return success
+    }
+
     private static var hasShownPermissionAlert = false
 
     private static func showPermissionAlert() {

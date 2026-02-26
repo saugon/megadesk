@@ -8,7 +8,10 @@ struct Session: Identifiable, Codable {
     let lastUpdated: Double
     let toolName: String
     let lastEvent: String
+    let terminal: String
     let itermSessionId: String
+    let kittyWindowId: String
+    let kittyListenOn: String
 
     var id: String { sessionId }
 
@@ -47,6 +50,24 @@ struct Session: Identifiable, Codable {
         case lastUpdated = "last_updated"
         case toolName = "tool_name"
         case lastEvent = "last_event"
+        case terminal
         case itermSessionId = "iterm_session_id"
+        case kittyWindowId = "kitty_window_id"
+        case kittyListenOn = "kitty_listen_on"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        sessionId    = try c.decode(String.self, forKey: .sessionId)
+        cwd          = try c.decode(String.self, forKey: .cwd)
+        state        = try c.decode(String.self, forKey: .state)
+        stateSince   = try c.decode(Double.self, forKey: .stateSince)
+        lastUpdated  = try c.decode(Double.self, forKey: .lastUpdated)
+        toolName     = try c.decodeIfPresent(String.self, forKey: .toolName) ?? ""
+        lastEvent    = try c.decodeIfPresent(String.self, forKey: .lastEvent) ?? ""
+        terminal     = try c.decodeIfPresent(String.self, forKey: .terminal) ?? "iterm2"
+        itermSessionId  = try c.decodeIfPresent(String.self, forKey: .itermSessionId) ?? ""
+        kittyWindowId   = try c.decodeIfPresent(String.self, forKey: .kittyWindowId) ?? ""
+        kittyListenOn   = try c.decodeIfPresent(String.self, forKey: .kittyListenOn) ?? ""
     }
 }
