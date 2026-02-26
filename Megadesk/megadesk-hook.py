@@ -11,6 +11,29 @@ from pathlib import Path
 
 SESSIONS_DIR = Path.home() / ".claude" / "megadesk" / "sessions"
 
+
+def _find_claude_pid() -> int:
+    """Walk the process tree upward to find the 'claude' ancestor PID."""
+    import subprocess
+    pid = os.getpid()
+    for _ in range(6):
+        try:
+            out = subprocess.check_output(
+                ["ps", "-p", str(pid), "-o", "ppid=,comm="],
+                stderr=subprocess.DEVNULL, text=True,
+            ).split(None, 1)
+            ppid = int(out[0])
+            comm = out[1].strip().rsplit("/", 1)[-1] if len(out) > 1 else ""
+            if comm == "claude":
+                return pid
+            if ppid <= 1:
+                break
+            pid = ppid
+        except Exception:
+            break
+    return os.getppid()  # fallback
+
+
 # Mapping of hook events to states
 EVENT_STATE_MAP = {
     "PreToolUse": "working",
@@ -94,6 +117,7 @@ def main():
         "tool_name": tool_name,
         "last_event": hook_event,
         "iterm_session_id": iterm_session_id,
+        "claude_pid": _find_claude_pid(),
     }
 
     # On SessionStart, remove stale files from the same iTerm tab
