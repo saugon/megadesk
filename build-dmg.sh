@@ -1,13 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 
+# Load local config if present
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+[ -f "$SCRIPT_DIR/.env" ] && set -a && source "$SCRIPT_DIR/.env" && set +a
+
 PROJECT="/Users/saugon/lambda/megadesk-v2/Megadesk.xcodeproj"
 DERIVED="/tmp/megadesk-build"
 APP_PATH="$DERIVED/Build/Products/Release/Megadesk.app"
 TMP_DMG="/tmp/megadesk-tmp.dmg"
 VOLUME="Megadesk"
-SIGN_ID="Developer ID Application: Gonzalo Adrián Torres (CHCH97V5ZF)"
-NOTARY_PROFILE="megadesk-notary"
+SIGN_ID="${MEGADESK_SIGN_ID:?Set MEGADESK_SIGN_ID in .env}"
+NOTARY_PROFILE="${MEGADESK_NOTARY_PROFILE:?Set MEGADESK_NOTARY_PROFILE in .env}"
+ENTITLEMENTS="$(dirname "$0")/Megadesk/Megadesk.entitlements"
 
 echo "→ Building..."
 xcodebuild \
@@ -22,6 +27,7 @@ xcodebuild \
 
 echo "→ Signing app..."
 codesign --force --deep --options runtime \
+  --entitlements "$ENTITLEMENTS" \
   --sign "$SIGN_ID" \
   "$APP_PATH"
 
@@ -82,6 +88,9 @@ ObjC.import('AppKit');
 var icon = \$.NSImage.alloc.initWithContentsOfFile('$ICNS');
 \$.NSWorkspace.sharedWorkspace.setIconForFileOptions(icon, '$DMG_OUT', 0);
 JSEOF
+
+echo "→ Signing DMG..."
+codesign --force --sign "$SIGN_ID" "$DMG_OUT"
 
 echo "→ Notarizing DMG..."
 xcrun notarytool submit "$DMG_OUT" \

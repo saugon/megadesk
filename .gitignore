@@ -17,6 +17,9 @@ DerivedData/
 *.dSYM.zip
 *.dSYM
 
+# Local config
+.env
+
 # Build artifacts
 build/
 *.dmg
