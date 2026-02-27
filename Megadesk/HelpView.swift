@@ -22,7 +22,7 @@ struct HelpView: View {
 
             Divider()
 
-            // Session + PR state references side by side
+            // Session + PR + Issue state references
             HStack(alignment: .top, spacing: 12) {
                 GroupBox("Session States") {
                     VStack(alignment: .leading, spacing: 10) {
@@ -46,6 +46,15 @@ struct HelpView: View {
                     .padding(6)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+
+                GroupBox("Issue States") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        StateRow(color: .green,             label: "Open",   description: "Issue is open and unresolved")
+                        StateRow(color: Color(white: 0.45), label: "Closed", description: "Issue was closed or completed")
+                    }
+                    .padding(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
 
             // Features
@@ -55,6 +64,7 @@ struct HelpView: View {
                     FeatureRow(icon: "pencil",                      text: "Click ✏ on a card to rename it — persists through cd changes")
                     FeatureRow(icon: "rectangle.compress.vertical", text: "Compact Mode: condensed single-column view")
                     FeatureRow(icon: "arrow.triangle.pull",         text: "PR Tracking: paste a PR URL (e.g. github.com/org/repo/pull/123) to monitor its status via the gh CLI")
+                    FeatureRow(icon: "exclamationmark.bubble",        text: "Issue Tracking: paste an issue URL to monitor status, with Solve (wrench) and Explore (magnifying glass) buttons")
                 }
                 .padding(6)
             }
