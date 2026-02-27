@@ -24,11 +24,6 @@ Megadesk is a macOS menu-bar widget that shows all your active Claude Code sessi
 
 ---
 
-> **Note:** The app is not yet code-signed. If macOS blocks it from opening, run this command once in Terminal:
-> ```
-> xattr -cr /Applications/Megadesk.app
-> ```
-
 ---
 
 ## Requirements
