@@ -57,6 +57,27 @@ struct TerminalFocuser {
         return false
     }
 
+    static func runCommand(_ command: String) {
+        let escaped = command.replacingOccurrences(of: "\"", with: "\\\"")
+        let script = """
+        tell application "iTerm2"
+            tell current window
+                create tab with default profile
+                tell current session of current tab
+                    write text "\(escaped)"
+                end tell
+            end tell
+            activate
+        end tell
+        """
+        NSApp.activate(ignoringOtherApps: true)
+        var error: NSDictionary?
+        if let appleScript = NSAppleScript(source: script) {
+            appleScript.executeAndReturnError(&error)
+            if error != nil { showPermissionAlert() }
+        }
+    }
+
     private static var hasShownPermissionAlert = false
 
     private static func showPermissionAlert() {

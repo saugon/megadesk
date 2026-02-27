@@ -134,6 +134,10 @@ struct PRCardView: View {
                         .opacity(isHovered ? 0 : 1)
                         .animation(.easeInOut(duration: 0.15), value: isHovered)
 
+                    HStack(spacing: 2) {
+                        if let prompt = fixPrompt(pr) {
+                            fixButton(prompt: prompt)
+                        }
                         deleteButton
                     }
                 }
@@ -151,6 +155,28 @@ struct PRCardView: View {
     }
 
     // MARK: - Helpers
+
+    private func fixPrompt(_ pr: PullRequest) -> String? {
+        guard !pr.isMerged, !pr.isClosed else { return nil }
+        if pr.hasConflicts { return "Fix conflicts in PR \(trackedPR.repo)#\(pr.number)" }
+        if pr.ciStatus == .failing { return "Fix CI in PR \(trackedPR.repo)#\(pr.number)" }
+        if pr.isBehindMain { return "Make PR \(trackedPR.repo)#\(pr.number) up-to-date" }
+        return nil
+    }
+
+    private func fixButton(prompt: String) -> some View {
+        Button(action: { TerminalFocuser.runCommand("claudios \"\(prompt)\"") }) {
+            Image(systemName: "wrench.adjustable")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.white.opacity(isHovered ? 0.6 : 0.3))
+                .frame(width: 16, height: 16)
+                .background(Color.white.opacity(isHovered ? 0.1 : 0))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .opacity(isHovered ? 1 : 0)
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
+    }
 
     private var deleteButton: some View {
         Button(action: onRemove) {
