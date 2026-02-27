@@ -135,8 +135,8 @@ struct PRCardView: View {
                         .animation(.easeInOut(duration: 0.15), value: isHovered)
 
                     HStack(spacing: 2) {
-                        if let prompt = fixPrompt(pr) {
-                            fixButton(prompt: prompt)
+                        if let command = fixCommand(pr) {
+                            fixButton(command: command)
                         }
                         deleteButton
                     }
@@ -156,16 +156,37 @@ struct PRCardView: View {
 
     // MARK: - Helpers
 
-    private func fixPrompt(_ pr: PullRequest) -> String? {
+    private func fixCommand(_ pr: PullRequest) -> String? {
         guard !pr.isMerged, !pr.isClosed else { return nil }
-        if pr.hasConflicts { return "Fix conflicts in PR \(trackedPR.repo)#\(pr.number)" }
-        if pr.ciStatus == .failing { return "Fix CI in PR \(trackedPR.repo)#\(pr.number)" }
-        if pr.isBehindMain { return "Make PR \(trackedPR.repo)#\(pr.number) up-to-date" }
-        return nil
+
+        let prompt: String
+        if pr.hasConflicts { prompt = "Fix conflicts in PR \(trackedPR.repo)#\(pr.number) and push" }
+        else if pr.ciStatus == .failing { prompt = "Fix CI in PR \(trackedPR.repo)#\(pr.number) and push" }
+        else if pr.isBehindMain { prompt = "Make PR \(trackedPR.repo)#\(pr.number) up-to-date and push" }
+        else { return nil }
+
+        let repoParts = trackedPR.repo.components(separatedBy: "/")
+        guard repoParts.count == 2 else { return nil }
+        let owner = repoParts[0]
+        let repo = repoParts[1]
+        let branch = pr.headRefName
+        let wt = "fix-\(pr.number)"
+
+        return """
+        REPO="$HOME/Repositories/\(owner)/\(repo)" && \
+        cd "$REPO" && \
+        git fetch origin "\(branch)" && \
+        git worktree remove ".worktrees/\(wt)" 2>/dev/null; \
+        cd "$REPO" && \
+        git worktree add ".worktrees/\(wt)" "origin/\(branch)" && \
+        cd "$REPO/.worktrees/\(wt)" && \
+        claudios "\(prompt)"; \
+        cd "$REPO" && git worktree remove ".worktrees/\(wt)" 2>/dev/null
+        """
     }
 
-    private func fixButton(prompt: String) -> some View {
-        Button(action: { TerminalFocuser.runCommand("claudios \"\(prompt)\"") }) {
+    private func fixButton(command: String) -> some View {
+        Button(action: { TerminalFocuser.runCommand(command, closeOnCompletion: true) }) {
             Image(systemName: "wrench.adjustable")
                 .font(.system(size: 10, weight: .medium))
                 .foregroundColor(.white.opacity(isHovered ? 0.6 : 0.3))
