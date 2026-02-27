@@ -7,6 +7,44 @@ private final class FirstMouseHostingView<Content: View>: NSHostingView<Content>
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+/// PreferenceKey that captures the content's actual height inside the ScrollView.
+private struct ContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// Bridge class: SwiftUI writes content height, AppKit reads it and gets notified.
+private final class HeightReporter {
+    var onHeightChange: (() -> Void)?
+    var contentHeight: CGFloat = 0 {
+        didSet {
+            if contentHeight != oldValue { onHeightChange?() }
+        }
+    }
+}
+
+/// Wraps content in a ScrollView and measures its height via PreferenceKey.
+private struct HeightMeasuringScrollView<Content: View>: View {
+    let content: Content
+    let reporter: HeightReporter
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            content
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(key: ContentHeightKey.self, value: geo.size.height)
+                    }
+                )
+        }
+        .onPreferenceChange(ContentHeightKey.self) { height in
+            reporter.contentHeight = height
+        }
+    }
+}
+
 /// NSPanel subclass that can become the key window, enabling TextField keyboard input
 /// without activating the application (handled separately per edit session).
 private final class EditablePanel: NSPanel {
@@ -24,6 +62,7 @@ final class FloatingWindowController: NSWindowController {
     private var titleLabel: NSTextField?
     private var suppressPositionSave = false
     private var isHovered = false
+    private var heightReporter = HeightReporter()
 
     convenience init(contentView: some View) {
         let initialCompact = UserDefaults.standard.bool(forKey: "megadesk.compact")
@@ -51,11 +90,18 @@ final class FloatingWindowController: NSWindowController {
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
-        // Use FirstMouseHostingView so taps fire on the first click
-        panel.contentView = FirstMouseHostingView(rootView:
-            contentView
-                .background(Color(nsColor: NSColor(white: 0.1, alpha: 0.0)))
+        // Use FirstMouseHostingView so taps fire on the first click.
+        // Wrap content in HeightMeasuringScrollView for height clamping + scrolling.
+        let reporter = HeightReporter()
+        let hosting = FirstMouseHostingView(rootView:
+            HeightMeasuringScrollView(
+                content: contentView
+                    .background(Color(nsColor: NSColor(white: 0.1, alpha: 0.0))),
+                reporter: reporter
+            )
         )
+        hosting.sizingOptions = []  // We control the panel height, not the hosting view
+        panel.contentView = hosting
 
         if let corner = panel.contentView {
             corner.wantsLayer = true
@@ -81,6 +127,11 @@ final class FloatingWindowController: NSWindowController {
         }
         observeOpacity()
 
+        self.heightReporter = reporter
+        reporter.onHeightChange = { [weak self] in
+            self?.adjustPanelHeight()
+        }
+
         installTitlebarControls(in: panel, compact: initialCompact)
 
         NotificationCenter.default.addObserver(
@@ -97,6 +148,14 @@ final class FloatingWindowController: NSWindowController {
             queue: .main
         ) { [weak self] _ in
             self?.handleWindowMove()
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.adjustPanelHeight()
         }
     }
 
@@ -237,6 +296,7 @@ final class FloatingWindowController: NSWindowController {
                                display: true, animate: false)
             }
             self.suppressPositionSave = false
+            self.adjustPanelHeight()
             self.titleLabel?.stringValue = newValue ? "md" : "megadesk"
             self.titleLabel?.sizeToFit()
             if let label = self.titleLabel, let superview = label.superview {
@@ -245,6 +305,36 @@ final class FloatingWindowController: NSWindowController {
 
             self.show()   // fade-in reutilizando la animación existente
         }
+    }
+
+    private func adjustPanelHeight() {
+        guard let panel = window else { return }
+        let contentHeight = heightReporter.contentHeight
+        guard contentHeight > 0 else { return }
+
+        let screenMax: CGFloat
+        if let visibleFrame = panel.screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
+            let panelTopY = panel.frame.origin.y + panel.frame.height
+            let margin: CGFloat = 8
+            screenMax = panelTopY - visibleFrame.origin.y - margin
+        } else {
+            screenMax = 800
+        }
+
+        let targetHeight = max(120, min(contentHeight, screenMax))
+
+        // Preserve top-left position
+        let topLeft = NSPoint(x: panel.frame.origin.x, y: panel.frame.origin.y + panel.frame.height)
+        let newFrame = NSRect(
+            x: topLeft.x,
+            y: topLeft.y - targetHeight,
+            width: panel.frame.width,
+            height: targetHeight
+        )
+
+        suppressPositionSave = true
+        panel.setFrame(newFrame, display: true, animate: false)
+        suppressPositionSave = false
     }
 
     func show() {
@@ -274,6 +364,7 @@ final class FloatingWindowController: NSWindowController {
         } else {
             window.orderFrontRegardless()
         }
+        adjustPanelHeight()
     }
 
     func hide() {
