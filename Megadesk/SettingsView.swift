@@ -6,6 +6,23 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             Form {
+                Section("Paths") {
+                    LabeledContent("Repositories") {
+                        TextField("~/Repositories", text: $settings.repoBasePath)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 200)
+                            .onChange(of: settings.repoBasePath) { _, _ in settings.save() }
+                    }
+                    LabeledContent("Clone path") {
+                        TextField("~/.megadesk/repos", text: $settings.cloneBasePath)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 200)
+                            .onChange(of: settings.cloneBasePath) { _, _ in settings.save() }
+                    }
+                }
+
                 Section("Behavior") {
                     LabeledContent("Forgotten after") {
                         Stepper("\(settings.forgottenMinutes) min",
@@ -48,6 +65,11 @@ struct SettingsView: View {
                     colorRow("CI Failing", hex: $settings.hexPRFailing)
                     colorRow("Merged",     hex: $settings.hexPRMerged)
                     colorRow("Closed",     hex: $settings.hexPRClosed)
+                }
+
+                Section("Issue States") {
+                    colorRow("Open",   hex: $settings.hexIssueOpen)
+                    colorRow("Closed", hex: $settings.hexIssueClosed)
                 }
             }
             .formStyle(.grouped)

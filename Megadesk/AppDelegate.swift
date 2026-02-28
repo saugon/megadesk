@@ -146,6 +146,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         prItem.target = self
         prItem.tag = 10
         menu.addItem(prItem)
+        let issueItem = NSMenuItem(title: "Show Issue Tracking", action: #selector(toggleIssueTracking), keyEquivalent: "")
+        issueItem.target = self
+        issueItem.tag = 11
+        menu.addItem(issueItem)
         menu.addItem(.separator())
         let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
@@ -167,6 +171,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func togglePRTracking() {
         let key = "megadesk.prTracking"
+        let current = UserDefaults.standard.object(forKey: key) as? Bool ?? true
+        UserDefaults.standard.set(!current, forKey: key)
+    }
+
+    @objc private func toggleIssueTracking() {
+        let key = "megadesk.issueTracking"
         let current = UserDefaults.standard.object(forKey: key) as? Bool ?? true
         UserDefaults.standard.set(!current, forKey: key)
     }
@@ -197,6 +207,8 @@ extension AppDelegate: NSMenuDelegate {
         menu.item(at: 1)?.state = (windowController?.isCompact ?? false) ? .on : .off
         let prEnabled = UserDefaults.standard.object(forKey: "megadesk.prTracking") as? Bool ?? true
         menu.item(withTag: 10)?.state = prEnabled ? .on : .off
+        let issueEnabled = UserDefaults.standard.object(forKey: "megadesk.issueTracking") as? Bool ?? true
+        menu.item(withTag: 11)?.state = issueEnabled ? .on : .off
     }
 }
 

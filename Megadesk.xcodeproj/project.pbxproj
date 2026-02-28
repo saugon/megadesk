@@ -28,6 +28,8 @@
 		AA000019 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000021 /* AppSettings.swift */; };
 		AA000020 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000022 /* SettingsView.swift */; };
 		AA000021 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000023 /* SettingsWindowController.swift */; };
+		AA000024 /* Issue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000026 /* Issue.swift */; };
+		AA000025 /* IssueCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000027 /* IssueCardView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,6 +56,8 @@
 		AB000021 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		AB000022 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AB000023 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		AB000026 /* Issue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Issue.swift; sourceTree = "<group>"; };
+		AB000027 /* IssueCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IssueCardView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -76,6 +80,7 @@
 				AB000004 /* ContentView.swift */,
 				AB000005 /* SessionCardView.swift */,
 				AB000018 /* PRCardView.swift */,
+				AB000027 /* IssueCardView.swift */,
 				AB000014 /* CompactSessionCardView.swift */,
 				AB000006 /* StatusStore.swift */,
 				AB000011 /* Assets.xcassets */,
@@ -100,6 +105,7 @@
 			children = (
 				AB000007 /* Session.swift */,
 				AB000017 /* PullRequest.swift */,
+				AB000026 /* Issue.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -235,6 +241,8 @@
 				AA000019 /* AppSettings.swift in Sources */,
 				AA000020 /* SettingsView.swift in Sources */,
 				AA000021 /* SettingsWindowController.swift in Sources */,
+				AA000024 /* Issue.swift in Sources */,
+				AA000025 /* IssueCardView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -365,7 +373,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 5;
-				DEVELOPMENT_TEAM = H3ZJZ84RLJ;
+				DEVELOPMENT_TEAM = USK8DNRN4G;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Megadesk/Info.plist;
@@ -391,7 +399,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 5;
-				DEVELOPMENT_TEAM = H3ZJZ84RLJ;
+				DEVELOPMENT_TEAM = USK8DNRN4G;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Megadesk/Info.plist;

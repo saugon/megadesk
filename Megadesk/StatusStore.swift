@@ -14,6 +14,11 @@ final class StatusStore {
     var prLastFetchedAt: Date?
     private var prTimer: Timer?
 
+    // MARK: Issue Tracking
+    var trackedIssues: [TrackedIssue] = []
+    var issueLastFetchedAt: Date?
+    private var issueTimer: Timer?
+
     private let sessionsURL: URL = {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return home.appendingPathComponent(".claude/megadesk/sessions")
@@ -40,6 +45,8 @@ final class StatusStore {
         startTimer()
         loadTrackedPRSlugs()
         startPRTimer()
+        loadTrackedIssueSlugs()
+        startIssueTimer()
         focusSessionObserver = NotificationCenter.default.addObserver(
             forName: .megadeskFocusSession, object: nil, queue: .main
         ) { [weak self] note in
@@ -61,6 +68,7 @@ final class StatusStore {
         watchSource?.cancel()
         timer?.invalidate()
         prTimer?.invalidate()
+        issueTimer?.invalidate()
         if dirFD >= 0 { close(dirFD) }
         if let obs = focusSessionObserver { NotificationCenter.default.removeObserver(obs) }
         if let obs = cycleSessionObserver  { NotificationCenter.default.removeObserver(obs) }
@@ -512,6 +520,106 @@ final class StatusStore {
         fetchAllPRs()
         prTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
             self?.fetchAllPRs()
+        }
+    }
+
+    // MARK: - Issue Tracking
+
+    func addTrackedIssue(repo: String, number: Int) {
+        let id = "\(repo)#\(number)"
+        guard !trackedIssues.contains(where: { $0.id == id }) else { return }
+        trackedIssues.append(TrackedIssue(repo: repo, number: number))
+        saveTrackedIssueSlugs()
+        fetchIssue(repo: repo, number: number)
+    }
+
+    func removeTrackedIssue(id: String) {
+        trackedIssues.removeAll { $0.id == id }
+        saveTrackedIssueSlugs()
+    }
+
+    private func loadTrackedIssueSlugs() {
+        guard let slugs = UserDefaults.standard.stringArray(forKey: "megadesk.trackedIssues") else { return }
+        trackedIssues = slugs.compactMap { slug in
+            guard let (repo, number) = TrackedIssue.parse(slug) else { return nil }
+            return TrackedIssue(repo: repo, number: number)
+        }
+    }
+
+    private func saveTrackedIssueSlugs() {
+        UserDefaults.standard.set(trackedIssues.map(\.id), forKey: "megadesk.trackedIssues")
+    }
+
+    func fetchAllIssues() {
+        issueLastFetchedAt = Date()
+        for issue in trackedIssues {
+            fetchIssue(repo: issue.repo, number: issue.number)
+        }
+    }
+
+    func fetchIssue(repo: String, number: Int) {
+        let id = "\(repo)#\(number)"
+        guard let idx = trackedIssues.firstIndex(where: { $0.id == id }) else { return }
+        trackedIssues[idx].fetchState = .loading
+
+        let ghPaths = ["/usr/local/bin/gh", "/opt/homebrew/bin/gh"]
+        guard let ghPath = ghPaths.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
+            trackedIssues[idx].fetchState = .error("gh not found")
+            return
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: ghPath)
+        process.arguments = [
+            "issue", "view", "\(number)",
+            "--repo", repo,
+            "--json", "number,title,author,body,state,stateReason,labels,url,updatedAt"
+        ]
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+
+        let watchdog = DispatchWorkItem { process.terminate() }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 15, execute: watchdog)
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            do {
+                try process.run()
+                process.waitUntilExit()
+                watchdog.cancel()
+
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+
+                DispatchQueue.main.async {
+                    guard let self, let i = self.trackedIssues.firstIndex(where: { $0.id == id }) else { return }
+
+                    guard process.terminationStatus == 0 else {
+                        self.trackedIssues[i].fetchState = .error("not found or no auth")
+                        return
+                    }
+
+                    do {
+                        let issue = try JSONDecoder().decode(Issue.self, from: data)
+                        self.trackedIssues[i].data = issue
+                        self.trackedIssues[i].fetchState = .loaded
+                    } catch {
+                        self.trackedIssues[i].fetchState = .error("parse error")
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    guard let self, let i = self.trackedIssues.firstIndex(where: { $0.id == id }) else { return }
+                    self.trackedIssues[i].fetchState = .error("gh not found")
+                }
+            }
+        }
+    }
+
+    private func startIssueTimer() {
+        fetchAllIssues()
+        issueTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
+            self?.fetchAllIssues()
         }
     }
 }
