@@ -172,10 +172,6 @@ struct IssueCardView: View {
         let wt = "issue-\(issue.number)"
         let repoBase = AppSettings.shared.repoBasePath
         let cloneBase = AppSettings.shared.cloneBasePath
-        let escapedBody = issue.truncatedBody
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "'", with: "'\\''")
         let escapedTitle = issue.title
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
@@ -199,7 +195,7 @@ struct IssueCardView: View {
         cd "$REPO" && \
         git worktree add ".worktrees/\(wt)" "origin/${DEFAULT_BRANCH}" && \
         cd "$REPO/.worktrees/\(wt)" && \
-        claudios 'Implement a fix for issue \(trackedIssue.repo)#\(issue.number): \(escapedTitle). Issue body: '"'"'\(escapedBody)'"'"'. Create a branch, implement the fix, and push.'; \
+        claudios 'Solve issue \(trackedIssue.repo)#\(issue.number): \(escapedTitle). Steps: 1) Read the full issue with gh issue view \(issue.number) --repo \(trackedIssue.repo) --comments to get the description, labels, and discussion. 2) Check for linked PRs or referenced issues for prior context. 3) Explore the codebase to understand the relevant code, architecture, and existing patterns. 4) Plan the implementation and use a team of Claude agents to implement the fix in parallel. 5) Create a branch, implement, run tests and verify the build passes, and push.'; \
         cd "$REPO" && git worktree remove ".worktrees/\(wt)" 2>/dev/null
         """
     }
