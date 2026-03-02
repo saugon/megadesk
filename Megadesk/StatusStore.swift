@@ -255,7 +255,7 @@ final class StatusStore {
     /// and cancels watchers for sessions that are no longer in the list.
     /// When a watched process exits, the card is removed instantly via kqueue notification.
     private func updateProcessWatchers() {
-        let activeIds = Set(sessions.compactMap { $0.claudePid != nil ? $0.itermSessionId : nil })
+        let activeIds = Set(sessions.compactMap { $0.claudePid != nil ? $0.terminalSessionId : nil })
 
         // Cancel watchers for sessions no longer loaded
         for id in Set(processSources.keys).subtracting(activeIds) {
@@ -266,15 +266,15 @@ final class StatusStore {
         // Register watchers for new sessions
         for session in sessions {
             guard let pid = session.claudePid,
-                  processSources[session.itermSessionId] == nil else { continue }
+                  processSources[session.terminalSessionId] == nil else { continue }
 
             // If already dead, remove immediately
             guard kill(pid_t(pid), 0) == 0 || errno == EPERM else {
-                removeSessionFiles(withItermId: session.itermSessionId)
+                removeSessionFiles(withTerminalId: session.terminalSessionId)
                 continue
             }
 
-            let itermId = session.itermSessionId
+            let itermId = session.terminalSessionId
             let source = DispatchSource.makeProcessSource(
                 identifier: pid_t(pid),
                 eventMask: .exit,
@@ -282,7 +282,7 @@ final class StatusStore {
             )
             source.setEventHandler { [weak self] in
                 self?.processSources.removeValue(forKey: itermId)
-                self?.removeSessionFiles(withItermId: itermId)
+                self?.removeSessionFiles(withTerminalId: itermId)
             }
             source.resume()
             processSources[itermId] = source
