@@ -32,7 +32,7 @@ struct Session: Identifiable, Codable {
     /// Claude is almost certainly waiting for the user to approve/deny a confirmation.
     /// Bash is excluded because it can run legitimately for minutes.
     var needsConfirmation: Bool {
-        guard isWorking && lastEvent == "PreToolUse" else { return false }
+        guard isWorking && lastEvent == "PreToolUse" && toolName != "Bash" else { return false }
         return Date().timeIntervalSince1970 - lastUpdated > 4
     }
 
