@@ -134,7 +134,14 @@ struct PRCardView: View {
                         .opacity(isHovered ? 0 : 1)
                         .animation(.easeInOut(duration: 0.15), value: isHovered)
 
-                        deleteButton
+                        HStack(spacing: 2) {
+                            if let command = fixCommand(pr) {
+                                fixButton(command: command)
+                            }
+                            deleteButton
+                        }
+                        .opacity(isHovered ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.15), value: isHovered)
                     }
                 }
             }
@@ -151,6 +158,60 @@ struct PRCardView: View {
     }
 
     // MARK: - Helpers
+
+    private func fixCommand(_ pr: PullRequest) -> String? {
+        guard !pr.isMerged, !pr.isClosed else { return nil }
+
+        let prompt: String
+        if pr.hasConflicts { prompt = "Fix conflicts in PR \(trackedPR.repo)#\(pr.number) and push" }
+        else if pr.ciStatus == .failing { prompt = "Fix CI in PR \(trackedPR.repo)#\(pr.number) and push" }
+        else if pr.isBehindMain { prompt = "Make PR \(trackedPR.repo)#\(pr.number) up-to-date and push" }
+        else { return nil }
+
+        let headOwner = pr.headRepositoryOwner.login
+        let repoParts = trackedPR.repo.components(separatedBy: "/")
+        guard repoParts.count == 2 else { return nil }
+        let repo = repoParts[1]
+        let branch = pr.headRefName
+        let wt = "fix-\(pr.number)"
+        let repoBase = AppSettings.shared.repoBasePath
+        let cloneBase = AppSettings.shared.cloneBasePath
+
+        return """
+        REPO_BASE="\(repoBase)"; \
+        REPO="${REPO_BASE/#\\~/$HOME}/\(headOwner)/\(repo)"; \
+        if [ ! -d "$REPO/.git" ]; then \
+          CLONE_BASE="\(cloneBase)"; \
+          REPO="${CLONE_BASE/#\\~/$HOME}/\(headOwner)/\(repo)"; \
+          if [ ! -d "$REPO/.git" ]; then \
+            echo "Cloning \(headOwner)/\(repo)..."; \
+            gh repo clone "\(headOwner)/\(repo)" "$REPO" -- --filter=blob:none || exit 1; \
+          fi; \
+        fi; \
+        cd "$REPO" && \
+        git fetch origin "\(branch)" && \
+        git worktree remove ".worktrees/\(wt)" 2>/dev/null; \
+        cd "$REPO" && \
+        git worktree add ".worktrees/\(wt)" "origin/\(branch)" && \
+        cd "$REPO/.worktrees/\(wt)" && \
+        claudios "\(prompt)"; \
+        cd "$REPO" && git worktree remove ".worktrees/\(wt)" 2>/dev/null
+        """
+    }
+
+    private func fixButton(command: String) -> some View {
+        Button(action: { TerminalFocuser.runCommand(command, closeOnCompletion: true) }) {
+            Image(systemName: "wrench.adjustable")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.white.opacity(isHovered ? 0.6 : 0.3))
+                .frame(width: 16, height: 16)
+                .background(Color.white.opacity(isHovered ? 0.1 : 0))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .opacity(isHovered ? 1 : 0)
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
+    }
 
     private var deleteButton: some View {
         Button(action: onRemove) {

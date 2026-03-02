@@ -464,7 +464,7 @@ final class StatusStore {
         process.arguments = [
             "pr", "view", "\(number)",
             "--repo", repo,
-            "--json", "number,title,author,headRefName,state,mergeable,mergeStateStatus,statusCheckRollup,url,updatedAt"
+            "--json", "number,title,author,headRefName,headRepositoryOwner,state,mergeable,mergeStateStatus,statusCheckRollup,url,updatedAt"
         ]
 
         let pipe = Pipe()

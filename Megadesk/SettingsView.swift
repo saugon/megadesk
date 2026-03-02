@@ -6,6 +6,23 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             Form {
+                Section("Paths") {
+                    LabeledContent("Repositories") {
+                        TextField("~/Repositories", text: $settings.repoBasePath)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 200)
+                            .onChange(of: settings.repoBasePath) { _, _ in settings.save() }
+                    }
+                    LabeledContent("Clone path") {
+                        TextField("~/.megadesk/repos", text: $settings.cloneBasePath)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 200)
+                            .onChange(of: settings.cloneBasePath) { _, _ in settings.save() }
+                    }
+                }
+
                 Section("Behavior") {
                     LabeledContent("Forgotten after") {
                         Stepper("\(settings.forgottenMinutes) min",
