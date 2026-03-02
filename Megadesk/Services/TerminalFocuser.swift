@@ -3,10 +3,10 @@ import AppKit
 
 struct TerminalFocuser {
     @discardableResult
-    static func focusiTerm2(sessionId: String) -> Bool {
-        // sessionId is the bare UUID (hook script strips the "w0t0p0:" prefix).
+    static func focusiTerm2(sessionId terminalSessionId: String) -> Bool {
+        // terminalSessionId is the bare UUID (hook script strips the "w0t0p0:" prefix).
         // Inside tmux the format is "{uuid}:{tmux_pane}" — strip the suffix.
-        let rawId = sessionId.components(separatedBy: ":").first ?? sessionId
+        let rawId = terminalSessionId.components(separatedBy: ":").first ?? terminalSessionId
         guard !rawId.isEmpty else { return false }
 
         // `tell s to select` is the canonical iTerm2 AppleScript call:
