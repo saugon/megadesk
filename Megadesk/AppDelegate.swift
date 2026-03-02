@@ -23,7 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try? HookInstaller.install()
 
         let contentView = ContentView()
-        windowController = FloatingWindowController(contentView: contentView)
+        windowController = FloatingWindowController(contentView: contentView, footerView: contentView.footerView)
         windowController?.window?.delegate = self
         setupMenuBar()
         registerGlobalHotKey()
