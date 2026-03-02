@@ -28,6 +28,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMenuBar()
         registerGlobalHotKey()
 
+        // Silently update hook scripts on every launch (copies latest bundled scripts,
+        // patches config files only if not yet registered).
+        for provider in Provider.allCases {
+            try? HookInstaller.install(provider: provider)
+        }
+
         if UserDefaults.standard.bool(forKey: "megadesk.onboardingComplete") {
             windowController?.show()
         } else {

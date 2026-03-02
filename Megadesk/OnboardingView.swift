@@ -4,9 +4,12 @@ import SwiftUI
 struct OnboardingView: View {
     var onFinish: () -> Void
 
-    @State private var hookDone = HookInstaller.isInstalled()
+    @State private var claudeHookDone = HookInstaller.isInstalled(provider: .claude)
+    @State private var codexHookDone = HookInstaller.isInstalled(provider: .codex)
     @State private var itermDone = false
     @State private var itermDenied = false
+
+    private var anyHookDone: Bool { claudeHookDone || codexHookDone }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -20,36 +23,53 @@ struct OnboardingView: View {
                 Text("Welcome to Megadesk")
                     .font(.title2)
                     .fontWeight(.semibold)
-                Text("Two quick steps to get started")
+                Text("Connect at least one provider to get started")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
 
-            // Step 1: Install hook
+            // Step 1: Install Claude hook
             StepCard(
                 number: 1,
                 title: "Connect Claude Code",
                 description: "Adds a hook to ~/.claude/settings.json to track session activity.",
                 buttonLabel: "Install Hook",
-                isDone: hookDone,
+                isDone: claudeHookDone,
                 isDisabled: false
             ) {
                 do {
-                    try HookInstaller.install()
-                    hookDone = true
+                    try HookInstaller.install(provider: .claude)
+                    claudeHookDone = true
                 } catch {
                     // silently ignore; user can retry
                 }
             }
 
-            // Step 2: iTerm2 AppleScript permission
+            // Step 2: Install Codex hook (optional)
             StepCard(
                 number: 2,
+                title: "Connect Codex",
+                description: "Sets the notify command in ~/.codex/config.toml. Optional — skip if you don't use Codex.",
+                buttonLabel: "Install Hook",
+                isDone: codexHookDone,
+                isDisabled: false
+            ) {
+                do {
+                    try HookInstaller.install(provider: .codex)
+                    codexHookDone = true
+                } catch {
+                    // silently ignore; user can retry
+                }
+            }
+
+            // Step 3: iTerm2 AppleScript permission
+            StepCard(
+                number: 3,
                 title: "Allow iTerm2 Control",
                 description: "Uses AppleScript to focus the right tab when you click a session card.",
                 buttonLabel: "Grant Access",
                 isDone: itermDone,
-                isDisabled: !hookDone
+                isDisabled: !anyHookDone
             ) {
                 var errorDict: NSDictionary?
                 NSAppleScript(source: "tell application \"iTerm2\" to get name")?
@@ -74,7 +94,7 @@ struct OnboardingView: View {
                 UserDefaults.standard.set(true, forKey: "megadesk.onboardingComplete")
                 onFinish()
             }
-            .disabled(!hookDone)
+            .disabled(!anyHookDone)
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
         }

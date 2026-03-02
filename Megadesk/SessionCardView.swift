@@ -145,6 +145,12 @@ struct SessionCardView: View {
                 }
 
                 HStack(spacing: 4) {
+                    Text(session.provider == .codex ? "X" : "C")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.5))
+                        .frame(width: 14, height: 14)
+                        .background(Color.white.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
                     Text(statusLabel)
                         .font(.system(size: 11))
                         .foregroundColor(labelColor)
@@ -286,6 +292,7 @@ struct SessionCardView: View {
         if session.needsConfirmation { return AppSettings.shared.colorConfirmation }
         if session.isWorking         { return AppSettings.shared.colorWorking }
         if session.isForgotten       { return AppSettings.shared.colorForgotten }
+        if session.isIdle            { return AppSettings.shared.colorForgotten }
         return AppSettings.shared.colorWaiting
     }
 
@@ -296,6 +303,7 @@ struct SessionCardView: View {
         if session.needsConfirmation { return "needs confirmation" }
         if session.isWorking         { return "working" }
         if session.isForgotten       { return "forgotten" }
+        if session.isIdle            { return "idle" }
         return "waiting for input"
     }
 
@@ -304,12 +312,14 @@ struct SessionCardView: View {
         if session.needsConfirmation { return AppSettings.shared.colorConfirmation.opacity(0.9) }
         if session.isWorking         { return AppSettings.shared.colorWorking.opacity(0.8) }
         if session.isForgotten       { return isFlashing ? Color(white: 0.7) : Color(white: 0.4) }
+        if session.isIdle            { return Color(white: 0.4) }
         return AppSettings.shared.colorWaiting.opacity(0.9)
     }
 
     private var cardBackground: Color {
         if isDying                                     { return Color.red.opacity(isHovered ? 0.12 : 0.06) }
         if session.needsConfirmation                   { return AppSettings.shared.colorConfirmation.opacity(isHovered ? 0.16 : 0.08) }
+        if session.isIdle                              { return Color.white.opacity(isHovered ? 0.07 : 0.02) }
         if !session.isWorking && !session.isForgotten  { return AppSettings.shared.colorWaiting.opacity(isHovered ? 0.16 : 0.08) }
         if session.isForgotten                         { return Color.white.opacity(isHovered ? 0.07 : 0.02) }
         return Color.white.opacity(isHovered ? 0.12 : 0.05)
