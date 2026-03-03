@@ -6,19 +6,32 @@
         <description>Megadesk release feed</description>
         <language>en</language>
 
-        <!-- Template: copy this <item> block for each release and fill in the fields. -->
-        <!--
         <item>
-            <title>Version 0.6.0</title>
-            <pubDate>Mon, 01 Jan 2025 00:00:00 +0000</pubDate>
-            <sparkle:version>42</sparkle:version>
-            <sparkle:shortVersionString>0.6.0</sparkle:shortVersionString>
+            <title>Version 0.5.2</title>
+            <pubDate>Mon, 03 Mar 2026 20:01:00 +0000</pubDate>
+            <sparkle:version>104</sparkle:version>
+            <sparkle:shortVersionString>0.5.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://github.com/saugon/megadesk/releases/tag/v0.6.0</sparkle:releaseNotesLink>
+            <sparkle:releaseNotesLink>https://github.com/saugon/megadesk/releases/tag/v0.5.2</sparkle:releaseNotesLink>
             <enclosure
-                url="https://github.com/saugon/megadesk/releases/download/v0.6.0/megadesk-0.6.0.dmg"
-                sparkle:edSignature="REPLACE_WITH_SIGNATURE"
-                length="REPLACE_WITH_BYTE_LENGTH"
+                url="https://github.com/saugon/megadesk/releases/download/v0.5.2/megadesk-0.5.2.dmg"
+                sparkle:edSignature="Z8XI7JMFJegE5fqmyivNClX/H3ZjlJSUx6+jal8sQi666+9vauBODsHbrEJxNuWBEEoaWoBDXIYXtgGdefYeCQ=="
+                length="1497428"
+                type="application/octet-stream" />
+        </item>
+
+        <!-- Template for future releases:
+        <item>
+            <title>Version X.Y.Z</title>
+            <pubDate>...</pubDate>
+            <sparkle:version>BUILD_NUMBER</sparkle:version>
+            <sparkle:shortVersionString>X.Y.Z</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://github.com/saugon/megadesk/releases/tag/vX.Y.Z</sparkle:releaseNotesLink>
+            <enclosure
+                url="https://github.com/saugon/megadesk/releases/download/vX.Y.Z/megadesk-X.Y.Z.dmg"
+                sparkle:edSignature="SIGNATURE_FROM_sign_update"
+                length="BYTE_LENGTH"
                 type="application/octet-stream" />
         </item>
         -->
