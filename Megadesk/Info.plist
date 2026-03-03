@@ -30,5 +30,11 @@
 	<true/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/saugon/megadesk/main/docs/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>LwAFvAB6BKKugMTLhBJmQGTZyNOkE/K7BleoDcEC+3k=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 </dict>
 </plist>

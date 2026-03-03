@@ -13,6 +13,7 @@ VOLUME="Megadesk"
 SIGN_ID="${MEGADESK_SIGN_ID:?Set MEGADESK_SIGN_ID in .env}"
 NOTARY_PROFILE="${MEGADESK_NOTARY_PROFILE:?Set MEGADESK_NOTARY_PROFILE in .env}"
 ENTITLEMENTS="$(dirname "$0")/Megadesk/Megadesk.entitlements"
+SPARKLE_BIN="$(ls -d ~/Library/Developer/Xcode/DerivedData/Megadesk-*/SourcePackages/artifacts/sparkle/Sparkle/bin 2>/dev/null | head -1)"
 
 echo "→ Building..."
 xcodebuild \
@@ -102,3 +103,11 @@ xcrun stapler staple "$DMG_OUT"
 
 SIZE=$(du -sh "$DMG_OUT" | cut -f1)
 echo "✓ megadesk-$VERSION.dmg ($SIZE) — signed & notarized"
+
+if [ -n "$SPARKLE_BIN" ] && [ -x "$SPARKLE_BIN/sign_update" ]; then
+  echo ""
+  echo "→ Sparkle EdDSA signature (paste into docs/appcast.xml):"
+  "$SPARKLE_BIN/sign_update" "$DMG_OUT"
+else
+  echo "⚠ Sparkle sign_update not found — sign manually with sign_update $DMG_OUT"
+fi

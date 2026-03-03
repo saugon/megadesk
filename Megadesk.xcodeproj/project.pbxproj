@@ -28,6 +28,7 @@
 		AA000019 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000021 /* AppSettings.swift */; };
 		AA000020 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000022 /* SettingsView.swift */; };
 		AA000021 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000023 /* SettingsWindowController.swift */; };
+		AA000022 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AE000003 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -61,6 +62,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA000022 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -145,6 +147,9 @@
 			dependencies = (
 			);
 			name = Megadesk;
+			packageProductDependencies = (
+				AE000003 /* Sparkle */,
+			);
 			productName = Megadesk;
 			productReference = AB000010 /* Megadesk.app */;
 			productType = "com.apple.product-type.application";
@@ -174,6 +179,9 @@
 			);
 			mainGroup = AD000005;
 			productRefGroup = AD000004 /* Products */;
+			packageReferences = (
+				AE000004 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -430,6 +438,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AE000004 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AE000003 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AE000004 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AE000002 /* Project object */;
 }

@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Carbon.HIToolbox
+import Sparkle
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: FloatingWindowController?
@@ -10,8 +11,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsController: SettingsWindowController?
     private var hotKeyRef: EventHotKeyRef?
     private var sessionHotKeyRefs: [EventHotKeyRef?] = []
+    private var updaterController: SPUStandardUpdaterController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+
         // Terminate any previously running instance before setting up.
         if let bundleID = Bundle.main.bundleIdentifier {
             NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
@@ -153,6 +161,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let helpItem = NSMenuItem(title: "Help", action: #selector(openHelp), keyEquivalent: "")
         helpItem.target = self
         menu.addItem(helpItem)
+        menu.addItem(.separator())
+        let updateItem = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(SPUUpdater.checkForUpdates),
+            keyEquivalent: ""
+        )
+        updateItem.target = updaterController.updater
+        menu.addItem(updateItem)
         menu.addItem(withTitle: "Quit Megadesk", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem?.menu = menu
     }
