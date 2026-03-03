@@ -148,10 +148,12 @@ struct SessionCardView: View {
                     Text(statusLabel)
                         .font(.system(size: 11))
                         .foregroundColor(labelColor)
+                        .lineLimit(1)
                     if session.isWorking && !session.needsConfirmation && !session.toolName.isEmpty {
                         Text("(\(session.toolName))")
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundColor(.white.opacity(0.4))
+                            .lineLimit(1)
                     }
                 }
             }
