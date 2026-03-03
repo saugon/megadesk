@@ -98,7 +98,6 @@ struct SessionCardView: View {
     let hasCustomName: Bool
     let isFlashing: Bool
     let onFocus: () -> Bool
-    let onDismiss: () -> Void
     let onRename: (String) -> Void
     let onEditStart: () -> Void
     let onEditEnd: () -> Void
@@ -106,7 +105,6 @@ struct SessionCardView: View {
     @State private var isHovered = false
     @State private var isEditing = false
     @State private var editText = ""
-    @State private var isDying = false
 
     var body: some View {
         // When editing, drop the outer Button so it doesn't intercept the space key
@@ -177,7 +175,7 @@ struct SessionCardView: View {
                     }
                     .buttonStyle(.plain)
                     .opacity(hasCustomName ? 1 : 0)
-                } else if !isDying {
+                } else {
                     if isFlashing {
                         ZStack(alignment: .trailing) {
                             Text("⇧ ⌥ + ↑ / ↓")
@@ -245,13 +243,11 @@ struct SessionCardView: View {
     // MARK: - Focus / dismiss
 
     private func handleFocus() {
-        guard !isDying else { return }
-        if !onFocus() {
-            isDying = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                onDismiss()
-            }
-        }
+        // Focus may fail for sessions in tmux, non-iTerm2 terminals, or after
+        // detach/reattach where the iTerm2 session ID becomes stale. Don't delete
+        // the session — it may still be alive. The orphan checker handles truly
+        // dead sessions on a timer.
+        _ = onFocus()
     }
 
     // MARK: - Edit actions
@@ -282,17 +278,15 @@ struct SessionCardView: View {
     // MARK: - Derived appearance
 
     private var dotColor: Color {
-        if isDying                   { return .red }
         if session.needsConfirmation { return AppSettings.shared.colorConfirmation }
         if session.isWorking         { return AppSettings.shared.colorWorking }
         if session.isForgotten       { return AppSettings.shared.colorForgotten }
         return AppSettings.shared.colorWaiting
     }
 
-    private var shouldPulse: Bool { session.isWorking && !isDying }
+    private var shouldPulse: Bool { session.isWorking }
 
     private var statusLabel: String {
-        if isDying                   { return "terminal not found · deleting..." }
         if session.needsConfirmation { return "needs confirmation" }
         if session.isWorking         { return "working" }
         if session.isForgotten       { return "forgotten" }
@@ -300,7 +294,6 @@ struct SessionCardView: View {
     }
 
     private var labelColor: Color {
-        if isDying                   { return .red.opacity(0.8) }
         if session.needsConfirmation { return AppSettings.shared.colorConfirmation.opacity(0.9) }
         if session.isWorking         { return AppSettings.shared.colorWorking.opacity(0.8) }
         if session.isForgotten       { return isFlashing ? Color(white: 0.7) : Color(white: 0.4) }
@@ -308,7 +301,6 @@ struct SessionCardView: View {
     }
 
     private var cardBackground: Color {
-        if isDying                                     { return Color.red.opacity(isHovered ? 0.12 : 0.06) }
         if session.needsConfirmation                   { return AppSettings.shared.colorConfirmation.opacity(isHovered ? 0.16 : 0.08) }
         if !session.isWorking && !session.isForgotten  { return AppSettings.shared.colorWaiting.opacity(isHovered ? 0.16 : 0.08) }
         if session.isForgotten                         { return Color.white.opacity(isHovered ? 0.07 : 0.02) }

@@ -110,14 +110,6 @@ final class StatusStore {
         saveCustomNames()
     }
 
-    func dismiss(session: Session) {
-        // Remove immediately from UI
-        sessions.removeAll { $0.id == session.id }
-        // Delete the file — session reappears automatically on next hook event
-        let file = sessionsURL.appendingPathComponent("\(session.sessionId).json")
-        try? FileManager.default.removeItem(at: file)
-    }
-
     // MARK: - Private
 
     private func loadCustomNames() {
