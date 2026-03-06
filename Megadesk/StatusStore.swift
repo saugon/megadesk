@@ -33,6 +33,10 @@ final class StatusStore {
     // kqueue-based process watchers: itermSessionId → DispatchSourceProcess
     private var processSources: [String: DispatchSourceProcess] = [:]
 
+    // JSONL watchers: sessionId → JSONLWatcher
+    var activeToolDetails: [String: String] = [:]
+    private var jsonlWatchers: [String: JSONLWatcher] = [:]
+
     init() {
         loadCustomNames()
         loadSessions()
@@ -66,6 +70,7 @@ final class StatusStore {
         if let obs = cycleSessionObserver  { NotificationCenter.default.removeObserver(obs) }
         flashTimer?.invalidate()
         processSources.values.forEach { $0.cancel() }
+        jsonlWatchers.removeAll()
     }
 
     @discardableResult
@@ -159,6 +164,7 @@ final class StatusStore {
 
         sessions = sorted(deduped)
         updateProcessWatchers()
+        syncJSONLWatchers()
     }
 
     func sorted(_ list: [Session]) -> [Session] {
@@ -239,6 +245,35 @@ final class StatusStore {
                     self.activeSessionId = match.sessionId
                 }
             }
+        }
+    }
+
+    func toolDetail(for session: Session) -> String? {
+        activeToolDetails[session.sessionId]
+    }
+
+    private func syncJSONLWatchers() {
+        let activeIds = Set(sessions.map(\.sessionId))
+
+        // Cancel watchers for sessions that are gone
+        for id in Set(jsonlWatchers.keys).subtracting(activeIds) {
+            jsonlWatchers.removeValue(forKey: id)
+            activeToolDetails.removeValue(forKey: id)
+        }
+
+        // Start watchers for new sessions
+        for session in sessions where jsonlWatchers[session.sessionId] == nil {
+            let sessionId = session.sessionId
+            let watcher = JSONLWatcher(sessionId: sessionId)
+            watcher.onUpdate = { [weak self] detail in
+                guard let self else { return }
+                if let detail {
+                    self.activeToolDetails[sessionId] = detail
+                } else {
+                    self.activeToolDetails.removeValue(forKey: sessionId)
+                }
+            }
+            jsonlWatchers[sessionId] = watcher
         }
     }
 

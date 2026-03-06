@@ -29,6 +29,7 @@
 		AA000020 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000022 /* SettingsView.swift */; };
 		AA000021 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000023 /* SettingsWindowController.swift */; };
 		AA000022 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AE000003 /* Sparkle */; };
+		AA000023 /* JSONLWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000024 /* JSONLWatcher.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,6 +41,7 @@
 		AB000006 /* StatusStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusStore.swift; sourceTree = "<group>"; };
 		AB000007 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		AB000008 /* TerminalFocuser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalFocuser.swift; sourceTree = "<group>"; };
+		AB000024 /* JSONLWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONLWatcher.swift; sourceTree = "<group>"; };
 		AB000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AB000010 /* Megadesk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Megadesk.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -110,6 +112,7 @@
 			isa = PBXGroup;
 			children = (
 				AB000008 /* TerminalFocuser.swift */,
+				AB000024 /* JSONLWatcher.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -243,6 +246,7 @@
 				AA000019 /* AppSettings.swift in Sources */,
 				AA000020 /* SettingsView.swift in Sources */,
 				AA000021 /* SettingsWindowController.swift in Sources */,
+				AA000023 /* JSONLWatcher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

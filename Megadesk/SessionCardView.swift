@@ -97,6 +97,7 @@ struct SessionCardView: View {
     let displayName: String
     let hasCustomName: Bool
     let isFlashing: Bool
+    let toolDetail: String?
     let onFocus: () -> Bool
     let onRename: (String) -> Void
     let onEditStart: () -> Void
@@ -147,11 +148,15 @@ struct SessionCardView: View {
                         .font(.system(size: 11))
                         .foregroundColor(labelColor)
                         .lineLimit(1)
-                    if session.isWorking && !session.needsConfirmation && !session.toolName.isEmpty {
-                        Text("(\(session.toolName))")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundColor(.white.opacity(0.4))
-                            .lineLimit(1)
+                    if session.isWorking && !session.needsConfirmation {
+                        let detail = toolDetail ?? (session.toolName.isEmpty ? nil : session.toolName)
+                        if let detail {
+                            Text(detail)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundColor(.white.opacity(0.4))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
                     }
                 }
             }
