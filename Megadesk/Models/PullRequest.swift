@@ -5,6 +5,7 @@ struct PullRequest: Identifiable, Codable {
     let title: String
     let author: PRAuthor
     let headRefName: String
+    let headRepositoryOwner: HeadRepoOwner
     let state: String            // "OPEN" | "CLOSED" | "MERGED"
     let mergeable: String        // "MERGEABLE" | "CONFLICTING" | "UNKNOWN"
     let mergeStateStatus: String // "CLEAN" | "BEHIND" | "BLOCKED" | "DIRTY" | "UNKNOWN"
@@ -48,6 +49,7 @@ struct PullRequest: Identifiable, Codable {
 }
 
 struct PRAuthor: Codable { let login: String }
+struct HeadRepoOwner: Codable { let login: String }
 // CheckRun fields: status (IN_PROGRESS/QUEUED/COMPLETED…) + conclusion (SUCCESS/FAILURE…/null)
 // StatusContext fields: state (SUCCESS/FAILURE/PENDING/ERROR) — no status or conclusion
 struct StatusCheck: Codable { let state: String?; let status: String?; let conclusion: String? }

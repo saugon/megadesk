@@ -26,6 +26,10 @@ final class AppSettings {
     var sortOrder: SessionSortOrder
     var idleOpacity: Double
 
+    // MARK: - Paths
+    var repoBasePath: String
+    var cloneBasePath: String
+
     // MARK: - Session state colors (stored as hex strings)
     var hexWorking:      String
     var hexConfirmation: String
@@ -65,6 +69,8 @@ final class AppSettings {
         hexPRFailing     = ud.string(forKey: "megadesk.color.pr.failing")   ?? "#FF3B30"
         hexPRMerged      = ud.string(forKey: "megadesk.color.pr.merged")    ?? "#5AC8FA"
         hexPRClosed      = ud.string(forKey: "megadesk.color.pr.closed")    ?? "#737373"
+        repoBasePath     = ud.string(forKey: "megadesk.repoBasePath")       ?? "~/Repositories"
+        cloneBasePath    = ud.string(forKey: "megadesk.cloneBasePath")      ?? "~/.megadesk/repos"
     }
 
     func save() {
@@ -81,6 +87,8 @@ final class AppSettings {
         ud.set(hexPRFailing,        forKey: "megadesk.color.pr.failing")
         ud.set(hexPRMerged,         forKey: "megadesk.color.pr.merged")
         ud.set(hexPRClosed,         forKey: "megadesk.color.pr.closed")
+        ud.set(repoBasePath,        forKey: "megadesk.repoBasePath")
+        ud.set(cloneBasePath,       forKey: "megadesk.cloneBasePath")
     }
 
     func resetToDefaults() {
@@ -96,6 +104,8 @@ final class AppSettings {
         hexPRFailing     = "#FF3B30"
         hexPRMerged      = "#5AC8FA"
         hexPRClosed      = "#737373"
+        repoBasePath     = "~/Repositories"
+        cloneBasePath    = "~/.megadesk/repos"
         save()
     }
 }
