@@ -87,10 +87,10 @@ final class FloatingWindowController: NSWindowController {
     private var isLiveResizing = false
 
     convenience init(contentView: some View, footerView: some View) {
-        let initialCompact = UserDefaults.standard.bool(forKey: "megadesk.compact")
+        let initialMode = UserDefaults.standard.integer(forKey: "megadesk.displayMode")
         let savedWidth = UserDefaults.standard.double(forKey: "megadesk.windowWidth")
         let normalWidth: CGFloat = savedWidth > 0 ? max(220, min(280, CGFloat(savedWidth))) : 280
-        let initialWidth: CGFloat = initialCompact ? 78 : normalWidth
+        let initialWidth: CGFloat = Self.widthForMode(initialMode, normalWidth: normalWidth)
         let panel = EditablePanel(
             contentRect: NSRect(x: 0, y: 0, width: initialWidth, height: 120),
             styleMask: [
@@ -158,7 +158,7 @@ final class FloatingWindowController: NSWindowController {
         let savedH = UserDefaults.standard.double(forKey: "megadesk.windowHeight")
         if savedH > 0 { self.userSetHeight = CGFloat(savedH) }
 
-        installTitlebarControls(in: panel, compact: initialCompact)
+        installTitlebarControls(in: panel, compact: initialMode != 0)
 
         NotificationCenter.default.addObserver(
             forName: NSWindow.didResizeNotification,
@@ -333,16 +333,23 @@ final class FloatingWindowController: NSWindowController {
 
     var isWidgetVisible: Bool { window?.isVisible ?? false }
 
-    var isCompact: Bool { UserDefaults.standard.bool(forKey: "megadesk.compact") }
+    var displayMode: Int { UserDefaults.standard.integer(forKey: "megadesk.displayMode") }
+    var isCompact: Bool { displayMode != 0 }
 
-    func toggleCompact() {
+    static func widthForMode(_ mode: Int, normalWidth: CGFloat = 280) -> CGFloat {
+        switch mode {
+        case 1: return 78
+        case 2: return 350
+        default: return normalWidth
+        }
+    }
+
+    func cycleDisplayMode() {
         guard let panel = window else { return }
         userSetHeight = nil
         UserDefaults.standard.removeObject(forKey: "megadesk.windowHeight")
         resetHeightButton?.isHidden = true
-        let newValue = !isCompact
-        // Note: UserDefaults is NOT updated here — doing so would cause SwiftUI to
-        // re-render immediately (compact layout visible during the fade-out).
+        let newMode = (displayMode + 1) % 3
 
         let fadeOutDuration: TimeInterval = 0.12
         NSAnimationContext.runAnimationGroup { ctx in
@@ -351,11 +358,11 @@ final class FloatingWindowController: NSWindowController {
             panel.animator().alphaValue = 0.0
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + fadeOutDuration) {
-            panel.orderOut(nil)      // fuera del Window Server — todo lo que sigue es invisible
-            UserDefaults.standard.set(newValue, forKey: "megadesk.compact")  // SwiftUI re-render mientras invisible
-            panel.alphaValue = AppSettings.shared.idleOpacity   // reset para show()
+            panel.orderOut(nil)
+            UserDefaults.standard.set(newMode, forKey: "megadesk.displayMode")
+            panel.alphaValue = AppSettings.shared.idleOpacity
 
-            let width: CGFloat = newValue ? 78 : 280
+            let width = Self.widthForMode(newMode)
             self.suppressPositionSave = true
             if let screen = NSScreen.main {
                 let x = screen.visibleFrame.maxX - width - 16
@@ -365,13 +372,13 @@ final class FloatingWindowController: NSWindowController {
             }
             self.suppressPositionSave = false
             self.adjustPanelHeight()
-            self.titleLabel?.stringValue = newValue ? "md" : "megadesk"
+            self.titleLabel?.stringValue = newMode != 0 ? "md" : "megadesk"
             self.titleLabel?.sizeToFit()
             if let label = self.titleLabel, let superview = label.superview {
                 label.frame.origin.x = (superview.bounds.width - label.frame.width) / 2
             }
 
-            self.show()   // fade-in reutilizando la animación existente
+            self.show()
         }
     }
 

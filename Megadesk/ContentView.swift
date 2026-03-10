@@ -15,7 +15,21 @@ private struct PRHeightKey: PreferenceKey {
 
 struct ContentView: View {
     @State private var store = StatusStore()
-    @AppStorage("megadesk.compact") private var isCompact = false
+    // 0 = regular, 1 = compact vertical, 2 = compact horizontal
+    @AppStorage("megadesk.displayMode") private var displayMode = 0
+    private var isCompact: Bool { displayMode != 0 }
+    private var isHorizontalCompact: Bool { displayMode == 2 }
+    /// Fixed width for compact modes; nil for regular (uses min/max range).
+    private var compactWidth: CGFloat? {
+        switch displayMode {
+        case 1: return 78
+        default: return nil
+        }
+    }
+    private var horizontalGridColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 90, maximum: 120), spacing: 4)]
+    }
+
     @AppStorage("megadesk.prTracking") private var prTrackingEnabled = true
     @State private var previousApp: NSRunningApplication?
     @State private var isAddingPR = false
@@ -70,13 +84,28 @@ struct ContentView: View {
             if store.sessions.isEmpty {
                 emptyState
             } else if isCompact {
-                ForEach(store.sessions) { session in
-                    CompactSessionCardView(
-                        session: session,
-                        tick: store.tick,
-                        displayName: store.displayName(for: session),
-                        onFocus: { store.focusTerminal(session: session) }
-                    )
+                if isHorizontalCompact {
+                    LazyVGrid(columns: horizontalGridColumns, spacing: 4) {
+                        ForEach(store.sessions) { session in
+                            CompactSessionCardView(
+                                session: session,
+                                tick: store.tick,
+                                displayName: store.displayName(for: session),
+                                horizontal: true,
+                                onFocus: { store.focusTerminal(session: session) }
+                            )
+                        }
+                    }
+                } else {
+                    ForEach(store.sessions) { session in
+                        CompactSessionCardView(
+                            session: session,
+                            tick: store.tick,
+                            displayName: store.displayName(for: session),
+                            horizontal: false,
+                            onFocus: { store.focusTerminal(session: session) }
+                        )
+                    }
                 }
             } else {
                 // Sessions section — independent scroll
@@ -122,29 +151,10 @@ struct ContentView: View {
 
         }
         .padding(8)
-        .frame(minWidth: isCompact ? 78 : 220, maxWidth: isCompact ? 78 : 280)
+        .frame(minWidth: compactWidth ?? 220, maxWidth: compactWidth ?? (isHorizontalCompact ? .infinity : 280))
     }
 
-    var footerView: some View {
-        Group {
-            if !isCompact, let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
-                let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-                HStack {
-                    Text("⌘⇧M to hide")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.white.opacity(0.65))
-                    Spacer()
-                    Text("v\(version)  build \(build)")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.white.opacity(0.2))
-                }
-                .padding(.top, 6)
-                .padding(.horizontal, 6)
-                .padding(.bottom, 8)
-                .frame(minWidth: 220, maxWidth: 280)
-            }
-        }
-    }
+    var footerView: some View { FooterView() }
 
     private var emptyState: some View {
         Text("No active instances")
@@ -230,8 +240,16 @@ struct ContentView: View {
 
     @ViewBuilder
     private var compactPRSection: some View {
-        ForEach(store.trackedPRs) { tracked in
-            CompactPRCardView(trackedPR: tracked)
+        if isHorizontalCompact {
+            LazyVGrid(columns: horizontalGridColumns, spacing: 4) {
+                ForEach(store.trackedPRs) { tracked in
+                    CompactPRCardView(trackedPR: tracked, horizontal: true)
+                }
+            }
+        } else {
+            ForEach(store.trackedPRs) { tracked in
+                CompactPRCardView(trackedPR: tracked, horizontal: false)
+            }
         }
     }
 
@@ -302,5 +320,35 @@ struct ContentView: View {
     private func endEditing() {
         previousApp?.activate()
         previousApp = nil
+    }
+}
+
+// MARK: - FooterView
+// Separate struct so SwiftUI properly tracks @AppStorage when rendered
+// in a different view hierarchy (HeightMeasuringScrollView).
+
+struct FooterView: View {
+    @AppStorage("megadesk.displayMode") private var displayMode = 0
+    private var isCompact: Bool { displayMode != 0 }
+
+    var body: some View {
+        Group {
+            if !isCompact, let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+                HStack {
+                    Text("⌘⇧M to hide")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.65))
+                    Spacer()
+                    Text("v\(version)  build \(build)")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.2))
+                }
+                .padding(.top, 6)
+                .padding(.horizontal, 6)
+                .padding(.bottom, 8)
+                .frame(minWidth: 220, maxWidth: 280)
+            }
+        }
     }
 }

@@ -30,6 +30,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Always update the hook script from the bundle so it stays in sync with the app.
         try? HookInstaller.install()
 
+        // One-time migration: old bool compact → new tri-state displayMode
+        if UserDefaults.standard.object(forKey: "megadesk.displayMode") == nil,
+           UserDefaults.standard.bool(forKey: "megadesk.compact") {
+            UserDefaults.standard.set(1, forKey: "megadesk.displayMode")
+        }
+        UserDefaults.standard.removeObject(forKey: "megadesk.compact")
+
         let contentView = ContentView()
         windowController = FloatingWindowController(contentView: contentView, footerView: contentView.footerView)
         windowController?.window?.delegate = self
@@ -178,7 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleCompact() {
-        windowController?.toggleCompact()
+        windowController?.cycleDisplayMode()
     }
 
     @objc private func togglePRTracking() {
@@ -210,7 +217,13 @@ extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         let isVisible = windowController?.isWidgetVisible ?? false
         menu.item(at: 0)?.title = isVisible ? "Hide Widget" : "Show Widget"
-        menu.item(at: 1)?.state = (windowController?.isCompact ?? false) ? .on : .off
+        let mode = windowController?.displayMode ?? 0
+        let compactItem = menu.item(at: 1)
+        switch mode {
+        case 1:  compactItem?.title = "Compact Mode (Vertical)";    compactItem?.state = .on
+        case 2:  compactItem?.title = "Compact Mode (Horizontal)";  compactItem?.state = .on
+        default: compactItem?.title = "Compact Mode";               compactItem?.state = .off
+        }
         let prEnabled = UserDefaults.standard.object(forKey: "megadesk.prTracking") as? Bool ?? true
         menu.item(withTag: 10)?.state = prEnabled ? .on : .off
     }

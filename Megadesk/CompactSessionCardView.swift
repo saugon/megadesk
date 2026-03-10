@@ -4,21 +4,31 @@ struct CompactSessionCardView: View {
     let session: Session
     let tick: Int
     let displayName: String
+    let horizontal: Bool
     let onFocus: () -> Bool
 
     @State private var isHovered = false
 
     var body: some View {
         Button(action: handleFocus) {
-            VStack(spacing: 3) {
-                StatusDot(color: dotColor, pulse: shouldPulse)
-                Text(displayName.prefix(4))
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.5))
-                    .lineLimit(1)
+            Group {
+                if horizontal {
+                    HStack(spacing: 5) {
+                        StatusDot(color: dotColor, pulse: shouldPulse)
+                        nameLabel(displayName.prefix(8))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 6)
+                } else {
+                    VStack(spacing: 3) {
+                        StatusDot(color: dotColor, pulse: shouldPulse)
+                        nameLabel(displayName.prefix(4))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .fill(cardBackground)
@@ -30,6 +40,13 @@ struct CompactSessionCardView: View {
         .onHover { hovering in
             isHovered = hovering
         }
+    }
+
+    private func nameLabel(_ text: some StringProtocol) -> some View {
+        Text(text)
+            .font(.system(size: 9, design: .monospaced))
+            .foregroundColor(.white.opacity(0.5))
+            .lineLimit(1)
     }
 
     // MARK: - Focus
