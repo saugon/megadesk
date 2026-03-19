@@ -14,7 +14,7 @@ private struct PRHeightKey: PreferenceKey {
 }
 
 struct ContentView: View {
-    @State private var store = StatusStore()
+    @State private var store = StatusStore.shared
     @AppStorage("megadesk.compact") private var isCompact = false
     @AppStorage("megadesk.prTracking") private var prTrackingEnabled = true
     @State private var previousApp: NSRunningApplication?
@@ -61,15 +61,26 @@ struct ContentView: View {
         return prContentHeight > 0 ? min(prContentHeight, sectionBudget * 0.35) : sectionBudget * 0.35
     }
 
+    private var widgetAlerts: [MegadeskAlert] {
+        return store.alerts.filter {
+            $0.effectiveShowWidget &&
+            store.firedAlertIds.contains($0.id) &&
+            !store.dismissedFiredAlertIds.contains($0.id)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 4) {
-            if prTrackingEnabled {
+            if prTrackingEnabled && (isCompact || widgetAlerts.isEmpty) {
                 sectionLabel(isCompact ? "s" : "sessions")
             }
 
-            if store.sessions.isEmpty {
+            if store.sessions.isEmpty && widgetAlerts.isEmpty {
                 emptyState
             } else if isCompact {
+                ForEach(widgetAlerts) { alert in
+                    AlertCardView(alert: alert, isCompact: isCompact)
+                }
                 ForEach(store.sessions) { session in
                     CompactSessionCardView(
                         session: session,
@@ -79,9 +90,16 @@ struct ContentView: View {
                     )
                 }
             } else {
-                // Sessions section — independent scroll
+                // Sessions section — independent scroll (alerts appear at top)
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(spacing: 4) {
+                        if !widgetAlerts.isEmpty {
+                            sectionLabel("alerts")
+                            ForEach(widgetAlerts) { alert in
+                                AlertCardView(alert: alert, isCompact: false)
+                            }
+                            sectionLabel("sessions")
+                        }
                         ForEach(store.sessions) { session in
                             SessionCardView(
                                 session: session,

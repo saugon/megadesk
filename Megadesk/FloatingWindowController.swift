@@ -101,6 +101,8 @@ final class FloatingWindowController: NSWindowController {
     private var lastKnownHeight: CGFloat = 120 // tracks last applied height to detect real user changes
     private var resetHeightButton: NSButton?
     private var gearButton: TitlebarGearButton?
+    private var alertButton: TitlebarIconButton?
+    private var quickAlertPopover: NSPopover?
     private var isLiveResizing = false
 
     convenience init(contentView: some View, footerView: some View) {
@@ -275,11 +277,44 @@ final class FloatingWindowController: NSWindowController {
         gear.action = #selector(gearPressed(_:))
         titlebarView.addSubview(gear)
         self.gearButton = gear
+
+        // Alert button — to the left of the gear button
+        let alertFrame = NSRect(
+            x: titlebarView.bounds.width - gearSize * 2 - 14,
+            y: sysClose.frame.midY - gearSize / 2,
+            width: gearSize, height: gearSize
+        )
+        let alertBtn = TitlebarIconButton(frame: alertFrame, symbolName: "bell.fill", label: "Alerts")
+        alertBtn.autoresizingMask = [.minXMargin]
+        alertBtn.target = self
+        alertBtn.action = #selector(alertButtonPressed)
+        titlebarView.addSubview(alertBtn)
+        self.alertButton = alertBtn
     }
 
     @objc private func gearPressed(_ sender: NSButton) {
         guard let menu = window?.menu else { return }
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 2), in: sender)
+    }
+
+    @objc private func alertButtonPressed() {
+        showQuickAlert()
+    }
+
+    func showQuickAlert() {
+        if let popover = quickAlertPopover, popover.isShown {
+            popover.performClose(nil)
+            return
+        }
+        guard let anchor = alertButton else { return }
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentSize = NSSize(width: 280, height: 100)
+        popover.contentViewController = NSHostingController(rootView: QuickAlertView {
+            popover.performClose(nil)
+        })
+        popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxY)
+        quickAlertPopover = popover
     }
 
     /// Sets the menu used by the gear button and right-click context menu.
@@ -608,6 +643,53 @@ private final class TitlebarGearButton: NSButton {
         let colorConfig = NSImage.SymbolConfiguration(paletteColors: [NSColor.white.withAlphaComponent(alpha)])
         let config = sizeConfig.applying(colorConfig)
         if let image = NSImage(systemSymbolName: "gearshape.fill", accessibilityDescription: "Settings")?
+            .withSymbolConfiguration(config) {
+            let imageSize = image.size
+            let x = (bounds.width - imageSize.width) / 2
+            let y = (bounds.height - imageSize.height) / 2
+            image.draw(in: NSRect(x: x, y: y, width: imageSize.width, height: imageSize.height))
+        }
+    }
+}
+
+/// A reusable titlebar icon button that draws an SF Symbol, visible on hover.
+private final class TitlebarIconButton: NSButton {
+
+    private let symbolName: String
+    private var trackingArea: NSTrackingArea?
+    private var isHovered = false {
+        didSet { needsDisplay = true }
+    }
+
+    init(frame: NSRect, symbolName: String, label: String) {
+        self.symbolName = symbolName
+        super.init(frame: frame)
+        isBordered = false
+        bezelStyle = .circular
+        title = ""
+        toolTip = label
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let old = trackingArea { removeTrackingArea(old) }
+        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovered = true }
+    override func mouseExited(with event: NSEvent)  { isHovered = false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let alpha: CGFloat = isHovered ? 0.85 : 0.35
+        let sizeConfig = NSImage.SymbolConfiguration(pointSize: bounds.height * 0.6, weight: .medium)
+        let colorConfig = NSImage.SymbolConfiguration(paletteColors: [NSColor.white.withAlphaComponent(alpha)])
+        let config = sizeConfig.applying(colorConfig)
+        if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: toolTip)?
             .withSymbolConfiguration(config) {
             let imageSize = image.size
             let x = (bounds.width - imageSize.width) / 2

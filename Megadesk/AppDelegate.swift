@@ -12,6 +12,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKeyRef: EventHotKeyRef?
     private var sessionHotKeyRefs: [EventHotKeyRef?] = []
     private var updaterController: SPUStandardUpdaterController!
+    private var alertsController: AlertsWindowController?
+    private var alertBadgeObserver: Any?
+    private var originalMenuBarIcon: NSImage?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         updaterController = SPUStandardUpdaterController(
@@ -35,7 +38,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController?.window?.delegate = self
         setupMenuBar()
         registerGlobalHotKey()
-
+        AlertNotificationService.shared.setup()
+        setupAlertBadge()
         let storedVersion = UserDefaults.standard.integer(forKey: "megadesk.onboardingVersion")
         if storedVersion >= OnboardingView.currentOnboardingVersion {
             windowController?.show()
@@ -91,6 +95,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         delegate.windowController?.show()
                         NotificationCenter.default.post(name: .megadeskCycleSession, object: nil,
                                                         userInfo: ["forward": capturedID == 12])
+                    } else if capturedID == 13 {
+                        delegate.windowController?.show()
+                        delegate.windowController?.showQuickAlert()
                     }
                 }
                 return noErr
@@ -133,6 +140,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                 hkID, GetApplicationEventTarget(), OptionBits(0), &ref)
             sessionHotKeyRefs.append(ref)
         }
+
+        // ⌘⇧A — quick alert popover (hotkey ID 13)
+        var quickAlertHkID = EventHotKeyID()
+        quickAlertHkID.signature = 0x4d47444b
+        quickAlertHkID.id = 13
+        var qaRef: EventHotKeyRef?
+        RegisterEventHotKey(UInt32(kVK_ANSI_A), UInt32(cmdKey | shiftKey),
+                            quickAlertHkID, GetApplicationEventTarget(), OptionBits(0), &qaRef)
+        sessionHotKeyRefs.append(qaRef)
     }
 
     // MARK: - Menu bar
@@ -157,6 +173,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         prItem.tag = 10
         menu.addItem(prItem)
         menu.addItem(.separator())
+        let alertsItem = NSMenuItem(title: "Alerts...", action: #selector(openAlerts), keyEquivalent: "")
+        alertsItem.target = self
+        menu.addItem(alertsItem)
         let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -205,17 +224,98 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         helpController?.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
+
+    @objc private func openAlerts() {
+        if alertsController?.window == nil {
+            alertsController = AlertsWindowController()
+        }
+        alertsController?.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        StatusStore.shared.clearAlertBadge()
+        updateMenuBarBadge()
+    }
+
+    // MARK: - Alert badge
+
+    private func setupAlertBadge() {
+        originalMenuBarIcon = statusItem?.button?.image
+
+        alertBadgeObserver = NotificationCenter.default.addObserver(
+            forName: .megadeskAlertFired, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.updateMenuBarBadge()
+        }
+    }
+
+    private func updateMenuBarBadge() {
+        guard let button = statusItem?.button else { return }
+        let store = StatusStore.shared
+        if store.pendingAlertCount > 0 {
+            // Composite a small orange dot onto the menu bar icon
+            guard let baseIcon = originalMenuBarIcon else { return }
+            let size = baseIcon.size
+            let badged = NSImage(size: size, flipped: false) { rect in
+                baseIcon.draw(in: rect)
+                let dotSize: CGFloat = 6
+                let dotRect = NSRect(x: size.width - dotSize - 1, y: size.height - dotSize - 1,
+                                     width: dotSize, height: dotSize)
+                NSColor(AppSettings.shared.colorAlert).setFill()
+                NSBezierPath(ovalIn: dotRect).fill()
+                return true
+            }
+            badged.isTemplate = false
+            button.image = badged
+        } else {
+            let icon = originalMenuBarIcon ?? NSImage(named: "MenuBarIcon")
+            icon?.isTemplate = true
+            button.image = icon
+        }
+    }
 }
 
 // MARK: - NSMenuDelegate — refresh title before menu appears
 
 extension AppDelegate: NSMenuDelegate {
+    private static let alertMenuItemTag = 900
+
     func menuWillOpen(_ menu: NSMenu) {
+        // Remove dynamic alert items first so fixed indices are correct
+        while let old = menu.item(withTag: Self.alertMenuItemTag) {
+            menu.removeItem(old)
+        }
+
         let isVisible = windowController?.isWidgetVisible ?? false
         menu.item(at: 0)?.title = isVisible ? "Hide Widget" : "Show Widget"
         menu.item(at: 1)?.state = (windowController?.isCompact ?? false) ? .on : .off
         let prEnabled = UserDefaults.standard.object(forKey: "megadesk.prTracking") as? Bool ?? true
         menu.item(withTag: 10)?.state = prEnabled ? .on : .off
+
+        // Add fired-alert items at the very top
+        let store = StatusStore.shared
+        let pending = store.alerts.filter {
+            store.firedAlertIds.contains($0.id) && !store.dismissedFiredAlertIds.contains($0.id)
+        }
+        guard !pending.isEmpty else { return }
+
+        for (i, alert) in pending.reversed().enumerated() {
+            let item = NSMenuItem(title: "🔔 \(alert.title)", action: #selector(dismissFiredAlert(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = Self.alertMenuItemTag
+            item.representedObject = alert.id
+            item.toolTip = "Click to dismiss"
+            menu.insertItem(item, at: i)
+        }
+        let sep = NSMenuItem.separator()
+        sep.tag = Self.alertMenuItemTag
+        menu.insertItem(sep, at: pending.count)
+    }
+}
+
+extension AppDelegate {
+    @objc private func dismissFiredAlert(_ sender: NSMenuItem) {
+        guard let alertId = sender.representedObject as? UUID else { return }
+        StatusStore.shared.dismissFiredAlert(id: alertId)
+        updateMenuBarBadge()
     }
 }
 

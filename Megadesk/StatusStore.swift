@@ -5,6 +5,8 @@ import Darwin
 
 @Observable
 final class StatusStore {
+    static let shared = StatusStore()
+
     var sessions: [Session] = []
     var tick: Int = 0  // increments every second to force time re-renders
     var customNames: [String: String] = [:]  // itermSessionId → custom display name
@@ -13,6 +15,12 @@ final class StatusStore {
     var trackedPRs: [TrackedPR] = []
     var prLastFetchedAt: Date?
     private var prTimer: Timer?
+
+    // MARK: Alerts
+    var alerts: [MegadeskAlert] = []
+    var pendingAlertCount: Int = 0
+    private(set) var firedAlertIds: Set<UUID> = []
+    private(set) var dismissedFiredAlertIds: Set<UUID> = []
 
     private let sessionsURL: URL = {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -54,6 +62,8 @@ final class StatusStore {
         startTimer()
         loadTrackedPRSlugs()
         startPRTimer()
+        loadAlerts()
+        setupAlertNotificationObservers()
         focusSessionObserver = NotificationCenter.default.addObserver(
             forName: .megadeskFocusSession, object: nil, queue: .main
         ) { [weak self] note in
@@ -248,6 +258,7 @@ final class StatusStore {
             // Reload every tick as a fallback — small JSON files, negligible cost.
             // The file watcher handles instant updates; this catches any missed events.
             self?.loadSessions()
+            self?.evaluateAlerts()
             // Every 10 seconds, check for orphaned sessions and reap dead ones.
             if (self?.tick ?? 0) % 10 == 0 {
                 self?.reapDeadSessions()
@@ -719,6 +730,179 @@ final class StatusStore {
         fetchAllPRs()
         prTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
             self?.fetchAllPRs()
+        }
+    }
+
+    // MARK: - Alerts CRUD
+
+    func addAlert(_ alert: MegadeskAlert) {
+        alerts.append(alert)
+        saveAlerts()
+        // Request notification permission on first alert
+        if alerts.count == 1 {
+            AlertNotificationService.shared.requestAuthorization()
+        }
+    }
+
+    func updateAlert(_ alert: MegadeskAlert) {
+        guard let i = alerts.firstIndex(where: { $0.id == alert.id }) else { return }
+        alerts[i] = alert
+        saveAlerts()
+    }
+
+    func toggleAlert(id: UUID, enabled: Bool) {
+        guard let i = alerts.firstIndex(where: { $0.id == id }) else { return }
+        alerts[i].isEnabled = enabled
+        if enabled {
+            // Reset so recurring/interval alerts don't fire instantly from a stale lastFiredAt.
+            // For .once, clear lastFiredAt so it can fire again.
+            if case .once = alerts[i].recurrence {
+                alerts[i].lastFiredAt = nil
+            } else {
+                alerts[i].lastFiredAt = Date()
+            }
+            firedAlertIds.remove(id)
+        }
+        saveAlerts()
+    }
+
+    func removeAlert(id: UUID) {
+        alerts.removeAll { $0.id == id }
+        firedAlertIds.remove(id)
+        dismissedFiredAlertIds.remove(id)
+        ToastWindowController.shared.dismissToast(alertId: id)
+        saveAlerts()
+    }
+
+    func loadAlerts() {
+        guard let data = UserDefaults.standard.data(forKey: "megadesk.alerts"),
+              let decoded = try? JSONDecoder().decode([MegadeskAlert].self, from: data)
+        else { return }
+        alerts = decoded
+
+        // Restore firedAlertIds for .once alerts that fired but weren't dismissed/completed
+        for alert in alerts {
+            if case .once = alert.recurrence,
+               alert.lastFiredAt != nil, !alert.isEnabled, alert.isCompleted != true {
+                firedAlertIds.insert(alert.id)
+            }
+        }
+    }
+
+    func saveAlerts() {
+        if let data = try? JSONEncoder().encode(alerts) {
+            UserDefaults.standard.set(data, forKey: "megadesk.alerts")
+        }
+    }
+
+    func fireAlertForTest(id: UUID) {
+        guard let alert = alerts.first(where: { $0.id == id }) else { return }
+        firedAlertIds.insert(id)
+        dismissedFiredAlertIds.remove(id)
+        dispatchAlertDisplay(alert)
+    }
+
+    func dismissFiredAlert(id: UUID) {
+        // Guard against double-decrement from multiple dismiss paths
+        guard !dismissedFiredAlertIds.contains(id) else { return }
+        dismissedFiredAlertIds.insert(id)
+        if pendingAlertCount > 0 { pendingAlertCount -= 1 }
+
+        // Mark non-recurring alerts as completed
+        if let i = alerts.firstIndex(where: { $0.id == id }),
+           case .once = alerts[i].recurrence {
+            alerts[i].isCompleted = true
+            saveAlerts()
+        }
+    }
+
+    func clearAlertBadge() {
+        pendingAlertCount = 0
+    }
+
+    // MARK: - Alert Evaluation
+
+    private func evaluateAlerts() {
+        let now = Date()
+        // Work on a snapshot so we don't trigger @Observable mutations until we're done.
+        var snapshot = alerts
+        var toFire: [MegadeskAlert] = []
+
+        for i in snapshot.indices {
+            guard snapshot[i].isEnabled else { continue }
+            guard !firedAlertIds.contains(snapshot[i].id) else { continue }
+            // Skip if snoozed (lastFiredAt set to a future time)
+            if let last = snapshot[i].lastFiredAt, last > now { continue }
+
+            if let nextFire = snapshot[i].nextFireDate(after: now), nextFire <= now {
+                snapshot[i].lastFiredAt = now
+                firedAlertIds.insert(snapshot[i].id)
+                toFire.append(snapshot[i])
+
+                if case .once = snapshot[i].recurrence {
+                    snapshot[i].isEnabled = false
+                }
+            }
+        }
+
+        guard !toFire.isEmpty else { return }
+
+        // Single write back — triggers observation exactly once.
+        alerts = snapshot
+        saveAlerts()
+
+        for alert in toFire {
+            dispatchAlertDisplay(alert)
+        }
+
+        // Clear firedAlertIds for recurring alerts after a cooldown so they can fire again.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in
+            guard let self else { return }
+            for alert in self.alerts where self.firedAlertIds.contains(alert.id) {
+                if case .once = alert.recurrence { continue }
+                self.firedAlertIds.remove(alert.id)
+                self.dismissedFiredAlertIds.remove(alert.id)
+            }
+        }
+    }
+
+    private func dispatchAlertDisplay(_ alert: MegadeskAlert) {
+        if alert.effectiveShowToast {
+            ToastWindowController.shared.showToast(for: alert)
+        }
+
+        if alert.effectiveShowNotification {
+            AlertNotificationService.shared.postNotification(for: alert)
+        }
+
+        if alert.effectiveShowBadge {
+            pendingAlertCount += 1
+            NotificationCenter.default.post(name: .megadeskAlertFired, object: nil,
+                                            userInfo: ["alert": alert])
+        }
+
+        if alert.effectivePlaySound {
+            NSSound(named: "Pop")?.play()
+        }
+    }
+
+    private func setupAlertNotificationObservers() {
+        NotificationCenter.default.addObserver(forName: .megadeskSnoozeAlert, object: nil, queue: .main) { [weak self] note in
+            guard let self,
+                  let alertId = note.userInfo?["alertId"] as? UUID,
+                  let minutes = note.userInfo?["minutes"] as? Int,
+                  let i = self.alerts.firstIndex(where: { $0.id == alertId }) else { return }
+            // Snooze: set lastFiredAt forward so nextFireDate returns now+snooze
+            self.alerts[i].lastFiredAt = Date().addingTimeInterval(TimeInterval(minutes * 60))
+            self.firedAlertIds.remove(alertId)
+            self.dismissedFiredAlertIds.remove(alertId)
+            if self.pendingAlertCount > 0 { self.pendingAlertCount -= 1 }
+            self.saveAlerts()
+        }
+
+        NotificationCenter.default.addObserver(forName: .megadeskDismissAlert, object: nil, queue: .main) { [weak self] note in
+            guard let self, let alertId = note.userInfo?["alertId"] as? UUID else { return }
+            self.dismissFiredAlert(id: alertId)
         }
     }
 }
