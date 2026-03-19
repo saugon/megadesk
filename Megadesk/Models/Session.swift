@@ -82,11 +82,6 @@ struct Session: Identifiable, Codable {
         return false
     }
 
-    /// Session just started — no user interaction yet.
-    var isIdle: Bool {
-        !isWorking && lastEvent == "SessionStart"
-    }
-
     /// Session has been in "waiting" state for longer than the configured threshold — effectively idle.
     var isForgotten: Bool {
         !isWorking && timeInState > TimeInterval(AppSettings.shared.forgottenMinutes * 60)

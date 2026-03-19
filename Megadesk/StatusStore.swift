@@ -222,10 +222,9 @@ final class StatusStore {
 
     private func urgencyPriority(_ s: Session) -> Int {
         if s.needsConfirmation { return 0 }
-        if !s.isWorking && !s.isForgotten { return 1 }  // fresh waiting
-        if s.isWorking { return 2 }
-        if s.isIdle && !s.isForgotten { return 3 }
-        return 4  // forgotten (includes long-idle)
+        if s.isWorking { return 1 }
+        if !s.isForgotten { return 2 }  // waiting
+        return 3  // forgotten
     }
 
     private func startWatching() {
