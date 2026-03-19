@@ -192,10 +192,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         let updateItem = NSMenuItem(
             title: "Check for Updates...",
-            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+            action: #selector(checkForUpdates),
             keyEquivalent: ""
         )
-        updateItem.target = updaterController
+        updateItem.target = self
         menu.addItem(updateItem)
         menu.addItem(withTitle: "Quit Megadesk", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem?.menu = menu
@@ -222,6 +222,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         settingsController?.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func checkForUpdates() {
+        NSApp.activate(ignoringOtherApps: true)
+        updaterController.checkForUpdates(nil)
     }
 
     @objc private func openHelp() {
