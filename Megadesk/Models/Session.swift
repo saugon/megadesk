@@ -16,9 +16,10 @@ struct Session: Identifiable, Codable {
     let lastUpdated: Double
     let toolName: String
     let lastEvent: String
-    let itermSessionId: String
+    let terminalSessionId: String
     let terminal: TerminalType
     let claudePid: Int32?
+    let provider: Provider
     let ghosttyTerminalId: String
 
     var id: String { sessionId }
@@ -38,11 +39,15 @@ struct Session: Identifiable, Codable {
     }
 
     /// True when Claude is waiting for the user to approve/deny a tool call.
+    /// For Codex, approval-requested events set needsConfirmation via last_event.
     /// For non-Bash tools: >4s since PreToolUse with no update is conclusive.
     /// For Bash: checks whether any child process was spawned *after* the PreToolUse
     /// timestamp. MCP servers (GitHub, sourcekit-lsp, etc.) are long-running children
     /// started at session begin, so they must be excluded from the check.
     var needsConfirmation: Bool {
+        if provider == .codex {
+            return lastEvent == "approval-requested"
+        }
         guard isWorking && lastEvent == "PreToolUse" else { return false }
         guard Date().timeIntervalSince1970 - lastUpdated > 4 else { return false }
         if toolName == "Bash" {
@@ -77,10 +82,17 @@ struct Session: Identifiable, Codable {
         return false
     }
 
+    /// Session just started — no user interaction yet.
+    var isIdle: Bool {
+        !isWorking && lastEvent == "SessionStart"
+    }
+
     /// Session has been in "waiting" state for longer than the configured threshold — effectively idle.
     var isForgotten: Bool {
         !isWorking && timeInState > TimeInterval(AppSettings.shared.forgottenMinutes * 60)
     }
+
+    // MARK: - Coding
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
@@ -91,25 +103,51 @@ struct Session: Identifiable, Codable {
         case lastUpdated = "last_updated"
         case toolName = "tool_name"
         case lastEvent = "last_event"
+        case terminalSessionId = "terminal_session_id"
         case itermSessionId = "iterm_session_id"
         case terminal
         case claudePid = "claude_pid"
+        case provider
         case ghosttyTerminalId = "ghostty_terminal_id"
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        sessionId = try c.decode(String.self, forKey: .sessionId)
-        cwd = try c.decode(String.self, forKey: .cwd)
-        state = try c.decode(String.self, forKey: .state)
-        stateSince = try c.decode(Double.self, forKey: .stateSince)
-        createdAt = try c.decodeIfPresent(Double.self, forKey: .createdAt)
+        sessionId   = try c.decode(String.self, forKey: .sessionId)
+        cwd         = try c.decode(String.self, forKey: .cwd)
+        state       = try c.decode(String.self, forKey: .state)
+        stateSince  = try c.decode(Double.self, forKey: .stateSince)
+        createdAt   = try c.decodeIfPresent(Double.self, forKey: .createdAt)
         lastUpdated = try c.decode(Double.self, forKey: .lastUpdated)
-        toolName = try c.decode(String.self, forKey: .toolName)
-        lastEvent = try c.decode(String.self, forKey: .lastEvent)
-        itermSessionId = try c.decode(String.self, forKey: .itermSessionId)
-        terminal = try c.decodeIfPresent(TerminalType.self, forKey: .terminal) ?? .iterm2
-        claudePid = try c.decodeIfPresent(Int32.self, forKey: .claudePid)
+        toolName    = try c.decode(String.self, forKey: .toolName)
+        lastEvent   = try c.decode(String.self, forKey: .lastEvent)
+        terminal    = try c.decodeIfPresent(TerminalType.self, forKey: .terminal) ?? .iterm2
+        claudePid   = try c.decodeIfPresent(Int32.self, forKey: .claudePid)
+        provider    = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? .claude
         ghosttyTerminalId = try c.decodeIfPresent(String.self, forKey: .ghosttyTerminalId) ?? ""
+
+        // Accept both "terminal_session_id" (new) and "iterm_session_id" (legacy)
+        if let tid = try c.decodeIfPresent(String.self, forKey: .terminalSessionId) {
+            terminalSessionId = tid
+        } else {
+            terminalSessionId = try c.decode(String.self, forKey: .itermSessionId)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(sessionId,          forKey: .sessionId)
+        try c.encode(cwd,                forKey: .cwd)
+        try c.encode(state,              forKey: .state)
+        try c.encode(stateSince,         forKey: .stateSince)
+        try c.encodeIfPresent(createdAt, forKey: .createdAt)
+        try c.encode(lastUpdated,        forKey: .lastUpdated)
+        try c.encode(toolName,           forKey: .toolName)
+        try c.encode(lastEvent,          forKey: .lastEvent)
+        try c.encode(terminalSessionId,  forKey: .terminalSessionId)
+        try c.encode(terminal,           forKey: .terminal)
+        try c.encodeIfPresent(claudePid, forKey: .claudePid)
+        try c.encode(provider,           forKey: .provider)
+        try c.encode(ghosttyTerminalId,  forKey: .ghosttyTerminalId)
     }
 }

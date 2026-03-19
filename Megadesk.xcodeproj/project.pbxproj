@@ -37,6 +37,8 @@
 		AA000028 /* AlertsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000029 /* AlertsWindowController.swift */; };
 		AA000029 /* AlertCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000030 /* AlertCardView.swift */; };
 		AA000031 /* QuickAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000032 /* QuickAlertView.swift */; };
+		AA000033 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000033 /* Provider.swift */; };
+		AA000034 /* megadesk-codex-hook.py in Resources */ = {isa = PBXBuildFile; fileRef = AB000031 /* megadesk-codex-hook.py */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -64,13 +66,16 @@
 		AB000021 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		AB000022 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AB000023 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		AB000033 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
 		AB000025 /* Alert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Alert.swift; sourceTree = "<group>"; };
 		AB000026 /* AlertNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertNotificationService.swift; sourceTree = "<group>"; };
 		AB000027 /* ToastWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastWindowController.swift; sourceTree = "<group>"; };
 		AB000028 /* AlertsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertsView.swift; sourceTree = "<group>"; };
 		AB000029 /* AlertsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertsWindowController.swift; sourceTree = "<group>"; };
 		AB000030 /* AlertCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCardView.swift; sourceTree = "<group>"; };
+		AB000031 /* megadesk-codex-hook.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "megadesk-codex-hook.py"; sourceTree = "<group>"; };
 		AB000032 /* QuickAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAlertView.swift; sourceTree = "<group>"; };
+
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -99,6 +104,7 @@
 				AB000011 /* Assets.xcassets */,
 				AB000012 /* HookInstaller.swift */,
 				AB000013 /* megadesk-hook.py */,
+				AB000031 /* megadesk-codex-hook.py */,
 				AB000015 /* OnboardingView.swift */,
 				AB000016 /* OnboardingWindowController.swift */,
 				AB000019 /* HelpView.swift */,
@@ -121,6 +127,7 @@
 		AD000002 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				AB000033 /* Provider.swift */,
 				AB000007 /* Session.swift */,
 				AB000017 /* PullRequest.swift */,
 				AB000025 /* Alert.swift */,
@@ -221,6 +228,7 @@
 			files = (
 				AA000009 /* Assets.xcassets in Resources */,
 				AA000011 /* megadesk-hook.py in Resources */,
+				AA000034 /* megadesk-codex-hook.py in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -267,6 +275,7 @@
 				AA000019 /* AppSettings.swift in Sources */,
 				AA000020 /* SettingsView.swift in Sources */,
 				AA000021 /* SettingsWindowController.swift in Sources */,
+				AA000033 /* Provider.swift in Sources */,
 				AA000023 /* JSONLWatcher.swift in Sources */,
 				AA000024 /* Alert.swift in Sources */,
 				AA000025 /* AlertNotificationService.swift in Sources */,

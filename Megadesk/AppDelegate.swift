@@ -38,6 +38,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         windowController?.window?.delegate = self
         setupMenuBar()
         registerGlobalHotKey()
+
+        // Silently update hook scripts on every launch (copies latest bundled scripts,
+        // patches config files only if not yet registered).
+        for provider in Provider.allCases {
+            try? HookInstaller.install(provider: provider)
+        }
+
         AlertNotificationService.shared.setup()
         setupAlertBadge()
         let storedVersion = UserDefaults.standard.integer(forKey: "megadesk.onboardingVersion")

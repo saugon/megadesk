@@ -51,6 +51,7 @@ struct HelpView: View {
             // Features
             GroupBox("Features") {
                 VStack(alignment: .leading, spacing: 8) {
+                    FeatureRow(icon: "bolt.horizontal",             text: "Supports Claude Code and Codex CLI sessions")
                     FeatureRow(icon: "cursorarrow.click",           text: "Click a card to focus its terminal tab (iTerm2, Ghostty)")
                     FeatureRow(icon: "pencil",                      text: "Click ✏ on a card to rename it — persists through cd changes")
                     FeatureRow(icon: "rectangle.compress.vertical", text: "Compact Mode: condensed single-column view")

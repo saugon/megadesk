@@ -7,13 +7,16 @@ struct OnboardingView: View {
     var onFinish: () -> Void
     var isReturningUser: Bool = false
 
-    @State private var hookDone = HookInstaller.isInstalled()
+    @State private var claudeHookDone = HookInstaller.isInstalled(provider: .claude)
+    @State private var codexHookDone = HookInstaller.isInstalled(provider: .codex)
     @State private var itermState: TerminalPermissionState = .unknown
     @State private var ghosttyState: TerminalPermissionState = .unknown
 
     fileprivate enum TerminalPermissionState {
         case unknown, granted, denied, notRunning
     }
+
+    private var anyHookDone: Bool { claudeHookDone || codexHookDone }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -36,25 +39,42 @@ struct OnboardingView: View {
                     Text("Welcome to Megadesk")
                         .font(.title2)
                         .fontWeight(.semibold)
-                    Text("Two quick steps to get started")
+                    Text("Connect at least one provider to get started")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
             }
 
             if !isReturningUser {
-                // Step 1: Install hook
+                // Step 1: Install Claude hook
                 StepCard(
                     number: 1,
                     title: "Connect Claude Code",
                     description: "Adds a hook to ~/.claude/settings.json to track session activity.",
                     buttonLabel: "Install Hook",
-                    isDone: hookDone,
+                    isDone: claudeHookDone,
                     isDisabled: false
                 ) {
                     do {
-                        try HookInstaller.install()
-                        hookDone = true
+                        try HookInstaller.install(provider: .claude)
+                        claudeHookDone = true
+                    } catch {
+                        // silently ignore; user can retry
+                    }
+                }
+
+                // Step 2: Install Codex hook (optional)
+                StepCard(
+                    number: 2,
+                    title: "Connect Codex",
+                    description: "Sets the notify command in ~/.codex/config.toml. Optional — skip if you don't use Codex.",
+                    buttonLabel: "Install Hook",
+                    isDone: codexHookDone,
+                    isDisabled: false
+                ) {
+                    do {
+                        try HookInstaller.install(provider: .codex)
+                        codexHookDone = true
                     } catch {
                         // silently ignore; user can retry
                     }
@@ -63,8 +83,8 @@ struct OnboardingView: View {
 
             // Terminal AppleScript permissions
             TerminalPermissionCard(
-                number: isReturningUser ? 1 : 2,
-                isDisabled: !isReturningUser && !hookDone,
+                number: isReturningUser ? 1 : 3,
+                isDisabled: !isReturningUser && !anyHookDone,
                 itermState: $itermState,
                 ghosttyState: $ghosttyState
             )
@@ -74,7 +94,7 @@ struct OnboardingView: View {
                 UserDefaults.standard.set(Self.currentOnboardingVersion, forKey: "megadesk.onboardingVersion")
                 onFinish()
             }
-            .disabled(!isReturningUser && !hookDone)
+            .disabled(!isReturningUser && !anyHookDone)
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
         }

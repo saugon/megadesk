@@ -8,7 +8,7 @@ struct TerminalFocuser {
     static func focus(session: Session) -> Bool {
         switch session.terminal {
         case .iterm2:
-            return focusiTerm2(sessionId: session.itermSessionId)
+            return focusiTerm2(sessionId: session.terminalSessionId)
         case .ghostty:
             return focusGhostty(terminalId: session.ghosttyTerminalId, cwd: session.cwd)
         case .unknown:

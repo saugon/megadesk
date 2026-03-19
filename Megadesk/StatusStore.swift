@@ -9,7 +9,7 @@ final class StatusStore {
 
     var sessions: [Session] = []
     var tick: Int = 0  // increments every second to force time re-renders
-    var customNames: [String: String] = [:]  // itermSessionId → custom display name
+    var customNames: [String: String] = [:]  // terminalSessionId → custom display name
 
     // MARK: PR Tracking
     var trackedPRs: [TrackedPR] = []
@@ -38,7 +38,7 @@ final class StatusStore {
     private var lastCycleIndex: Int? = nil
     private let startupTime = Date()
 
-    // kqueue-based process watchers: itermSessionId → DispatchSourceProcess
+    // kqueue-based process watchers: terminalSessionId → DispatchSourceProcess
     private var processSources: [String: DispatchSourceProcess] = [:]
 
     // Caches of active terminal session IDs, updated by checkOrphanedSessions every 10s.
@@ -96,7 +96,7 @@ final class StatusStore {
     @discardableResult
     func focusTerminal(session: Session) -> Bool {
         // Unknown terminals without a real session ID can't be focused
-        if session.itermSessionId == session.sessionId && session.terminal == .unknown {
+        if session.terminalSessionId == session.sessionId && session.terminal == .unknown {
             activeSessionId = session.sessionId
             return true
         }
@@ -104,7 +104,7 @@ final class StatusStore {
         let found = TerminalFocuser.focus(session: session)
 
         // Tmux sessions may outlive their original terminal tab — don't remove the card
-        if !found && session.terminal == .iterm2 && session.itermSessionId.contains(":") {
+        if !found && session.terminal == .iterm2 && session.terminalSessionId.contains(":") {
             activeSessionId = session.sessionId
             return true
         }
@@ -123,19 +123,19 @@ final class StatusStore {
     }
 
     func displayName(for session: Session) -> String {
-        customNames[session.itermSessionId] ?? session.projectName
+        customNames[session.terminalSessionId] ?? session.projectName
     }
 
     func hasCustomName(for session: Session) -> Bool {
-        customNames[session.itermSessionId] != nil
+        customNames[session.terminalSessionId] != nil
     }
 
     func setCustomName(session: Session, name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         if trimmed.isEmpty || trimmed == session.projectName {
-            customNames.removeValue(forKey: session.itermSessionId)
+            customNames.removeValue(forKey: session.terminalSessionId)
         } else {
-            customNames[session.itermSessionId] = trimmed
+            customNames[session.terminalSessionId] = trimmed
         }
         saveCustomNames()
     }
@@ -179,10 +179,10 @@ final class StatusStore {
         // Deduplicate by terminal session ID — one terminal tab = one card
         var seen: [String: Session] = [:]
         for s in loaded {
-            if let existing = seen[s.itermSessionId] {
-                if s.lastUpdated > existing.lastUpdated { seen[s.itermSessionId] = s }
+            if let existing = seen[s.terminalSessionId] {
+                if s.lastUpdated > existing.lastUpdated { seen[s.terminalSessionId] = s }
             } else {
-                seen[s.itermSessionId] = s
+                seen[s.terminalSessionId] = s
             }
         }
         let deduped = Array(seen.values)
@@ -198,9 +198,7 @@ final class StatusStore {
             return list.sorted {
                 let p0 = urgencyPriority($0), p1 = urgencyPriority($1)
                 if p0 != p1 { return p0 < p1 }
-                if p0 == 3 { return $0.timeInState < $1.timeInState }
-                if $0.projectName != $1.projectName { return $0.projectName < $1.projectName }
-                return $0.sessionId < $1.sessionId
+                return $0.timeInState < $1.timeInState
             }
         case .byActivity:
             return list.sorted {
@@ -224,9 +222,10 @@ final class StatusStore {
 
     private func urgencyPriority(_ s: Session) -> Int {
         if s.needsConfirmation { return 0 }
+        if s.isIdle { return 3 }
         if !s.isWorking && !s.isForgotten { return 1 }  // fresh waiting
         if s.isWorking { return 2 }
-        return 3  // forgotten
+        return 4  // forgotten
     }
 
     private func startWatching() {
@@ -270,7 +269,7 @@ final class StatusStore {
     }
 
     private var hasItermSessions: Bool {
-        sessions.contains { $0.terminal == .iterm2 && $0.itermSessionId != $0.sessionId }
+        sessions.contains { $0.terminal == .iterm2 && $0.terminalSessionId != $0.sessionId }
     }
 
     private var hasGhosttySessions: Bool {
@@ -290,7 +289,7 @@ final class StatusStore {
                     defer { group.leave() }
                     guard let self, let currentId else { return }
                     guard let match = self.sessions.first(where: {
-                        $0.itermSessionId.components(separatedBy: ":").first == currentId
+                        $0.terminalSessionId.components(separatedBy: ":").first == currentId
                     }) else { return }
                     if self.activeSessionId != match.sessionId {
                         self.activeSessionId = match.sessionId
@@ -353,7 +352,7 @@ final class StatusStore {
     /// and cancels watchers for sessions that are no longer in the list.
     /// When a watched process exits, the card is removed instantly via kqueue notification.
     private func updateProcessWatchers() {
-        let activeIds = Set(sessions.compactMap { $0.claudePid != nil ? $0.itermSessionId : nil })
+        let activeIds = Set(sessions.compactMap { $0.claudePid != nil ? $0.terminalSessionId : nil })
 
         // Cancel watchers for sessions no longer loaded
         for id in Set(processSources.keys).subtracting(activeIds) {
@@ -364,25 +363,25 @@ final class StatusStore {
         // Register watchers for new sessions
         for session in sessions {
             guard let pid = session.claudePid,
-                  processSources[session.itermSessionId] == nil else { continue }
+                  processSources[session.terminalSessionId] == nil else { continue }
 
             // If already dead, skip — reapDeadSessions or checkOrphanedSessions will
             // handle cleanup with proper terminal tab checks to avoid false removals.
             guard kill(pid_t(pid), 0) == 0 || errno == EPERM else { continue }
 
-            let itermId = session.itermSessionId
+            let terminalId = session.terminalSessionId
             let source = DispatchSource.makeProcessSource(
                 identifier: pid_t(pid),
                 eventMask: .exit,
                 queue: .main
             )
             source.setEventHandler { [weak self] in
-                print("[Megadesk] kqueue: PID \(pid) exited for \(itermId) — removing session")
-                self?.processSources.removeValue(forKey: itermId)
-                self?.removeSessionFiles(withItermId: itermId)
+                print("[Megadesk] kqueue: PID \(pid) exited for \(terminalId) — removing session")
+                self?.processSources.removeValue(forKey: terminalId)
+                self?.removeSessionFiles(withTerminalId: terminalId)
             }
             source.resume()
-            processSources[itermId] = source
+            processSources[terminalId] = source
         }
     }
 
@@ -395,6 +394,8 @@ final class StatusStore {
         let staleThreshold = Date().timeIntervalSince1970 - 120
         var deadIds: [String] = []
         for session in sessions {
+            // Codex sessions don't report PIDs and update infrequently — skip reaping
+            if session.provider == .codex { continue }
             if let pid = session.claudePid {
                 // Has a PID — check if the process is still alive.
                 if kill(pid_t(pid), 0) != 0 && errno != EPERM {
@@ -405,19 +406,19 @@ final class StatusStore {
                         continue
                     }
                     print("[Megadesk] reapDeadSessions: removing \(session.projectName) (PID \(pid) dead, tab gone)")
-                    processSources[session.itermSessionId]?.cancel()
-                    processSources.removeValue(forKey: session.itermSessionId)
-                    deadIds.append(session.itermSessionId)
+                    processSources[session.terminalSessionId]?.cancel()
+                    processSources.removeValue(forKey: session.terminalSessionId)
+                    deadIds.append(session.terminalSessionId)
                 }
             } else if session.lastUpdated < staleThreshold {
                 // No PID at all (old hook version) — remove if stale.
                 if isTerminalTabAlive(session) { continue }
                 print("[Megadesk] reapDeadSessions: removing \(session.projectName) (no PID, stale)")
-                deadIds.append(session.itermSessionId)
+                deadIds.append(session.terminalSessionId)
             }
         }
         for id in deadIds {
-            removeSessionFiles(withItermId: id)
+            removeSessionFiles(withTerminalId: id)
         }
     }
 
@@ -426,7 +427,7 @@ final class StatusStore {
     private func isTerminalTabAlive(_ session: Session) -> Bool {
         switch session.terminal {
         case .iterm2:
-            let bareId = session.itermSessionId.components(separatedBy: ":").first ?? session.itermSessionId
+            let bareId = session.terminalSessionId.components(separatedBy: ":").first ?? session.terminalSessionId
             return !lastKnownActiveItermIds.isEmpty && lastKnownActiveItermIds.contains(bareId)
         case .ghostty:
             return !lastKnownActiveGhosttyIds.isEmpty && lastKnownActiveGhosttyIds.contains(session.ghosttyTerminalId)
@@ -532,11 +533,13 @@ final class StatusStore {
 
         let orphanedIds = sessions
             .filter { s in
+                // Codex sessions don't report PIDs and update infrequently — skip orphan cleanup
+                guard s.provider != .codex else { return false }
                 guard s.lastUpdated < staleThreshold && !isClaudePidAlive(s) else { return false }
                 switch s.terminal {
                 case .iterm2:
-                    let bareId = s.itermSessionId.components(separatedBy: ":").first ?? s.itermSessionId
-                    return s.itermSessionId != s.sessionId && !activeItermIds.contains(bareId)
+                    let bareId = s.terminalSessionId.components(separatedBy: ":").first ?? s.terminalSessionId
+                    return s.terminalSessionId != s.sessionId && !activeItermIds.contains(bareId)
                 case .ghostty:
                     guard !s.ghosttyTerminalId.isEmpty else { return false }
                     return !activeGhosttyIds.contains(s.ghosttyTerminalId)
@@ -544,17 +547,17 @@ final class StatusStore {
                     return false
                 }
             }
-            .map(\.itermSessionId)
+            .map(\.terminalSessionId)
 
         for id in orphanedIds {
             print("[Megadesk] checkOrphanedSessions: removing \(id) (tab gone, stale, PID dead)")
-            removeSessionFiles(withItermId: id)
+            removeSessionFiles(withTerminalId: id)
         }
     }
 
     /// Deletes all session JSON files that belong to the given terminal session ID,
     /// then reloads the session list.
-    private func removeSessionFiles(withItermId itermId: String) {
+    private func removeSessionFiles(withTerminalId terminalId: String) {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: sessionsURL, includingPropertiesForKeys: nil) else { return }
         let decoder = JSONDecoder()
@@ -562,7 +565,7 @@ final class StatusStore {
         for file in files where file.pathExtension == "json" {
             guard let data = try? Data(contentsOf: file),
                   let session = try? decoder.decode(Session.self, from: data),
-                  session.itermSessionId == itermId
+                  session.terminalSessionId == terminalId
             else { continue }
             try? fm.removeItem(at: file)
             removed = true

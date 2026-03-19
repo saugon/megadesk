@@ -122,8 +122,9 @@ struct SessionCardView: View {
 
     @ViewBuilder private var cardContent: some View {
         HStack(alignment: .top, spacing: 8) {
-            StatusDot(color: dotColor, pulse: shouldPulse)
-                .padding(.top, 5)
+            ProviderBadge(letter: session.provider == .codex ? "X" : "C",
+                          color: dotColor, pulse: shouldPulse)
+                .padding(.top, 4)
 
             // Left column: name/TextField + status
             VStack(alignment: .leading, spacing: 2) {
@@ -287,6 +288,7 @@ struct SessionCardView: View {
         if session.needsConfirmation { return AppSettings.shared.colorConfirmation }
         if session.isWorking         { return AppSettings.shared.colorWorking }
         if session.isForgotten       { return AppSettings.shared.colorForgotten }
+        if session.isIdle            { return AppSettings.shared.colorForgotten }
         return AppSettings.shared.colorWaiting
     }
 
@@ -296,6 +298,7 @@ struct SessionCardView: View {
         if session.needsConfirmation { return "needs confirmation" }
         if session.isWorking         { return "working" }
         if session.isForgotten       { return "forgotten" }
+        if session.isIdle            { return "idle" }
         return "waiting for input"
     }
 
@@ -303,11 +306,13 @@ struct SessionCardView: View {
         if session.needsConfirmation { return AppSettings.shared.colorConfirmation.opacity(0.9) }
         if session.isWorking         { return AppSettings.shared.colorWorking.opacity(0.8) }
         if session.isForgotten       { return isFlashing ? Color(white: 0.7) : Color(white: 0.4) }
+        if session.isIdle            { return Color(white: 0.4) }
         return AppSettings.shared.colorWaiting.opacity(0.9)
     }
 
     private var cardBackground: Color {
         if session.needsConfirmation                   { return AppSettings.shared.colorConfirmation.opacity(isHovered ? 0.16 : 0.08) }
+        if session.isIdle                              { return Color.white.opacity(isHovered ? 0.07 : 0.02) }
         if !session.isWorking && !session.isForgotten  { return AppSettings.shared.colorWaiting.opacity(isHovered ? 0.16 : 0.08) }
         if session.isForgotten                         { return Color.white.opacity(isHovered ? 0.07 : 0.02) }
         return Color.white.opacity(isHovered ? 0.12 : 0.05)
@@ -319,6 +324,8 @@ struct SessionCardView: View {
         let minutes = (total % 3600) / 60
         let seconds = total % 60
 
+        let days = total / 86400
+        if days > 0    { return "\(days)d \(hours % 24)h" }
         if hours > 0   { return "\(hours)h \(minutes)m" }
         if minutes > 0 { return "\(minutes)m \(seconds)s" }
         return "\(seconds)s"
@@ -344,5 +351,19 @@ struct StatusDot: View {
             )
             .onAppear { if pulse { animating = true } }
             .onChange(of: pulse) { _, newValue in animating = newValue }
+    }
+}
+
+struct ProviderBadge: View {
+    let letter: String
+    let color: Color
+    let pulse: Bool
+
+    var body: some View {
+        Text(letter)
+            .font(.system(size: 10, weight: .bold, design: .monospaced))
+            .foregroundColor(.white)
+            .frame(width: 16, height: 16)
+            .background(RoundedRectangle(cornerRadius: 4).fill(color))
     }
 }

@@ -92,16 +92,16 @@ def main():
 
     # iTerm2 session ID: "w0t0p0:UUID" → extract UUID
     iterm_raw = os.environ.get("ITERM_SESSION_ID", "")
-    iterm_session_id = iterm_raw.split(":", 1)[-1] if ":" in iterm_raw else iterm_raw
+    terminal_session_id = iterm_raw.split(":", 1)[-1] if ":" in iterm_raw else iterm_raw
     # Inside tmux, all panes of the same iTerm2 tab share $ITERM_SESSION_ID.
     # Append the tmux pane ID so each pane gets its own card.
     tmux_pane = os.environ.get("TMUX_PANE", "")
-    if tmux_pane and iterm_session_id:
-        iterm_session_id = f"{iterm_session_id}:{tmux_pane}"
+    if tmux_pane and terminal_session_id:
+        terminal_session_id = f"{terminal_session_id}:{tmux_pane}"
     # If not running inside iTerm2, fall back to session_id so deduplication
     # doesn't collapse all sessions onto the same empty-string key.
-    if not iterm_session_id:
-        iterm_session_id = session_id
+    if not terminal_session_id:
+        terminal_session_id = session_id
 
     if iterm_raw:
         terminal = "iterm2"
@@ -142,20 +142,21 @@ def main():
         "last_updated": now,
         "tool_name": tool_name,
         "last_event": hook_event,
-        "iterm_session_id": iterm_session_id,
+        "terminal_session_id": terminal_session_id,
         "terminal": terminal,
         "claude_pid": _find_claude_pid(),
+        "provider": "claude",
         "ghostty_terminal_id": ghostty_terminal_id,
     }
 
     # On SessionStart, remove stale files from the same terminal tab
-    if hook_event == "SessionStart" and iterm_session_id:
+    if hook_event == "SessionStart" and terminal_session_id:
         for old_file in SESSIONS_DIR.glob("*.json"):
             if old_file == session_file:
                 continue
             try:
                 old_data = json.loads(old_file.read_text())
-                if old_data.get("iterm_session_id") == iterm_session_id:
+                if old_data.get("terminal_session_id") == terminal_session_id:
                     old_file.unlink(missing_ok=True)
             except (json.JSONDecodeError, OSError):
                 pass
