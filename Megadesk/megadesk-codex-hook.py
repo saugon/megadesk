@@ -12,6 +12,29 @@ from pathlib import Path
 
 SESSIONS_DIR = Path.home() / ".claude" / "megadesk" / "sessions"
 
+
+def _find_codex_pid() -> int:
+    """Walk the process tree upward to find the 'codex' ancestor PID."""
+    import subprocess
+    pid = os.getpid()
+    for _ in range(6):
+        try:
+            out = subprocess.check_output(
+                ["ps", "-p", str(pid), "-o", "ppid=,comm="],
+                stderr=subprocess.DEVNULL, text=True,
+            ).split(None, 1)
+            ppid = int(out[0])
+            comm = out[1].strip().rsplit("/", 1)[-1] if len(out) > 1 else ""
+            if comm == "codex":
+                return pid
+            if ppid <= 1:
+                break
+            pid = ppid
+        except Exception:
+            break
+    return os.getppid()  # fallback
+
+
 # Mapping of Codex notify event types to session states
 EVENT_STATE_MAP = {
     "agent-turn-complete": "waiting",
@@ -48,6 +71,14 @@ def main():
     if not terminal_session_id:
         terminal_session_id = session_id
 
+    term_program = os.environ.get("TERM_PROGRAM", "").lower()
+    if iterm_raw:
+        terminal = "iterm2"
+    elif term_program == "ghostty":
+        terminal = "ghostty"
+    else:
+        terminal = "unknown"
+
     session_file = SESSIONS_DIR / f"{session_id}.json"
     SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -72,6 +103,8 @@ def main():
         "tool_name": "",
         "last_event": event_type,
         "terminal_session_id": terminal_session_id,
+        "terminal": terminal,
+        "claude_pid": _find_codex_pid(),
         "provider": "codex",
     }
 

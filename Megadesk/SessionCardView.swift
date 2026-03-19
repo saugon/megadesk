@@ -122,8 +122,9 @@ struct SessionCardView: View {
 
     @ViewBuilder private var cardContent: some View {
         HStack(alignment: .top, spacing: 8) {
-            StatusDot(color: dotColor, pulse: shouldPulse)
-                .padding(.top, 5)
+            ProviderBadge(letter: session.provider == .codex ? "X" : "C",
+                          color: dotColor, pulse: shouldPulse)
+                .padding(.top, 4)
 
             // Left column: name/TextField + status
             VStack(alignment: .leading, spacing: 2) {
@@ -144,12 +145,6 @@ struct SessionCardView: View {
                 }
 
                 HStack(spacing: 4) {
-                    Text(session.provider == .codex ? "X" : "C")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(.white.opacity(0.5))
-                        .frame(width: 14, height: 14)
-                        .background(Color.white.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
                     Text(statusLabel)
                         .font(.system(size: 11))
                         .foregroundColor(labelColor)
@@ -329,6 +324,8 @@ struct SessionCardView: View {
         let minutes = (total % 3600) / 60
         let seconds = total % 60
 
+        let days = total / 86400
+        if days > 0    { return "\(days)d \(hours % 24)h" }
         if hours > 0   { return "\(hours)h \(minutes)m" }
         if minutes > 0 { return "\(minutes)m \(seconds)s" }
         return "\(seconds)s"
@@ -354,5 +351,19 @@ struct StatusDot: View {
             )
             .onAppear { if pulse { animating = true } }
             .onChange(of: pulse) { _, newValue in animating = newValue }
+    }
+}
+
+struct ProviderBadge: View {
+    let letter: String
+    let color: Color
+    let pulse: Bool
+
+    var body: some View {
+        Text(letter)
+            .font(.system(size: 10, weight: .bold, design: .monospaced))
+            .foregroundColor(.white)
+            .frame(width: 16, height: 16)
+            .background(RoundedRectangle(cornerRadius: 4).fill(color))
     }
 }

@@ -198,9 +198,7 @@ final class StatusStore {
             return list.sorted {
                 let p0 = urgencyPriority($0), p1 = urgencyPriority($1)
                 if p0 != p1 { return p0 < p1 }
-                if p0 == 3 { return $0.timeInState < $1.timeInState }
-                if $0.projectName != $1.projectName { return $0.projectName < $1.projectName }
-                return $0.sessionId < $1.sessionId
+                return $0.timeInState < $1.timeInState
             }
         case .byActivity:
             return list.sorted {
@@ -371,19 +369,19 @@ final class StatusStore {
             // handle cleanup with proper terminal tab checks to avoid false removals.
             guard kill(pid_t(pid), 0) == 0 || errno == EPERM else { continue }
 
-            let itermId = session.terminalSessionId
+            let terminalId = session.terminalSessionId
             let source = DispatchSource.makeProcessSource(
                 identifier: pid_t(pid),
                 eventMask: .exit,
                 queue: .main
             )
             source.setEventHandler { [weak self] in
-                print("[Megadesk] kqueue: PID \(pid) exited for \(itermId) — removing session")
-                self?.processSources.removeValue(forKey: itermId)
-                self?.removeSessionFiles(withTerminalId: itermId)
+                print("[Megadesk] kqueue: PID \(pid) exited for \(terminalId) — removing session")
+                self?.processSources.removeValue(forKey: terminalId)
+                self?.removeSessionFiles(withTerminalId: terminalId)
             }
             source.resume()
-            processSources[itermId] = source
+            processSources[terminalId] = source
         }
     }
 
@@ -396,6 +394,8 @@ final class StatusStore {
         let staleThreshold = Date().timeIntervalSince1970 - 120
         var deadIds: [String] = []
         for session in sessions {
+            // Codex sessions don't report PIDs and update infrequently — skip reaping
+            if session.provider == .codex { continue }
             if let pid = session.claudePid {
                 // Has a PID — check if the process is still alive.
                 if kill(pid_t(pid), 0) != 0 && errno != EPERM {
@@ -533,6 +533,8 @@ final class StatusStore {
 
         let orphanedIds = sessions
             .filter { s in
+                // Codex sessions don't report PIDs and update infrequently — skip orphan cleanup
+                guard s.provider != .codex else { return false }
                 guard s.lastUpdated < staleThreshold && !isClaudePidAlive(s) else { return false }
                 switch s.terminal {
                 case .iterm2:

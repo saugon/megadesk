@@ -144,7 +144,8 @@ enum HookInstaller {
         let hookPath = codexHookDest.path
         let notifyLine = "notify = [\"python3\", \"\(hookPath)\"]"
 
-        // Replace existing notify line if present, otherwise append
+        // Replace existing root-level notify line if present, otherwise insert
+        // at the root level (before the first [section] header).
         var replaced = false
         for (i, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -155,11 +156,14 @@ enum HookInstaller {
             }
         }
         if !replaced {
-            // If file is empty or doesn't end with a newline, ensure clean append
-            if lines.last?.isEmpty == false {
-                lines.append("")
+            // Insert before the first TOML section header so it stays at root level
+            let firstSection = lines.firstIndex { $0.trimmingCharacters(in: .whitespaces).hasPrefix("[") }
+            if let idx = firstSection {
+                lines.insert(notifyLine, at: idx)
+            } else {
+                if lines.last?.isEmpty == false { lines.append("") }
+                lines.append(notifyLine)
             }
-            lines.append(notifyLine)
         }
 
         let output = lines.joined(separator: "\n")
