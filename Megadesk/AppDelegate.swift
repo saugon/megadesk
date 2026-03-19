@@ -52,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             windowController?.show()
         } else {
             let isReturningUser = UserDefaults.standard.bool(forKey: "megadesk.onboardingComplete")
-            onboardingController = OnboardingWindowController(isReturningUser: isReturningUser) {
+            onboardingController = OnboardingWindowController(isReturningUser: isReturningUser, previousVersion: storedVersion) {
                 self.onboardingController = nil
                 self.windowController?.show()
             }

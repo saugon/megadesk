@@ -15,7 +15,7 @@ struct HelpView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Megadesk")
                         .font(.title2).fontWeight(.semibold)
-                    Text("Claude Code session monitor")
+                    Text("Session monitor for Claude Code & Codex")
                         .font(.subheadline).foregroundColor(.secondary)
                 }
             }
@@ -26,9 +26,9 @@ struct HelpView: View {
             HStack(alignment: .top, spacing: 12) {
                 GroupBox("Session States") {
                     VStack(alignment: .leading, spacing: 10) {
-                        StateRow(color: .green,             label: "Working",            description: "Claude is actively running a task")
+                        StateRow(color: .green,             label: "Working",            description: "Actively running a task")
                         StateRow(color: .cyan,              label: "Needs confirmation", description: "Waiting for you to approve or deny a tool")
-                        StateRow(color: .orange,            label: "Waiting for input",  description: "Claude finished — your turn to respond")
+                        StateRow(color: .orange,            label: "Waiting for input",  description: "Finished — your turn to respond")
                         StateRow(color: Color(white: 0.45), label: "Forgotten",          description: "Idle for more than 5 minutes")
                     }
                     .padding(6)
@@ -55,7 +55,8 @@ struct HelpView: View {
                     FeatureRow(icon: "cursorarrow.click",           text: "Click a card to focus its terminal tab (iTerm2, Ghostty)")
                     FeatureRow(icon: "pencil",                      text: "Click ✏ on a card to rename it — persists through cd changes")
                     FeatureRow(icon: "rectangle.compress.vertical", text: "Compact Mode: condensed single-column view")
-                    FeatureRow(icon: "arrow.triangle.pull",         text: "PR Tracking: paste a PR URL (e.g. github.com/org/repo/pull/123) to monitor its status via the gh CLI")
+                    FeatureRow(icon: "arrow.triangle.pull",         text: "PR Tracking: paste a PR URL to monitor CI status via the gh CLI")
+                    FeatureRow(icon: "bell.badge",                  text: "Alerts: set one-time or recurring reminders with toast, widget, and notification display")
                 }
                 .padding(6)
             }
@@ -64,6 +65,7 @@ struct HelpView: View {
             GroupBox("Hotkeys") {
                 VStack(alignment: .leading, spacing: 8) {
                     FeatureRow(icon: "keyboard", text: "⌘⇧M — toggle widget visibility from anywhere")
+                    FeatureRow(icon: "keyboard", text: "⌘⇧A — quick alert popover for fast reminders")
                     FeatureRow(icon: "keyboard", text: "⇧⌥↑ / ⇧⌥↓ — cycle through sessions up or down")
                 }
                 .padding(6)

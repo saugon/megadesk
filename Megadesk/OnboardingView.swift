@@ -2,10 +2,11 @@ import AppKit
 import SwiftUI
 
 struct OnboardingView: View {
-    static let currentOnboardingVersion = 2
+    static let currentOnboardingVersion = 3
 
     var onFinish: () -> Void
     var isReturningUser: Bool = false
+    var previousVersion: Int = 0
 
     @State private var claudeHookDone = HookInstaller.isInstalled(provider: .claude)
     @State private var codexHookDone = HookInstaller.isInstalled(provider: .codex)
@@ -31,7 +32,7 @@ struct OnboardingView: View {
                     Text("What's New")
                         .font(.title2)
                         .fontWeight(.semibold)
-                    Text("Megadesk now supports Ghostty! Grant terminal access below.")
+                    Text("Megadesk now supports Codex CLI and Ghostty!")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -62,32 +63,34 @@ struct OnboardingView: View {
                         // silently ignore; user can retry
                     }
                 }
+            }
 
-                // Step 2: Install Codex hook (optional)
-                StepCard(
-                    number: 2,
-                    title: "Connect Codex",
-                    description: "Sets the notify command in ~/.codex/config.toml. Optional — skip if you don't use Codex.",
-                    buttonLabel: "Install Hook",
-                    isDone: codexHookDone,
-                    isDisabled: false
-                ) {
-                    do {
-                        try HookInstaller.install(provider: .codex)
-                        codexHookDone = true
-                    } catch {
-                        // silently ignore; user can retry
-                    }
+            // Codex hook (shown for both new and returning users)
+            StepCard(
+                number: isReturningUser ? 1 : 2,
+                title: "Connect Codex",
+                description: "Sets the notify command in ~/.codex/config.toml. Optional — skip if you don't use Codex.",
+                buttonLabel: "Install Hook",
+                isDone: codexHookDone,
+                isDisabled: false
+            ) {
+                do {
+                    try HookInstaller.install(provider: .codex)
+                    codexHookDone = true
+                } catch {
+                    // silently ignore; user can retry
                 }
             }
 
-            // Terminal AppleScript permissions
-            TerminalPermissionCard(
-                number: isReturningUser ? 1 : 3,
-                isDisabled: !isReturningUser && !anyHookDone,
-                itermState: $itermState,
-                ghosttyState: $ghosttyState
-            )
+            // Terminal AppleScript permissions (skip for returning users who already completed v2+)
+            if !isReturningUser || previousVersion < 2 {
+                TerminalPermissionCard(
+                    number: isReturningUser ? 2 : 3,
+                    isDisabled: !isReturningUser && !anyHookDone,
+                    itermState: $itermState,
+                    ghosttyState: $ghosttyState
+                )
+            }
 
             Button("Continue") {
                 UserDefaults.standard.set(true, forKey: "megadesk.onboardingComplete")

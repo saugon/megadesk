@@ -4,7 +4,7 @@ import SwiftUI
 final class OnboardingWindowController: NSWindowController {
     var onFinish: (() -> Void)?
 
-    convenience init(isReturningUser: Bool = false, onFinish: @escaping () -> Void) {
+    convenience init(isReturningUser: Bool = false, previousVersion: Int = 0, onFinish: @escaping () -> Void) {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 360, height: 420),
             styleMask: [.titled, .closable],
@@ -18,7 +18,7 @@ final class OnboardingWindowController: NSWindowController {
         let view = OnboardingView(onFinish: {
             window.close()
             onFinish()
-        }, isReturningUser: isReturningUser)
+        }, isReturningUser: isReturningUser, previousVersion: previousVersion)
         let hosting = NSHostingView(rootView: view)
         window.contentView = hosting
         window.center()
