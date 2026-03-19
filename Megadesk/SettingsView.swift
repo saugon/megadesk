@@ -42,6 +42,10 @@ struct SettingsView: View {
                     colorRow("Forgotten",          hex: $settings.hexForgotten)
                 }
 
+                Section("Alerts") {
+                    colorRow("Alert", hex: $settings.hexAlert)
+                }
+
                 Section("Pull Request States") {
                     colorRow("CI Passing", hex: $settings.hexPRPassing)
                     colorRow("CI Pending", hex: $settings.hexPRPending)

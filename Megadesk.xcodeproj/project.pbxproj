@@ -28,8 +28,17 @@
 		AA000019 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000021 /* AppSettings.swift */; };
 		AA000020 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000022 /* SettingsView.swift */; };
 		AA000021 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000023 /* SettingsWindowController.swift */; };
-		AA000022 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000024 /* Provider.swift */; };
-		AA000023 /* megadesk-codex-hook.py in Resources */ = {isa = PBXBuildFile; fileRef = AB000025 /* megadesk-codex-hook.py */; };
+		AA000022 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AE000003 /* Sparkle */; };
+		AA000023 /* JSONLWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000024 /* JSONLWatcher.swift */; };
+		AA000024 /* Alert.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000025 /* Alert.swift */; };
+		AA000025 /* AlertNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000026 /* AlertNotificationService.swift */; };
+		AA000026 /* ToastWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000027 /* ToastWindowController.swift */; };
+		AA000027 /* AlertsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000028 /* AlertsView.swift */; };
+		AA000028 /* AlertsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000029 /* AlertsWindowController.swift */; };
+		AA000029 /* AlertCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000030 /* AlertCardView.swift */; };
+		AA000031 /* QuickAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000032 /* QuickAlertView.swift */; };
+		AA000033 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000033 /* Provider.swift */; };
+		AA000034 /* megadesk-codex-hook.py in Resources */ = {isa = PBXBuildFile; fileRef = AB000031 /* megadesk-codex-hook.py */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +50,7 @@
 		AB000006 /* StatusStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusStore.swift; sourceTree = "<group>"; };
 		AB000007 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		AB000008 /* TerminalFocuser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalFocuser.swift; sourceTree = "<group>"; };
+		AB000024 /* JSONLWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONLWatcher.swift; sourceTree = "<group>"; };
 		AB000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AB000010 /* Megadesk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Megadesk.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB000011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -56,8 +66,16 @@
 		AB000021 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		AB000022 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AB000023 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
-		AB000024 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
-		AB000025 /* megadesk-codex-hook.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "megadesk-codex-hook.py"; sourceTree = "<group>"; };
+		AB000033 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
+		AB000025 /* Alert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Alert.swift; sourceTree = "<group>"; };
+		AB000026 /* AlertNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertNotificationService.swift; sourceTree = "<group>"; };
+		AB000027 /* ToastWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastWindowController.swift; sourceTree = "<group>"; };
+		AB000028 /* AlertsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertsView.swift; sourceTree = "<group>"; };
+		AB000029 /* AlertsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertsWindowController.swift; sourceTree = "<group>"; };
+		AB000030 /* AlertCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCardView.swift; sourceTree = "<group>"; };
+		AB000031 /* megadesk-codex-hook.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "megadesk-codex-hook.py"; sourceTree = "<group>"; };
+		AB000032 /* QuickAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAlertView.swift; sourceTree = "<group>"; };
+
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -65,6 +83,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA000022 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -85,7 +104,7 @@
 				AB000011 /* Assets.xcassets */,
 				AB000012 /* HookInstaller.swift */,
 				AB000013 /* megadesk-hook.py */,
-				AB000025 /* megadesk-codex-hook.py */,
+				AB000031 /* megadesk-codex-hook.py */,
 				AB000015 /* OnboardingView.swift */,
 				AB000016 /* OnboardingWindowController.swift */,
 				AB000019 /* HelpView.swift */,
@@ -93,6 +112,11 @@
 				AB000021 /* AppSettings.swift */,
 				AB000022 /* SettingsView.swift */,
 				AB000023 /* SettingsWindowController.swift */,
+				AB000027 /* ToastWindowController.swift */,
+				AB000028 /* AlertsView.swift */,
+				AB000029 /* AlertsWindowController.swift */,
+				AB000030 /* AlertCardView.swift */,
+				AB000032 /* QuickAlertView.swift */,
 				AD000002 /* Models */,
 				AD000003 /* Services */,
 				AB000009 /* Info.plist */,
@@ -103,9 +127,10 @@
 		AD000002 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				AB000024 /* Provider.swift */,
+				AB000033 /* Provider.swift */,
 				AB000007 /* Session.swift */,
 				AB000017 /* PullRequest.swift */,
+				AB000025 /* Alert.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -114,6 +139,8 @@
 			isa = PBXGroup;
 			children = (
 				AB000008 /* TerminalFocuser.swift */,
+				AB000024 /* JSONLWatcher.swift */,
+				AB000026 /* AlertNotificationService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -151,6 +178,9 @@
 			dependencies = (
 			);
 			name = Megadesk;
+			packageProductDependencies = (
+				AE000003 /* Sparkle */,
+			);
 			productName = Megadesk;
 			productReference = AB000010 /* Megadesk.app */;
 			productType = "com.apple.product-type.application";
@@ -180,6 +210,9 @@
 			);
 			mainGroup = AD000005;
 			productRefGroup = AD000004 /* Products */;
+			packageReferences = (
+				AE000004 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -195,7 +228,7 @@
 			files = (
 				AA000009 /* Assets.xcassets in Resources */,
 				AA000011 /* megadesk-hook.py in Resources */,
-				AA000023 /* megadesk-codex-hook.py in Resources */,
+				AA000034 /* megadesk-codex-hook.py in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -242,7 +275,15 @@
 				AA000019 /* AppSettings.swift in Sources */,
 				AA000020 /* SettingsView.swift in Sources */,
 				AA000021 /* SettingsWindowController.swift in Sources */,
-				AA000022 /* Provider.swift in Sources */,
+				AA000033 /* Provider.swift in Sources */,
+				AA000023 /* JSONLWatcher.swift in Sources */,
+				AA000024 /* Alert.swift in Sources */,
+				AA000025 /* AlertNotificationService.swift in Sources */,
+				AA000026 /* ToastWindowController.swift in Sources */,
+				AA000027 /* AlertsView.swift in Sources */,
+				AA000028 /* AlertsWindowController.swift in Sources */,
+				AA000029 /* AlertCardView.swift in Sources */,
+				AA000031 /* QuickAlertView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -382,7 +423,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.5.1;
+				MARKETING_VERSION = 0.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.megadesk;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -408,7 +449,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.5.1;
+				MARKETING_VERSION = 0.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.megadesk;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -438,6 +479,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AE000004 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AE000003 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AE000004 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AE000002 /* Project object */;
 }

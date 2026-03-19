@@ -1,47 +1,132 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Section height measurement keys
+
+private struct SessionsHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+private struct PRHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 struct ContentView: View {
-    @State private var store = StatusStore()
+    @State private var store = StatusStore.shared
     @AppStorage("megadesk.compact") private var isCompact = false
     @AppStorage("megadesk.prTracking") private var prTrackingEnabled = true
     @State private var previousApp: NSRunningApplication?
     @State private var isAddingPR = false
     @State private var newPRText = ""
 
+    // Measured natural heights of each section's scrollable content (inside each ScrollView).
+    @State private var sessionsContentHeight: CGFloat = 0
+    @State private var prContentHeight: CGFloat = 0
+
+    // Persisted locked height — non-zero when user has manually set a height.
+    @AppStorage("megadesk.windowHeight") private var lockedHeightPref: Double = 0
+
+    // Budget available for the two scrollable sections combined.
+    // Uses screen-based limit in auto-height mode; switches to locked-height-based limit
+    // when the user has manually set a height, so sections scroll rather than overflow.
+    private var sectionBudget: CGFloat {
+        let screenBudget = max(200, (NSScreen.main?.visibleFrame.height ?? 700) - 68 - 250)
+        if lockedHeightPref > 0 {
+            // ~150pt overhead: titlebar safeArea(28) + footer(28) + labels/buttons/padding(94)
+            return min(max(150, CGFloat(lockedHeightPref) - 150), screenBudget)
+        }
+        return screenBudget
+    }
+
+    // Dynamic allocation: PRs get their natural height (up to 35% of budget), sessions
+    // gets everything else. When both sections fit naturally, no scrolling occurs.
+    private var sessionsMaxHeight: CGFloat {
+        guard prTrackingEnabled else { return sectionBudget }
+        let totalNatural = sessionsContentHeight + prContentHeight
+        if totalNatural > 0 && totalNatural <= sectionBudget {
+            return sessionsContentHeight  // both fit: no caps needed
+        }
+        // PRs take their natural size (or 35% cap if unusually large).
+        // Sessions gets the rest — no wasted space below PRs.
+        let prAlloc = prContentHeight > 0 ? min(prContentHeight, sectionBudget * 0.35) : sectionBudget * 0.35
+        return max(80, sectionBudget - prAlloc)
+    }
+    private var prMaxHeight: CGFloat {
+        let totalNatural = sessionsContentHeight + prContentHeight
+        if totalNatural > 0 && totalNatural <= sectionBudget {
+            return prContentHeight  // both fit: no caps needed
+        }
+        return prContentHeight > 0 ? min(prContentHeight, sectionBudget * 0.35) : sectionBudget * 0.35
+    }
+
+    private var widgetAlerts: [MegadeskAlert] {
+        return store.alerts.filter {
+            $0.effectiveShowWidget &&
+            store.firedAlertIds.contains($0.id) &&
+            !store.dismissedFiredAlertIds.contains($0.id)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 4) {
-            if prTrackingEnabled {
+            if prTrackingEnabled && (isCompact || widgetAlerts.isEmpty) {
                 sectionLabel(isCompact ? "s" : "sessions")
             }
 
-            if store.sessions.isEmpty {
+            if store.sessions.isEmpty && widgetAlerts.isEmpty {
                 emptyState
-            } else {
-                ForEach(store.sessions) { session in
-                    if isCompact {
-                        CompactSessionCardView(
-                            session: session,
-                            tick: store.tick,
-                            displayName: store.displayName(for: session),
-                            onFocus: { store.focusTerminal(session: session) },
-                            onDismiss: { store.dismiss(session: session) }
-                        )
-                    } else {
-                        SessionCardView(
-                            session: session,
-                            tick: store.tick,
-                            displayName: store.displayName(for: session),
-                            hasCustomName: store.hasCustomName(for: session),
-                            isFlashing: store.activeSessionId == session.sessionId,
-                            onFocus: { store.focusTerminal(session: session) },
-                            onDismiss: { store.dismiss(session: session) },
-                            onRename: { name in store.setCustomName(session: session, name: name) },
-                            onEditStart: beginEditing,
-                            onEditEnd: endEditing
-                        )
-                    }
+            } else if isCompact {
+                ForEach(widgetAlerts) { alert in
+                    AlertCardView(alert: alert, isCompact: isCompact)
                 }
+                ForEach(store.sessions) { session in
+                    CompactSessionCardView(
+                        session: session,
+                        tick: store.tick,
+                        displayName: store.displayName(for: session),
+                        onFocus: { store.focusTerminal(session: session) }
+                    )
+                }
+            } else {
+                // Sessions section — independent scroll (alerts appear at top)
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: 4) {
+                        if !widgetAlerts.isEmpty {
+                            sectionLabel("alerts")
+                            ForEach(widgetAlerts) { alert in
+                                AlertCardView(alert: alert, isCompact: false)
+                            }
+                            sectionLabel("sessions")
+                        }
+                        ForEach(store.sessions) { session in
+                            SessionCardView(
+                                session: session,
+                                tick: store.tick,
+                                displayName: store.displayName(for: session),
+                                hasCustomName: store.hasCustomName(for: session),
+                                isFlashing: store.activeSessionId == session.sessionId,
+                                toolDetail: store.toolDetail(for: session),
+                                onFocus: { store.focusTerminal(session: session) },
+                                onRename: { name in store.setCustomName(session: session, name: name) },
+                                onEditStart: beginEditing,
+                                onEditEnd: endEditing
+                            )
+                        }
+                    }
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: SessionsHeightKey.self, value: geo.size.height)
+                        }
+                    )
+                }
+                .onPreferenceChange(SessionsHeightKey.self) { h in
+                    if h != sessionsContentHeight { sessionsContentHeight = h }
+                }
+                .frame(height: sessionsContentHeight > 0
+                       ? min(sessionsContentHeight, sessionsMaxHeight)
+                       : nil)
             }
 
             if prTrackingEnabled {
@@ -53,6 +138,13 @@ struct ContentView: View {
                 }
             }
 
+        }
+        .padding(8)
+        .frame(minWidth: isCompact ? 78 : 220, maxWidth: isCompact ? 78 : 280)
+    }
+
+    var footerView: some View {
+        Group {
             if !isCompact, let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
                 let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
                 HStack {
@@ -66,10 +158,10 @@ struct ContentView: View {
                 }
                 .padding(.top, 6)
                 .padding(.horizontal, 6)
+                .padding(.bottom, 8)
+                .frame(minWidth: 220, maxWidth: 280)
             }
         }
-        .padding(8)
-        .frame(minWidth: isCompact ? 78 : 220, maxWidth: isCompact ? 78 : 280)
     }
 
     private var emptyState: some View {
@@ -85,12 +177,30 @@ struct ContentView: View {
     @ViewBuilder
     private var prSection: some View {
         prSectionHeader
-        ForEach(store.trackedPRs) { tracked in
-            PRCardView(
-                trackedPR: tracked,
-                onRefresh: { store.fetchPR(repo: tracked.repo, number: tracked.number) },
-                onRemove: { store.removeTrackedPR(id: tracked.id) }
-            )
+        if !store.trackedPRs.isEmpty {
+            // PR cards — independent scroll
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(spacing: 4) {
+                    ForEach(store.trackedPRs) { tracked in
+                        PRCardView(
+                            trackedPR: tracked,
+                            onRefresh: { store.fetchPR(repo: tracked.repo, number: tracked.number) },
+                            onRemove: { store.removeTrackedPR(id: tracked.id) }
+                        )
+                    }
+                }
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(key: PRHeightKey.self, value: geo.size.height)
+                    }
+                )
+            }
+            .onPreferenceChange(PRHeightKey.self) { h in
+                if h != prContentHeight { prContentHeight = h }
+            }
+            .frame(height: prContentHeight > 0
+                   ? min(prContentHeight, prMaxHeight)
+                   : nil)
         }
         addPRRow
     }

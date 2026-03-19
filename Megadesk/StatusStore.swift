@@ -5,6 +5,8 @@ import Darwin
 
 @Observable
 final class StatusStore {
+    static let shared = StatusStore()
+
     var sessions: [Session] = []
     var tick: Int = 0  // increments every second to force time re-renders
     var customNames: [String: String] = [:]  // terminalSessionId → custom display name
@@ -13,6 +15,12 @@ final class StatusStore {
     var trackedPRs: [TrackedPR] = []
     var prLastFetchedAt: Date?
     private var prTimer: Timer?
+
+    // MARK: Alerts
+    var alerts: [MegadeskAlert] = []
+    var pendingAlertCount: Int = 0
+    private(set) var firedAlertIds: Set<UUID> = []
+    private(set) var dismissedFiredAlertIds: Set<UUID> = []
 
     private let sessionsURL: URL = {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -30,8 +38,22 @@ final class StatusStore {
     private var lastCycleIndex: Int? = nil
     private let startupTime = Date()
 
-    // kqueue-based process watchers: itermSessionId → DispatchSourceProcess
+    // kqueue-based process watchers: terminalSessionId → DispatchSourceProcess
     private var processSources: [String: DispatchSourceProcess] = [:]
+
+    // Caches of active terminal session IDs, updated by checkOrphanedSessions every 10s.
+    // Used by reapDeadSessions to avoid removing sessions whose terminal tab is still
+    // alive (e.g. PID is stale after a Claude restart).
+    private var lastKnownActiveItermIds: Set<String> = []
+    private var lastKnownActiveGhosttyIds: Set<String> = []
+
+    // Guards to prevent AppleScript calls from piling up when terminals are slow to respond.
+    private var isSyncingActiveSession = false
+    private var isCheckingOrphans = false
+
+    // JSONL watchers: sessionId → JSONLWatcher
+    var activeToolDetails: [String: String] = [:]
+    private var jsonlWatchers: [String: JSONLWatcher] = [:]
 
     init() {
         loadCustomNames()
@@ -40,6 +62,8 @@ final class StatusStore {
         startTimer()
         loadTrackedPRSlugs()
         startPRTimer()
+        loadAlerts()
+        setupAlertNotificationObservers()
         focusSessionObserver = NotificationCenter.default.addObserver(
             forName: .megadeskFocusSession, object: nil, queue: .main
         ) { [weak self] note in
@@ -66,24 +90,30 @@ final class StatusStore {
         if let obs = cycleSessionObserver  { NotificationCenter.default.removeObserver(obs) }
         flashTimer?.invalidate()
         processSources.values.forEach { $0.cancel() }
+        jsonlWatchers.removeAll()
     }
 
     @discardableResult
     func focusTerminal(session: Session) -> Bool {
-        // Fallback sessions (terminalSessionId == sessionId) have no associated iTerm2 tab —
-        // $ITERM_SESSION_ID wasn't available (e.g. tmux without the env var, or non-iTerm2
-        // terminal). We can't focus them but they're not "not found" either.
-        guard session.terminalSessionId != session.sessionId else {
+        // Unknown terminals without a real session ID can't be focused
+        if session.terminalSessionId == session.sessionId && session.terminal == .unknown {
             activeSessionId = session.sessionId
             return true
         }
 
-        let found = TerminalFocuser.focusiTerm2(sessionId: session.terminalSessionId)
+        let found = TerminalFocuser.focus(session: session)
 
-        // For tmux sessions the stored terminal_session_id is "{UUID}:{tmux_pane}".
-        // If focus fails it means the *original* iTerm2 tab was closed (e.g. after
-        // detach/reattach), but the agent is still running inside tmux — don't delete the card.
-        if !found && session.terminalSessionId.contains(":") {
+        // Tmux sessions may outlive their original terminal tab — don't remove the card
+        if !found && session.terminal == .iterm2 && session.terminalSessionId.contains(":") {
+            activeSessionId = session.sessionId
+            return true
+        }
+
+        // Fallback: just activate the app if precise focus fails
+        if !found && session.terminal == .ghostty {
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.mitchellh.ghostty") {
+                NSWorkspace.shared.open(url)
+            }
             activeSessionId = session.sessionId
             return true
         }
@@ -108,14 +138,6 @@ final class StatusStore {
             customNames[session.terminalSessionId] = trimmed
         }
         saveCustomNames()
-    }
-
-    func dismiss(session: Session) {
-        // Remove immediately from UI
-        sessions.removeAll { $0.id == session.id }
-        // Delete the file — session reappears automatically on next hook event
-        let file = sessionsURL.appendingPathComponent("\(session.sessionId).json")
-        try? FileManager.default.removeItem(at: file)
     }
 
     // MARK: - Private
@@ -167,6 +189,7 @@ final class StatusStore {
 
         sessions = sorted(deduped)
         updateProcessWatchers()
+        syncJSONLWatchers()
     }
 
     func sorted(_ list: [Session]) -> [Session] {
@@ -175,16 +198,26 @@ final class StatusStore {
             return list.sorted {
                 let p0 = urgencyPriority($0), p1 = urgencyPriority($1)
                 if p0 != p1 { return p0 < p1 }
-                if p0 == 4 { return $0.timeInState < $1.timeInState }
-                return $0.projectName < $1.projectName
+                if p0 == 3 { return $0.timeInState < $1.timeInState }
+                if $0.projectName != $1.projectName { return $0.projectName < $1.projectName }
+                return $0.sessionId < $1.sessionId
             }
         case .byActivity:
-            return list.sorted { $0.lastUpdated > $1.lastUpdated }
+            return list.sorted {
+                if $0.lastUpdated != $1.lastUpdated { return $0.lastUpdated > $1.lastUpdated }
+                return $0.sessionId < $1.sessionId
+            }
         case .byName:
-            return list.sorted { $0.projectName < $1.projectName }
+            return list.sorted {
+                if $0.projectName != $1.projectName { return $0.projectName < $1.projectName }
+                return $0.sessionId < $1.sessionId
+            }
         case .byCreation:
             return list.sorted {
-                ($0.createdAt ?? $0.stateSince) < ($1.createdAt ?? $1.stateSince)
+                let t0 = $0.createdAt ?? $0.stateSince
+                let t1 = $1.createdAt ?? $1.stateSince
+                if t0 != t1 { return t0 < t1 }
+                return $0.sessionId < $1.sessionId
             }
         }
     }
@@ -226,28 +259,94 @@ final class StatusStore {
             // Reload every tick as a fallback — small JSON files, negligible cost.
             // The file watcher handles instant updates; this catches any missed events.
             self?.loadSessions()
-            // Every 10 seconds, ask iTerm2 which tabs are still alive and remove orphaned cards.
+            self?.evaluateAlerts()
+            // Every 10 seconds, check for orphaned sessions and reap dead ones.
             if (self?.tick ?? 0) % 10 == 0 {
+                self?.reapDeadSessions()
                 self?.checkOrphanedSessions()
             }
-            // Every 2 seconds, sync the active session indicator with iTerm2's current tab.
-            if (self?.tick ?? 0) % 2 == 0 {
-                self?.syncActiveSession()
-            }
+            // Every 2 seconds, sync the active session indicator with the current terminal tab.
+            if (self?.tick ?? 0) % 2 == 0 { self?.syncActiveSession() }
         }
     }
 
+    private var hasItermSessions: Bool {
+        sessions.contains { $0.terminal == .iterm2 && $0.terminalSessionId != $0.sessionId }
+    }
+
+    private var hasGhosttySessions: Bool {
+        sessions.contains { $0.terminal == .ghostty }
+    }
+
     private func syncActiveSession() {
-        detectCurrentItermSession { [weak self] currentId in
-            DispatchQueue.main.async {
-                guard let self, let currentId else { return }
-                guard let match = self.sessions.first(where: {
-                    $0.terminalSessionId.components(separatedBy: ":").first == currentId
-                }) else { return }
-                if self.activeSessionId != match.sessionId {
-                    self.activeSessionId = match.sessionId
+        guard !isSyncingActiveSession else { return }
+        isSyncingActiveSession = true
+
+        let group = DispatchGroup()
+
+        if hasItermSessions {
+            group.enter()
+            detectCurrentItermSession { [weak self] currentId in
+                DispatchQueue.main.async {
+                    defer { group.leave() }
+                    guard let self, let currentId else { return }
+                    guard let match = self.sessions.first(where: {
+                        $0.terminalSessionId.components(separatedBy: ":").first == currentId
+                    }) else { return }
+                    if self.activeSessionId != match.sessionId {
+                        self.activeSessionId = match.sessionId
+                    }
                 }
             }
+        }
+
+        if hasGhosttySessions {
+            group.enter()
+            detectCurrentGhosttySession { [weak self] terminalId in
+                DispatchQueue.main.async {
+                    defer { group.leave() }
+                    guard let self, let terminalId else { return }
+                    guard let match = self.sessions.first(where: {
+                        $0.terminal == .ghostty && $0.ghosttyTerminalId == terminalId
+                    }) else { return }
+                    if self.activeSessionId != match.sessionId {
+                        self.activeSessionId = match.sessionId
+                    }
+                }
+            }
+        }
+
+        group.notify(queue: .main) { [weak self] in
+            self?.isSyncingActiveSession = false
+        }
+    }
+
+    func toolDetail(for session: Session) -> String? {
+        activeToolDetails[session.sessionId]
+    }
+
+    private func syncJSONLWatchers() {
+        let activeIds = Set(sessions.map(\.sessionId))
+
+        // Cancel watchers for sessions that are gone
+        for id in Set(jsonlWatchers.keys).subtracting(activeIds) {
+            jsonlWatchers.removeValue(forKey: id)
+            activeToolDetails.removeValue(forKey: id)
+        }
+
+        // Start watchers for new sessions
+        for session in sessions where jsonlWatchers[session.sessionId] == nil {
+            let sessionId = session.sessionId
+            let watcher = JSONLWatcher(sessionId: sessionId)
+            watcher.onUpdate = { [weak self] detail in
+                guard let self else { return }
+                if let detail {
+                    self.activeToolDetails[sessionId] = detail
+                } else {
+                    self.activeToolDetails.removeValue(forKey: sessionId)
+                }
+            }
+            jsonlWatchers[sessionId] = watcher
         }
     }
 
@@ -268,11 +367,9 @@ final class StatusStore {
             guard let pid = session.claudePid,
                   processSources[session.terminalSessionId] == nil else { continue }
 
-            // If already dead, remove immediately
-            guard kill(pid_t(pid), 0) == 0 || errno == EPERM else {
-                removeSessionFiles(withTerminalId: session.terminalSessionId)
-                continue
-            }
+            // If already dead, skip — reapDeadSessions or checkOrphanedSessions will
+            // handle cleanup with proper terminal tab checks to avoid false removals.
+            guard kill(pid_t(pid), 0) == 0 || errno == EPERM else { continue }
 
             let itermId = session.terminalSessionId
             let source = DispatchSource.makeProcessSource(
@@ -281,6 +378,7 @@ final class StatusStore {
                 queue: .main
             )
             source.setEventHandler { [weak self] in
+                print("[Megadesk] kqueue: PID \(pid) exited for \(itermId) — removing session")
                 self?.processSources.removeValue(forKey: itermId)
                 self?.removeSessionFiles(withTerminalId: itermId)
             }
@@ -289,13 +387,90 @@ final class StatusStore {
         }
     }
 
-    /// Queries iTerm2 for all active session IDs and removes session files whose
-    /// iTerm2 tab no longer exists (e.g. the user closed the terminal tab).
+    /// Safety net: removes sessions whose Claude process is dead or unknown.
+    /// Catches: kqueue failures, PID recycling, missing claudePid (old hook),
+    /// and fallback sessions that the orphan checker skips.
+    /// Skips sessions whose terminal tab is still alive — a dead stored PID may
+    /// just mean Claude was restarted and the hook hasn't fired yet.
+    private func reapDeadSessions() {
+        let staleThreshold = Date().timeIntervalSince1970 - 120
+        var deadIds: [String] = []
+        for session in sessions {
+            if let pid = session.claudePid {
+                // Has a PID — check if the process is still alive.
+                if kill(pid_t(pid), 0) != 0 && errno != EPERM {
+                    // PID is dead, but don't remove if the terminal tab is still open —
+                    // a new Claude process may have started that hasn't fired hooks yet.
+                    if isTerminalTabAlive(session) {
+                        print("[Megadesk] reapDeadSessions: PID \(pid) dead for \(session.projectName) but terminal tab still alive — skipping")
+                        continue
+                    }
+                    print("[Megadesk] reapDeadSessions: removing \(session.projectName) (PID \(pid) dead, tab gone)")
+                    processSources[session.terminalSessionId]?.cancel()
+                    processSources.removeValue(forKey: session.terminalSessionId)
+                    deadIds.append(session.terminalSessionId)
+                }
+            } else if session.lastUpdated < staleThreshold {
+                // No PID at all (old hook version) — remove if stale.
+                if isTerminalTabAlive(session) { continue }
+                print("[Megadesk] reapDeadSessions: removing \(session.projectName) (no PID, stale)")
+                deadIds.append(session.terminalSessionId)
+            }
+        }
+        for id in deadIds {
+            removeSessionFiles(withTerminalId: id)
+        }
+    }
+
+    /// Returns true if the session's terminal tab is still open, based on the
+    /// cached active IDs from the last checkOrphanedSessions() run.
+    private func isTerminalTabAlive(_ session: Session) -> Bool {
+        switch session.terminal {
+        case .iterm2:
+            let bareId = session.terminalSessionId.components(separatedBy: ":").first ?? session.terminalSessionId
+            return !lastKnownActiveItermIds.isEmpty && lastKnownActiveItermIds.contains(bareId)
+        case .ghostty:
+            return !lastKnownActiveGhosttyIds.isEmpty && lastKnownActiveGhosttyIds.contains(session.ghosttyTerminalId)
+        case .unknown:
+            return false
+        }
+    }
+
+    /// Returns true if the session's Claude process is still running.
+    private func isClaudePidAlive(_ session: Session) -> Bool {
+        guard let pid = session.claudePid else { return false }
+        return kill(pid_t(pid), 0) == 0 || errno == EPERM
+    }
+
+    /// Queries iTerm2 and Ghostty for active terminal sessions and removes
+    /// session files whose terminal tab no longer exists.
     private func checkOrphanedSessions() {
-        // Skip for the first 30s after launch — iTerm2 may return an incomplete
+        // Skip for the first 30s after launch — terminals may return an incomplete
         // session list immediately after Megadesk restarts, causing false deletions.
         guard Date().timeIntervalSince(startupTime) > 30 else { return }
+        guard hasItermSessions || hasGhosttySessions else { return }
+        guard !isCheckingOrphans else { return }
+        isCheckingOrphans = true
+
+        let checkIterm = hasItermSessions
+        let checkGhostty = hasGhosttySessions
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let itermIds = checkIterm ? Self.queryItermSessionIds() : []
+            let ghosttyIds = checkGhostty ? Self.queryGhosttyTerminalIds() : []
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isCheckingOrphans = false
+                self.lastKnownActiveItermIds = itermIds
+                self.lastKnownActiveGhosttyIds = ghosttyIds
+                self.removeOrphanedSessions(activeItermIds: itermIds, activeGhosttyIds: ghosttyIds)
+            }
+        }
+    }
+
+    private static func queryItermSessionIds() -> Set<String> {
         let script = """
+        if application "iTerm2" is not running then return {}
         tell application "iTerm2"
             set ids to {}
             repeat with w in windows
@@ -308,48 +483,73 @@ final class StatusStore {
             return ids
         end tell
         """
+        var error: NSDictionary?
+        guard let result = NSAppleScript(source: script)?.executeAndReturnError(&error) else {
+            if let error { print("[Megadesk] queryItermSessionIds AppleScript error: \(error)") }
+            return []
+        }
+        var ids: Set<String> = []
+        let count = result.numberOfItems
+        if count > 0 {
+            for i in 1...count {
+                if let val = result.atIndex(i)?.stringValue { ids.insert(val) }
+            }
+        }
+        return ids
+    }
 
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            let appleScript = NSAppleScript(source: script)
-            var error: NSDictionary?
-            guard let result = appleScript?.executeAndReturnError(&error) else { return }
+    private static func queryGhosttyTerminalIds() -> Set<String> {
+        let script = """
+        if application "Ghostty" is not running then return {}
+        tell application "Ghostty"
+            set ids to {}
+            repeat with w in windows
+                repeat with t in tabs of w
+                    repeat with term in terminals of t
+                        set end of ids to (id of term)
+                    end repeat
+                end repeat
+            end repeat
+            return ids
+        end tell
+        """
+        var error: NSDictionary?
+        guard let result = NSAppleScript(source: script)?.executeAndReturnError(&error) else {
+            if let error { print("[Megadesk] queryGhosttyTerminalIds AppleScript error: \(error)") }
+            return []
+        }
+        var ids: Set<String> = []
+        let count = result.numberOfItems
+        if count > 0 {
+            for i in 1...count {
+                if let val = result.atIndex(i)?.stringValue { ids.insert(val) }
+            }
+        }
+        return ids
+    }
 
-            var activeIds: Set<String> = []
-            let count = result.numberOfItems
-            if count > 0 {
-                for i in 1...count {
-                    if let val = result.atIndex(i)?.stringValue {
-                        activeIds.insert(val)
-                    }
+    private func removeOrphanedSessions(activeItermIds: Set<String>, activeGhosttyIds: Set<String>) {
+        let staleThreshold = Date().timeIntervalSince1970 - 120
+
+        let orphanedIds = sessions
+            .filter { s in
+                guard s.lastUpdated < staleThreshold && !isClaudePidAlive(s) else { return false }
+                switch s.terminal {
+                case .iterm2:
+                    let bareId = s.terminalSessionId.components(separatedBy: ":").first ?? s.terminalSessionId
+                    return s.terminalSessionId != s.sessionId && !activeItermIds.contains(bareId)
+                case .ghostty:
+                    guard !s.ghosttyTerminalId.isEmpty else { return false }
+                    return !activeGhosttyIds.contains(s.ghosttyTerminalId)
+                case .unknown:
+                    return false
                 }
             }
+            .map(\.terminalSessionId)
 
-            // If we got no IDs back, play it safe — iTerm2 might have no windows open
-            // or returned an unexpected result. Don't wipe everything.
-            guard !activeIds.isEmpty else { return }
-
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                // Collect terminal session IDs that are no longer present in iTerm2.
-                // Skip fallback sessions (terminalSessionId == sessionId) — those aren't iTerm2 sessions.
-                // Also skip recently-updated sessions: inside tmux $ITERM_SESSION_ID can be stale
-                // (e.g. after detach/reattach), but the agent is still actively writing hook events.
-                let staleThreshold = Date().timeIntervalSince1970 - 120
-                let orphanedTerminalIds = self.sessions
-                    .filter { s in
-                        // Strip tmux pane suffix (format: "{iterm_uuid}:{tmux_pane}") before
-                        // comparing against iTerm2 active IDs, which only know the bare UUID.
-                        let bareId = s.terminalSessionId.components(separatedBy: ":").first ?? s.terminalSessionId
-                        return s.terminalSessionId != s.sessionId &&
-                            !activeIds.contains(bareId) &&
-                            s.lastUpdated < staleThreshold
-                    }
-                    .map(\.terminalSessionId)
-
-                for terminalId in orphanedTerminalIds {
-                    self.removeSessionFiles(withTerminalId: terminalId)
-                }
-            }
+        for id in orphanedIds {
+            print("[Megadesk] checkOrphanedSessions: removing \(id) (tab gone, stale, PID dead)")
+            removeSessionFiles(withTerminalId: id)
         }
     }
 
@@ -375,8 +575,8 @@ final class StatusStore {
 
     private func cycleSession(forward: Bool) {
         guard !sessions.isEmpty else { return }
-        // If starting a new cycle, seed lastCycleIndex from the already-tracked activeSessionId
-        // (kept up to date by syncActiveSession every 2s) — no async call needed.
+        // Seed lastCycleIndex from the already-tracked activeSessionId
+        // (kept up to date by syncActiveSession every 2s).
         if lastCycleIndex == nil, let activeId = activeSessionId,
            let idx = sessions.firstIndex(where: { $0.sessionId == activeId }) {
             lastCycleIndex = idx
@@ -394,7 +594,7 @@ final class StatusStore {
         }
         lastCycleIndex = next
         let session = sessions[next]
-        focusTerminal(session: session)  // also sets activeSessionId
+        focusTerminal(session: session)
         flashTimer?.invalidate()
         flashTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { [weak self] _ in
             self?.lastCycleIndex = nil
@@ -412,6 +612,20 @@ final class StatusStore {
             var error: NSDictionary?
             let result = appleScript?.executeAndReturnError(&error)
             completion(result?.stringValue)
+        }
+    }
+
+    private func detectCurrentGhosttySession(completion: @escaping (String?) -> Void) {
+        let script = """
+        tell application "Ghostty"
+            return id of focused terminal of selected tab of front window
+        end tell
+        """
+        DispatchQueue.global(qos: .userInitiated).async {
+            let appleScript = NSAppleScript(source: script)
+            var error: NSDictionary?
+            let result = appleScript?.executeAndReturnError(&error)
+            completion(error == nil ? result?.stringValue : nil)
         }
     }
 
@@ -472,8 +686,12 @@ final class StatusStore {
         process.standardOutput = pipe
         process.standardError = Pipe()
 
-        // Watchdog: terminate after 15 seconds
-        let watchdog = DispatchWorkItem { process.terminate() }
+        // Watchdog: terminate after 15 seconds.
+        // Guard against racing with normal completion — terminate() on an
+        // already-finished Process throws NSInvalidArgumentException.
+        let watchdog = DispatchWorkItem {
+            if process.isRunning { process.terminate() }
+        }
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 15, execute: watchdog)
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
@@ -513,6 +731,179 @@ final class StatusStore {
         fetchAllPRs()
         prTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
             self?.fetchAllPRs()
+        }
+    }
+
+    // MARK: - Alerts CRUD
+
+    func addAlert(_ alert: MegadeskAlert) {
+        alerts.append(alert)
+        saveAlerts()
+        // Request notification permission on first alert
+        if alerts.count == 1 {
+            AlertNotificationService.shared.requestAuthorization()
+        }
+    }
+
+    func updateAlert(_ alert: MegadeskAlert) {
+        guard let i = alerts.firstIndex(where: { $0.id == alert.id }) else { return }
+        alerts[i] = alert
+        saveAlerts()
+    }
+
+    func toggleAlert(id: UUID, enabled: Bool) {
+        guard let i = alerts.firstIndex(where: { $0.id == id }) else { return }
+        alerts[i].isEnabled = enabled
+        if enabled {
+            // Reset so recurring/interval alerts don't fire instantly from a stale lastFiredAt.
+            // For .once, clear lastFiredAt so it can fire again.
+            if case .once = alerts[i].recurrence {
+                alerts[i].lastFiredAt = nil
+            } else {
+                alerts[i].lastFiredAt = Date()
+            }
+            firedAlertIds.remove(id)
+        }
+        saveAlerts()
+    }
+
+    func removeAlert(id: UUID) {
+        alerts.removeAll { $0.id == id }
+        firedAlertIds.remove(id)
+        dismissedFiredAlertIds.remove(id)
+        ToastWindowController.shared.dismissToast(alertId: id)
+        saveAlerts()
+    }
+
+    func loadAlerts() {
+        guard let data = UserDefaults.standard.data(forKey: "megadesk.alerts"),
+              let decoded = try? JSONDecoder().decode([MegadeskAlert].self, from: data)
+        else { return }
+        alerts = decoded
+
+        // Restore firedAlertIds for .once alerts that fired but weren't dismissed/completed
+        for alert in alerts {
+            if case .once = alert.recurrence,
+               alert.lastFiredAt != nil, !alert.isEnabled, alert.isCompleted != true {
+                firedAlertIds.insert(alert.id)
+            }
+        }
+    }
+
+    func saveAlerts() {
+        if let data = try? JSONEncoder().encode(alerts) {
+            UserDefaults.standard.set(data, forKey: "megadesk.alerts")
+        }
+    }
+
+    func fireAlertForTest(id: UUID) {
+        guard let alert = alerts.first(where: { $0.id == id }) else { return }
+        firedAlertIds.insert(id)
+        dismissedFiredAlertIds.remove(id)
+        dispatchAlertDisplay(alert)
+    }
+
+    func dismissFiredAlert(id: UUID) {
+        // Guard against double-decrement from multiple dismiss paths
+        guard !dismissedFiredAlertIds.contains(id) else { return }
+        dismissedFiredAlertIds.insert(id)
+        if pendingAlertCount > 0 { pendingAlertCount -= 1 }
+
+        // Mark non-recurring alerts as completed
+        if let i = alerts.firstIndex(where: { $0.id == id }),
+           case .once = alerts[i].recurrence {
+            alerts[i].isCompleted = true
+            saveAlerts()
+        }
+    }
+
+    func clearAlertBadge() {
+        pendingAlertCount = 0
+    }
+
+    // MARK: - Alert Evaluation
+
+    private func evaluateAlerts() {
+        let now = Date()
+        // Work on a snapshot so we don't trigger @Observable mutations until we're done.
+        var snapshot = alerts
+        var toFire: [MegadeskAlert] = []
+
+        for i in snapshot.indices {
+            guard snapshot[i].isEnabled else { continue }
+            guard !firedAlertIds.contains(snapshot[i].id) else { continue }
+            // Skip if snoozed (lastFiredAt set to a future time)
+            if let last = snapshot[i].lastFiredAt, last > now { continue }
+
+            if let nextFire = snapshot[i].nextFireDate(after: now), nextFire <= now {
+                snapshot[i].lastFiredAt = now
+                firedAlertIds.insert(snapshot[i].id)
+                toFire.append(snapshot[i])
+
+                if case .once = snapshot[i].recurrence {
+                    snapshot[i].isEnabled = false
+                }
+            }
+        }
+
+        guard !toFire.isEmpty else { return }
+
+        // Single write back — triggers observation exactly once.
+        alerts = snapshot
+        saveAlerts()
+
+        for alert in toFire {
+            dispatchAlertDisplay(alert)
+        }
+
+        // Clear firedAlertIds for recurring alerts after a cooldown so they can fire again.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in
+            guard let self else { return }
+            for alert in self.alerts where self.firedAlertIds.contains(alert.id) {
+                if case .once = alert.recurrence { continue }
+                self.firedAlertIds.remove(alert.id)
+                self.dismissedFiredAlertIds.remove(alert.id)
+            }
+        }
+    }
+
+    private func dispatchAlertDisplay(_ alert: MegadeskAlert) {
+        if alert.effectiveShowToast {
+            ToastWindowController.shared.showToast(for: alert)
+        }
+
+        if alert.effectiveShowNotification {
+            AlertNotificationService.shared.postNotification(for: alert)
+        }
+
+        if alert.effectiveShowBadge {
+            pendingAlertCount += 1
+            NotificationCenter.default.post(name: .megadeskAlertFired, object: nil,
+                                            userInfo: ["alert": alert])
+        }
+
+        if alert.effectivePlaySound {
+            NSSound(named: "Pop")?.play()
+        }
+    }
+
+    private func setupAlertNotificationObservers() {
+        NotificationCenter.default.addObserver(forName: .megadeskSnoozeAlert, object: nil, queue: .main) { [weak self] note in
+            guard let self,
+                  let alertId = note.userInfo?["alertId"] as? UUID,
+                  let minutes = note.userInfo?["minutes"] as? Int,
+                  let i = self.alerts.firstIndex(where: { $0.id == alertId }) else { return }
+            // Snooze: set lastFiredAt forward so nextFireDate returns now+snooze
+            self.alerts[i].lastFiredAt = Date().addingTimeInterval(TimeInterval(minutes * 60))
+            self.firedAlertIds.remove(alertId)
+            self.dismissedFiredAlertIds.remove(alertId)
+            if self.pendingAlertCount > 0 { self.pendingAlertCount -= 1 }
+            self.saveAlerts()
+        }
+
+        NotificationCenter.default.addObserver(forName: .megadeskDismissAlert, object: nil, queue: .main) { [weak self] note in
+            guard let self, let alertId = note.userInfo?["alertId"] as? UUID else { return }
+            self.dismissFiredAlert(id: alertId)
         }
     }
 }

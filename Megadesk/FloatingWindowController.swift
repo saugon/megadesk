@@ -7,10 +7,82 @@ private final class FirstMouseHostingView<Content: View>: NSHostingView<Content>
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+/// PreferenceKey that captures ContentView's natural height.
+private struct ContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// PreferenceKey that captures the footer's natural height.
+private struct FooterHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// Bridge class: SwiftUI writes content and footer heights, AppKit reads them.
+private final class HeightReporter {
+    var onHeightChange: (() -> Void)?
+    var contentHeight: CGFloat = 0 {
+        didSet { if contentHeight != oldValue { onHeightChange?() } }
+    }
+    var footerHeight: CGFloat = 0 {
+        didSet { if footerHeight != oldValue { onHeightChange?() } }
+    }
+}
+
+/// Lays out content at the top, footer pinned to the bottom, Spacer fills any gap between them.
+/// Content and footer heights are measured independently so adjustPanelHeight always has
+/// up-to-date values for both.
+private struct HeightMeasuringScrollView<Content: View, Footer: View>: View {
+    let content: Content
+    let footer: Footer
+    let reporter: HeightReporter
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(key: ContentHeightKey.self, value: geo.size.height)
+                    }
+                )
+            Spacer(minLength: 0)
+            footer
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(key: FooterHeightKey.self, value: geo.size.height)
+                    }
+                )
+        }
+        .onPreferenceChange(ContentHeightKey.self) { reporter.contentHeight = $0 }
+        .onPreferenceChange(FooterHeightKey.self)  { reporter.footerHeight  = $0 }
+    }
+}
+
 /// NSPanel subclass that can become the key window, enabling TextField keyboard input
 /// without activating the application (handled separately per edit session).
+/// Also serves the context menu (right-click) on the panel background.
 private final class EditablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard let menu = menu, let contentView else { return super.rightMouseDown(with: event) }
+        // Only show the panel menu on empty background — not on cards/PRs
+        // (those will get their own context menus later).
+        let loc = contentView.convert(event.locationInWindow, from: nil)
+        let hitView = contentView.hitTest(loc)
+        // If the click landed on the hosting view itself (background), show the menu.
+        // If it landed on a subview (card content), let it handle the event.
+        if hitView === contentView || hitView == nil {
+            NSMenu.popUpContextMenu(menu, with: event, for: contentView)
+        } else {
+            super.rightMouseDown(with: event)
+        }
+    }
 }
 
 extension Notification.Name {
@@ -24,8 +96,16 @@ final class FloatingWindowController: NSWindowController {
     private var titleLabel: NSTextField?
     private var suppressPositionSave = false
     private var isHovered = false
+    private var heightReporter = HeightReporter()
+    private var userSetHeight: CGFloat? = nil  // nil = auto-height; non-nil = user-locked
+    private var lastKnownHeight: CGFloat = 120 // tracks last applied height to detect real user changes
+    private var resetHeightButton: NSButton?
+    private var gearButton: TitlebarGearButton?
+    private var alertButton: TitlebarIconButton?
+    private var quickAlertPopover: NSPopover?
+    private var isLiveResizing = false
 
-    convenience init(contentView: some View) {
+    convenience init(contentView: some View, footerView: some View) {
         let initialCompact = UserDefaults.standard.bool(forKey: "megadesk.compact")
         let savedWidth = UserDefaults.standard.double(forKey: "megadesk.windowWidth")
         let normalWidth: CGFloat = savedWidth > 0 ? max(220, min(280, CGFloat(savedWidth))) : 280
@@ -51,11 +131,19 @@ final class FloatingWindowController: NSWindowController {
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
-        // Use FirstMouseHostingView so taps fire on the first click
-        panel.contentView = FirstMouseHostingView(rootView:
-            contentView
-                .background(Color(nsColor: NSColor(white: 0.1, alpha: 0.0)))
+        // Use FirstMouseHostingView so taps fire on the first click.
+        // Wrap content in HeightMeasuringScrollView for height clamping + scrolling.
+        let reporter = HeightReporter()
+        let hosting = FirstMouseHostingView(rootView:
+            HeightMeasuringScrollView(
+                content: contentView
+                    .background(Color(nsColor: NSColor(white: 0.1, alpha: 0.0))),
+                footer: footerView,
+                reporter: reporter
+            )
         )
+        hosting.sizingOptions = []  // We control the panel height, not the hosting view
+        panel.contentView = hosting
 
         if let corner = panel.contentView {
             corner.wantsLayer = true
@@ -81,6 +169,14 @@ final class FloatingWindowController: NSWindowController {
         }
         observeOpacity()
 
+        self.heightReporter = reporter
+        reporter.onHeightChange = { [weak self] in
+            self?.adjustPanelHeight()
+        }
+
+        let savedH = UserDefaults.standard.double(forKey: "megadesk.windowHeight")
+        if savedH > 0 { self.userSetHeight = CGFloat(savedH) }
+
         installTitlebarControls(in: panel, compact: initialCompact)
 
         NotificationCenter.default.addObserver(
@@ -98,6 +194,26 @@ final class FloatingWindowController: NSWindowController {
         ) { [weak self] _ in
             self?.handleWindowMove()
         }
+
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.adjustPanelHeight()
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willStartLiveResizeNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self] _ in self?.isLiveResizing = true }
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didEndLiveResizeNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self] _ in self?.isLiveResizing = false }
     }
 
     // MARK: - Title bar controls
@@ -134,10 +250,89 @@ final class FloatingWindowController: NSWindowController {
         )
         titlebarView.addSubview(label)
         titleLabel = label
+
+        // Green reset button — traffic-light position to the right of the red close button
+        let resetFrame = NSRect(
+            x: sysClose.frame.midX - size / 2 + 20,
+            y: sysClose.frame.midY - size / 2,
+            width: size, height: size
+        )
+        let resetBtn = TitlebarResetButton(frame: resetFrame)
+        resetBtn.target = self
+        resetBtn.action = #selector(resetToAutoHeightAction)
+        resetBtn.isHidden = (userSetHeight == nil)
+        titlebarView.addSubview(resetBtn)
+        self.resetHeightButton = resetBtn
+
+        // Gear button — right side of the titlebar, opens the app menu
+        let gearSize: CGFloat = 18
+        let gearFrame = NSRect(
+            x: titlebarView.bounds.width - gearSize - 10,
+            y: sysClose.frame.midY - gearSize / 2,
+            width: gearSize, height: gearSize
+        )
+        let gear = TitlebarGearButton(frame: gearFrame)
+        gear.autoresizingMask = [.minXMargin]  // stay pinned to the right edge
+        gear.target = self
+        gear.action = #selector(gearPressed(_:))
+        titlebarView.addSubview(gear)
+        self.gearButton = gear
+
+        // Alert button — to the left of the gear button
+        let alertFrame = NSRect(
+            x: titlebarView.bounds.width - gearSize * 2 - 14,
+            y: sysClose.frame.midY - gearSize / 2,
+            width: gearSize, height: gearSize
+        )
+        let alertBtn = TitlebarIconButton(frame: alertFrame, symbolName: "bell.fill", label: "Alerts")
+        alertBtn.autoresizingMask = [.minXMargin]
+        alertBtn.target = self
+        alertBtn.action = #selector(alertButtonPressed)
+        titlebarView.addSubview(alertBtn)
+        self.alertButton = alertBtn
+    }
+
+    @objc private func gearPressed(_ sender: NSButton) {
+        guard let menu = window?.menu else { return }
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 2), in: sender)
+    }
+
+    @objc private func alertButtonPressed() {
+        showQuickAlert()
+    }
+
+    func showQuickAlert() {
+        if let popover = quickAlertPopover, popover.isShown {
+            popover.performClose(nil)
+            return
+        }
+        guard let anchor = alertButton else { return }
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentSize = NSSize(width: 280, height: 100)
+        popover.contentViewController = NSHostingController(rootView: QuickAlertView {
+            popover.performClose(nil)
+        })
+        popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxY)
+        quickAlertPopover = popover
+    }
+
+    /// Sets the menu used by the gear button and right-click context menu.
+    func setMenu(_ menu: NSMenu) {
+        window?.menu = menu
     }
 
     @objc private func customClosePressed() {
         hide()
+    }
+
+    @objc private func resetToAutoHeightAction() {
+        userSetHeight = nil
+        UserDefaults.standard.removeObject(forKey: "megadesk.windowHeight")
+        resetHeightButton?.isHidden = true
+        // Defer so SwiftUI can re-render with the cleared lockedHeightPref before we
+        // measure heights — prevents using stale contentHeight from the locked layout.
+        DispatchQueue.main.async { self.adjustPanelHeight() }
     }
 
     private func handleWindowMove() {
@@ -159,14 +354,19 @@ final class FloatingWindowController: NSWindowController {
 
     private func handleWindowResize() {
         guard let panel = window else { return }
-        // Re-center title label
         if let label = titleLabel, let superview = label.superview {
             label.frame.origin.x = (superview.bounds.width - label.frame.width) / 2
         }
-        // Persist width only in normal mode
         if !isCompact {
             UserDefaults.standard.set(Double(panel.frame.width), forKey: "megadesk.windowWidth")
         }
+        // Only lock height for user-initiated resizes, not programmatic ones
+        if !suppressPositionSave && abs(panel.frame.height - lastKnownHeight) > 1 {
+            userSetHeight = panel.frame.height
+            UserDefaults.standard.set(Double(panel.frame.height), forKey: "megadesk.windowHeight")
+            resetHeightButton?.isHidden = false
+        }
+        lastKnownHeight = panel.frame.height
     }
 
     // MARK: - Hover opacity
@@ -213,6 +413,9 @@ final class FloatingWindowController: NSWindowController {
 
     func toggleCompact() {
         guard let panel = window else { return }
+        userSetHeight = nil
+        UserDefaults.standard.removeObject(forKey: "megadesk.windowHeight")
+        resetHeightButton?.isHidden = true
         let newValue = !isCompact
         // Note: UserDefaults is NOT updated here — doing so would cause SwiftUI to
         // re-render immediately (compact layout visible during the fade-out).
@@ -237,6 +440,7 @@ final class FloatingWindowController: NSWindowController {
                                display: true, animate: false)
             }
             self.suppressPositionSave = false
+            self.adjustPanelHeight()
             self.titleLabel?.stringValue = newValue ? "md" : "megadesk"
             self.titleLabel?.sizeToFit()
             if let label = self.titleLabel, let superview = label.superview {
@@ -245,6 +449,42 @@ final class FloatingWindowController: NSWindowController {
 
             self.show()   // fade-in reutilizando la animación existente
         }
+    }
+
+    private func adjustPanelHeight() {
+        guard !isLiveResizing else { return }
+        guard let panel = window else { return }
+
+        let screenMax: CGFloat
+        if let visibleFrame = panel.screen?.visibleFrame ?? NSScreen.main?.visibleFrame {
+            let panelTopY = panel.frame.origin.y + panel.frame.height
+            screenMax = panelTopY - visibleFrame.origin.y - 8
+        } else {
+            screenMax = 800
+        }
+
+        let targetHeight: CGFloat
+        if let fixedHeight = userSetHeight {
+            // Height is user-locked: respect it, only clamp to screen bounds
+            targetHeight = max(120, min(fixedHeight, screenMax))
+        } else {
+            // Auto-height: content + footer + titlebar safe-area inset.
+            // The VStack inside the hosting view has its usable height reduced by the
+            // safe-area inset (≈28pt for the titlebar), so the panel frame must be
+            // contentHeight + footerHeight + safeTop to fit without clipping the footer.
+            let contentHeight = heightReporter.contentHeight
+            guard contentHeight > 0 else { return }
+            let safeTop = panel.contentView?.safeAreaInsets.top ?? 0
+            targetHeight = max(120, min(contentHeight + heightReporter.footerHeight + safeTop, screenMax))
+        }
+
+        let topLeft = NSPoint(x: panel.frame.origin.x, y: panel.frame.origin.y + panel.frame.height)
+        let newFrame = NSRect(x: topLeft.x, y: topLeft.y - targetHeight,
+                              width: panel.frame.width, height: targetHeight)
+        suppressPositionSave = true
+        panel.setFrame(newFrame, display: true, animate: false)
+        suppressPositionSave = false
+        lastKnownHeight = targetHeight
     }
 
     func show() {
@@ -274,6 +514,7 @@ final class FloatingWindowController: NSWindowController {
         } else {
             window.orderFrontRegardless()
         }
+        adjustPanelHeight()
     }
 
     func hide() {
@@ -294,6 +535,169 @@ final class FloatingWindowController: NSWindowController {
 }
 
 // MARK: - TitlebarCloseButton
+
+/// An NSButton that draws as a green circle (reset to auto-height), with a ↕ icon on hover.
+private final class TitlebarResetButton: NSButton {
+
+    private var trackingArea: NSTrackingArea?
+    private var isHovered = false {
+        didSet { needsDisplay = true }
+    }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        isBordered = false
+        bezelStyle = .circular
+        title = ""
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let old = trackingArea { removeTrackingArea(old) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovered = true }
+    override func mouseExited(with event: NSEvent)  { isHovered = false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor(red: 0.20, green: 0.78, blue: 0.35, alpha: 1).setFill()
+        NSBezierPath(ovalIn: bounds).fill()
+
+        if isHovered {
+            // Draw a ↕ symbol: two small arrow heads pointing up and down
+            NSColor.black.withAlphaComponent(0.55).setStroke()
+            NSColor.black.withAlphaComponent(0.55).setFill()
+            let cx = bounds.midX
+            let cy = bounds.midY
+            let aw: CGFloat = bounds.width * 0.30  // arrow half-width
+            let ah: CGFloat = bounds.height * 0.22  // arrow head height
+            let gap: CGFloat = bounds.height * 0.06 // gap from center
+
+            // Up arrow
+            let upTip = NSPoint(x: cx, y: cy + gap + ah + ah * 0.5)
+            let upLeft = NSPoint(x: cx - aw, y: cy + gap + ah * 0.5)
+            let upRight = NSPoint(x: cx + aw, y: cy + gap + ah * 0.5)
+            let upPath = NSBezierPath()
+            upPath.move(to: upTip); upPath.line(to: upLeft); upPath.line(to: upRight)
+            upPath.close(); upPath.fill()
+
+            // Down arrow
+            let dnTip = NSPoint(x: cx, y: cy - gap - ah - ah * 0.5)
+            let dnLeft = NSPoint(x: cx - aw, y: cy - gap - ah * 0.5)
+            let dnRight = NSPoint(x: cx + aw, y: cy - gap - ah * 0.5)
+            let dnPath = NSBezierPath()
+            dnPath.move(to: dnTip); dnPath.line(to: dnLeft); dnPath.line(to: dnRight)
+            dnPath.close(); dnPath.fill()
+        }
+    }
+}
+
+/// An NSButton that draws a gear icon, visible on hover.
+private final class TitlebarGearButton: NSButton {
+
+    private var trackingArea: NSTrackingArea?
+    private var isHovered = false {
+        didSet { needsDisplay = true }
+    }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        isBordered = false
+        bezelStyle = .circular
+        title = ""
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let old = trackingArea { removeTrackingArea(old) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovered = true }
+    override func mouseExited(with event: NSEvent)  { isHovered = false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let alpha: CGFloat = isHovered ? 0.85 : 0.35
+        let sizeConfig = NSImage.SymbolConfiguration(pointSize: bounds.height * 0.7, weight: .medium)
+        let colorConfig = NSImage.SymbolConfiguration(paletteColors: [NSColor.white.withAlphaComponent(alpha)])
+        let config = sizeConfig.applying(colorConfig)
+        if let image = NSImage(systemSymbolName: "gearshape.fill", accessibilityDescription: "Settings")?
+            .withSymbolConfiguration(config) {
+            let imageSize = image.size
+            let x = (bounds.width - imageSize.width) / 2
+            let y = (bounds.height - imageSize.height) / 2
+            image.draw(in: NSRect(x: x, y: y, width: imageSize.width, height: imageSize.height))
+        }
+    }
+}
+
+/// A reusable titlebar icon button that draws an SF Symbol, visible on hover.
+private final class TitlebarIconButton: NSButton {
+
+    private let symbolName: String
+    private var trackingArea: NSTrackingArea?
+    private var isHovered = false {
+        didSet { needsDisplay = true }
+    }
+
+    init(frame: NSRect, symbolName: String, label: String) {
+        self.symbolName = symbolName
+        super.init(frame: frame)
+        isBordered = false
+        bezelStyle = .circular
+        title = ""
+        toolTip = label
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let old = trackingArea { removeTrackingArea(old) }
+        let area = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovered = true }
+    override func mouseExited(with event: NSEvent)  { isHovered = false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let alpha: CGFloat = isHovered ? 0.85 : 0.35
+        let sizeConfig = NSImage.SymbolConfiguration(pointSize: bounds.height * 0.6, weight: .medium)
+        let colorConfig = NSImage.SymbolConfiguration(paletteColors: [NSColor.white.withAlphaComponent(alpha)])
+        let config = sizeConfig.applying(colorConfig)
+        if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: toolTip)?
+            .withSymbolConfiguration(config) {
+            let imageSize = image.size
+            let x = (bounds.width - imageSize.width) / 2
+            let y = (bounds.height - imageSize.height) / 2
+            image.draw(in: NSRect(x: x, y: y, width: imageSize.width, height: imageSize.height))
+        }
+    }
+}
 
 /// An NSButton that always draws as a red circle, with an × on hover.
 private final class TitlebarCloseButton: NSButton {

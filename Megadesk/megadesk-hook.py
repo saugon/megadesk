@@ -11,6 +11,15 @@ from pathlib import Path
 
 SESSIONS_DIR = Path.home() / ".claude" / "megadesk" / "sessions"
 
+EVENT_STATE_MAP = {
+    "PreToolUse": "working",
+    "PostToolUse": "working",
+    "UserPromptSubmit": "working",
+    "Stop": "waiting",
+    "StopInterrupted": "waiting",
+    "SessionStart": "waiting",
+}
+
 
 def _find_claude_pid() -> int:
     """Walk the process tree upward to find the 'claude' ancestor PID."""
@@ -34,15 +43,17 @@ def _find_claude_pid() -> int:
     return os.getppid()  # fallback
 
 
-# Mapping of hook events to states
-EVENT_STATE_MAP = {
-    "PreToolUse": "working",
-    "PostToolUse": "working",
-    "UserPromptSubmit": "working",
-    "Stop": "waiting",
-    "StopInterrupted": "waiting",
-    "SessionStart": "waiting",
-}
+def _get_ghostty_terminal_id() -> str:
+    """Query the focused Ghostty terminal's unique ID via AppleScript."""
+    import subprocess
+    try:
+        return subprocess.check_output(
+            ["osascript", "-e",
+             'tell application "Ghostty" to get id of focused terminal of selected tab of front window'],
+            stderr=subprocess.DEVNULL, text=True, timeout=3,
+        ).strip()
+    except Exception:
+        return ""
 
 
 def main():
@@ -77,7 +88,9 @@ def main():
 
     cwd = data.get("cwd", os.getcwd())
     tool_name = data.get("tool_name") or data.get("tool", "") or ""
-    # ITERM_SESSION_ID is "w0t0p0:UUID" — iTerm2 AppleScript unique id is only the UUID part
+    term_program = os.environ.get("TERM_PROGRAM", "").lower()
+
+    # iTerm2 session ID: "w0t0p0:UUID" → extract UUID
     iterm_raw = os.environ.get("ITERM_SESSION_ID", "")
     terminal_session_id = iterm_raw.split(":", 1)[-1] if ":" in iterm_raw else iterm_raw
     # Inside tmux, all panes of the same iTerm2 tab share $ITERM_SESSION_ID.
@@ -90,22 +103,35 @@ def main():
     if not terminal_session_id:
         terminal_session_id = session_id
 
+    if iterm_raw:
+        terminal = "iterm2"
+    elif term_program == "ghostty":
+        terminal = "ghostty"
+    else:
+        terminal = "unknown"
+
     session_file = SESSIONS_DIR / f"{session_id}.json"
     SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
     now = time.time()
 
-    # Read existing data to preserve state_since and created_at across writes
+    # Read existing data to preserve state_since, created_at, and ghostty_terminal_id across writes
     state_since = now
     created_at = now
+    ghostty_terminal_id = ""
     if session_file.exists():
         try:
             existing = json.loads(session_file.read_text())
             if existing.get("state") == new_state:
                 state_since = existing.get("state_since", now)
             created_at = existing.get("created_at", now)
+            ghostty_terminal_id = existing.get("ghostty_terminal_id", "")
         except (json.JSONDecodeError, OSError):
             pass
+
+    # Capture Ghostty terminal ID on start (terminal is focused at this point)
+    if terminal == "ghostty" and (hook_event == "SessionStart" or not ghostty_terminal_id):
+        ghostty_terminal_id = _get_ghostty_terminal_id()
 
     session_data = {
         "session_id": session_id,
@@ -117,8 +143,10 @@ def main():
         "tool_name": tool_name,
         "last_event": hook_event,
         "terminal_session_id": terminal_session_id,
+        "terminal": terminal,
         "claude_pid": _find_claude_pid(),
         "provider": "claude",
+        "ghostty_terminal_id": ghostty_terminal_id,
     }
 
     # On SessionStart, remove stale files from the same terminal tab

@@ -4,7 +4,7 @@
 
 # Megadesk
 
-**Claude Code session monitor for iTerm2.**
+**Claude Code session monitor for iTerm2 and Ghostty.**
 
 <p align="center">
   <a href="https://github.com/saugon/megadesk/releases/latest/download/Megadesk.dmg">
@@ -12,7 +12,7 @@
   </a>
 </p>
 
-Megadesk is a macOS menu-bar widget that shows all your active Claude Code sessions at a glance. Each session card displays its current state, how long it's been in that state, and lets you jump directly to the right iTerm2 tab with a single click.
+Megadesk is a macOS menu-bar widget that shows all your active Claude Code sessions at a glance. Each session card displays its current state, how long it's been in that state, and lets you jump directly to the right terminal tab with a single click. Supports iTerm2 and Ghostty with per-tab focus.
 
 ---
 
@@ -27,7 +27,7 @@ Megadesk is a macOS menu-bar widget that shows all your active Claude Code sessi
 ## Requirements
 
 - macOS 14 or later
-- [iTerm2](https://iterm2.com)
+- [iTerm2](https://iterm2.com) or [Ghostty](https://ghostty.org)
 - [Claude Code](https://claude.ai/code) (the `claude` CLI)
 - [gh CLI](https://cli.github.com) — only needed for PR tracking
 
@@ -40,8 +40,8 @@ On first launch, Megadesk runs a two-step onboarding:
 **Step 1 — Install Hook**
 Clicks "Install Hook" to add a Python hook to `~/.claude/settings.json`. This hook notifies Megadesk whenever a Claude Code session changes state (tool use, stop, prompt submit, etc.).
 
-**Step 2 — Allow iTerm2 Control**
-Clicks "Grant Access" to authorize AppleScript control of iTerm2. This is what lets Megadesk focus the right tab when you click a session card. If you skip this step (or deny it in System Settings), the widget still shows session states but clicking cards won't switch tabs.
+**Step 2 — Allow Terminal Control**
+Clicks "Grant Access" to authorize AppleScript control of your terminal (iTerm2 and/or Ghostty). This is what lets Megadesk focus the right tab when you click a session card. If you skip this step (or deny it in System Settings), the widget still shows session states but clicking cards won't switch tabs.
 
 After both steps, click **Continue**. The widget appears and stays visible until you hide it with `⌘⇧M`.
 
@@ -66,7 +66,7 @@ The time displayed on the right shows how long the session has been in its curre
 
 ### Interacting with sessions
 
-**Click a card** — focuses the corresponding iTerm2 tab immediately.
+**Click a card** — focuses the corresponding terminal tab and pane via AppleScript. Works with both iTerm2 and Ghostty, including split panes.
 
 **Rename a session** — hover over a card and click the pencil icon (✏) that appears. Type a name and press Enter to confirm, Escape to cancel. Custom names persist even when you `cd` into a different directory in that tab. To revert to the auto-detected name, click the ↩ button that appears while editing.
 
@@ -148,6 +148,6 @@ Click the Megadesk icon in the menu bar to access:
 
 ## How it works
 
-On install, Megadesk copies `megadesk-hook.py` to `~/.claude/` and registers it as a hook for five Claude Code events: `PreToolUse`, `PostToolUse`, `Stop`, `UserPromptSubmit`, and `SessionStart`. Each time one of these fires, the hook writes a small JSON payload to a local socket that Megadesk listens on, updating the session card in real time.
+On install, Megadesk copies `megadesk-hook.py` to `~/.claude/` and registers it as a hook for five Claude Code events: `PreToolUse`, `PostToolUse`, `Stop`, `UserPromptSubmit`, and `SessionStart`. Each time one of these fires, the hook writes a small JSON file to `~/.claude/megadesk/sessions/`, which Megadesk watches via kqueue to update the session card in real time. For Ghostty, the hook also captures the terminal's unique ID via AppleScript at session start, enabling precise tab and split-pane focusing.
 
 No data leaves your machine. The hook runs locally and Megadesk never makes any network requests except through the `gh` CLI for PR status.

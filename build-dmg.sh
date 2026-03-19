@@ -5,34 +5,45 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 [ -f "$SCRIPT_DIR/.env" ] && set -a && source "$SCRIPT_DIR/.env" && set +a
 
-PROJECT="/Users/saugon/lambda/megadesk-v2/Megadesk.xcodeproj"
-DERIVED="/tmp/megadesk-build"
-APP_PATH="$DERIVED/Build/Products/Release/Megadesk.app"
+PROJECT="$SCRIPT_DIR/Megadesk.xcodeproj"
 TMP_DMG="/tmp/megadesk-tmp.dmg"
 VOLUME="Megadesk"
 SIGN_ID="${MEGADESK_SIGN_ID:?Set MEGADESK_SIGN_ID in .env}"
 NOTARY_PROFILE="${MEGADESK_NOTARY_PROFILE:?Set MEGADESK_NOTARY_PROFILE in .env}"
-ENTITLEMENTS="$(dirname "$0")/Megadesk/Megadesk.entitlements"
+SPARKLE_BIN="$(ls -d ~/Library/Developer/Xcode/DerivedData/Megadesk-*/SourcePackages/artifacts/sparkle/Sparkle/bin 2>/dev/null | head -1)"
 
-echo "→ Building..."
-xcodebuild \
+ARCHIVE="/tmp/megadesk.xcarchive"
+EXPORT_DIR="/tmp/megadesk-export"
+APP_PATH="$EXPORT_DIR/Megadesk.app"
+
+echo "→ Archiving..."
+xcodebuild archive \
   -project "$PROJECT" \
   -scheme Megadesk \
   -configuration Release \
-  -derivedDataPath "$DERIVED" \
-  clean build \
-  CODE_SIGN_IDENTITY="-" \
-  CODE_SIGNING_REQUIRED=NO \
-  | grep -E "^(error:|warning: |BUILD)"
+  -archivePath "$ARCHIVE" \
+  -allowProvisioningUpdates \
+  | grep -E "^(error:|warning: |BUILD|ARCHIVE)"
 
-echo "→ Signing app..."
-codesign --force --deep --options runtime \
-  --entitlements "$ENTITLEMENTS" \
-  --sign "$SIGN_ID" \
-  "$APP_PATH"
+echo "→ Exporting for Developer ID..."
+rm -rf "$EXPORT_DIR"
+# exportArchive exits 1 when Sparkle's XPC services lack provisioning profiles
+# (expected for Developer ID distribution) — the export itself succeeds.
+xcodebuild -exportArchive \
+  -archivePath "$ARCHIVE" \
+  -exportPath "$EXPORT_DIR" \
+  -exportOptionsPlist "$SCRIPT_DIR/ExportOptions.plist" \
+  -allowProvisioningUpdates \
+  | grep -E "^(error:|warning: |EXPORT)" || true
+
+if [ ! -d "$APP_PATH" ]; then
+  echo "✗ Export failed — no app at $APP_PATH"
+  exit 1
+fi
+codesign --verify --deep --strict "$APP_PATH" || { echo "✗ Signature verification failed"; exit 1; }
 
 VERSION=$(defaults read "$APP_PATH/Contents/Info.plist" CFBundleShortVersionString)
-DMG_OUT="/Users/saugon/lambda/megadesk-v2/megadesk-$VERSION.dmg"
+DMG_OUT="$SCRIPT_DIR/Megadesk.dmg"
 
 echo "→ Creating DMG..."
 rm -f "$TMP_DMG" "$DMG_OUT"
@@ -43,7 +54,7 @@ mkdir -p "$MOUNT"
 hdiutil attach "$TMP_DMG" -readwrite -noverify -mountpoint "$MOUNT" -quiet
 echo "  Mounted at $MOUNT"
 
-cp -r "$APP_PATH" "$MOUNT/"
+ditto "$APP_PATH" "$MOUNT/Megadesk.app"
 ln -s /Applications "$MOUNT/Applications"
 
 # Embed custom icon inside the volume so it survives HTTP download
@@ -101,4 +112,12 @@ echo "→ Stapling ticket..."
 xcrun stapler staple "$DMG_OUT"
 
 SIZE=$(du -sh "$DMG_OUT" | cut -f1)
-echo "✓ megadesk-$VERSION.dmg ($SIZE) — signed & notarized"
+echo "✓ Megadesk.dmg v$VERSION ($SIZE) — signed & notarized"
+
+if [ -n "$SPARKLE_BIN" ] && [ -x "$SPARKLE_BIN/sign_update" ]; then
+  echo ""
+  echo "→ Sparkle EdDSA signature (paste into docs/appcast.xml):"
+  "$SPARKLE_BIN/sign_update" "$DMG_OUT"
+else
+  echo "⚠ Sparkle sign_update not found — sign manually with sign_update $DMG_OUT"
+fi
