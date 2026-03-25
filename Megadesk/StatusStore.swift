@@ -41,6 +41,9 @@ final class StatusStore {
     // kqueue-based process watchers: terminalSessionId → DispatchSourceProcess
     private var processSources: [String: DispatchSourceProcess] = [:]
 
+    /// Serial queue for all AppleScript execution — NSAppleScript is not thread-safe.
+    private static let appleScriptQueue = DispatchQueue(label: "com.megadesk.applescript")
+
     // Caches of active terminal session IDs, updated by checkOrphanedSessions every 10s.
     // Used by reapDeadSessions to avoid removing sessions whose terminal tab is still
     // alive (e.g. PID is stale after a Claude restart).
@@ -453,7 +456,7 @@ final class StatusStore {
 
         let checkIterm = hasItermSessions
         let checkGhostty = hasGhosttySessions
-        DispatchQueue.global(qos: .utility).async { [weak self] in
+        Self.appleScriptQueue.async { [weak self] in
             let itermIds = checkIterm ? Self.queryItermSessionIds() : []
             let ghosttyIds = checkGhostty ? Self.queryGhosttyTerminalIds() : []
 
@@ -608,7 +611,7 @@ final class StatusStore {
             return unique id of current session of current window
         end tell
         """
-        DispatchQueue.global(qos: .userInitiated).async {
+        Self.appleScriptQueue.async {
             let appleScript = NSAppleScript(source: script)
             var error: NSDictionary?
             let result = appleScript?.executeAndReturnError(&error)
@@ -622,7 +625,7 @@ final class StatusStore {
             return id of focused terminal of selected tab of front window
         end tell
         """
-        DispatchQueue.global(qos: .userInitiated).async {
+        Self.appleScriptQueue.async {
             let appleScript = NSAppleScript(source: script)
             var error: NSDictionary?
             let result = appleScript?.executeAndReturnError(&error)

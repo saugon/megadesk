@@ -100,7 +100,7 @@ extension MegadeskAlert {
         switch recurrence {
         case .once:
             if lastFiredAt != nil { return nil }
-            return Self.stripSeconds(from: date)
+            return date
 
         case .daily:
             let timeComponents = cal.dateComponents([.hour, .minute], from: date)
@@ -177,14 +177,13 @@ extension MegadeskAlert {
         case .interval(let minutes):
             guard minutes > 0 else { return nil }
             let intervalSeconds = TimeInterval(minutes * 60)
-            let raw: Date
+            let candidate: Date
             if let last = lastFiredAt {
                 let next = last.addingTimeInterval(intervalSeconds)
-                raw = next <= referenceDate ? referenceDate : next
+                candidate = next <= referenceDate ? referenceDate : next
             } else {
-                raw = date <= referenceDate ? referenceDate : date
+                candidate = date <= referenceDate ? referenceDate : date
             }
-            let candidate = Self.stripSeconds(from: raw)
             // If no day/time constraints, return as-is
             if activeDays == nil && activeStartHour == nil { return candidate }
             // Check if candidate falls within the active window

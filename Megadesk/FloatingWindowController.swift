@@ -314,6 +314,7 @@ final class FloatingWindowController: NSWindowController {
             popover.performClose(nil)
         })
         popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .maxY)
+        popover.contentViewController?.view.window?.makeKey()
         quickAlertPopover = popover
     }
 

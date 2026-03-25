@@ -123,7 +123,8 @@ struct SessionCardView: View {
     @ViewBuilder private var cardContent: some View {
         HStack(alignment: .top, spacing: 8) {
             ProviderBadge(letter: session.provider == .codex ? "X" : "C",
-                          color: dotColor, pulse: shouldPulse)
+                          color: dotColor, pulse: shouldPulse,
+                          dimmed: session.isForgotten)
                 .padding(.top, 4)
 
             // Left column: name/TextField + status
@@ -354,11 +355,12 @@ struct ProviderBadge: View {
     let letter: String
     let color: Color
     let pulse: Bool
+    var dimmed: Bool = false
 
     var body: some View {
         Text(letter)
             .font(.system(size: 10, weight: .bold, design: .monospaced))
-            .foregroundColor(.white)
+            .foregroundColor(dimmed ? Color(white: 0.75) : .white)
             .frame(width: 16, height: 16)
             .background(RoundedRectangle(cornerRadius: 4).fill(color))
     }

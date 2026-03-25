@@ -12,7 +12,8 @@ struct CompactSessionCardView: View {
         Button(action: handleFocus) {
             VStack(spacing: 3) {
                 ProviderBadge(letter: session.provider == .codex ? "X" : "C",
-                              color: dotColor, pulse: shouldPulse)
+                              color: dotColor, pulse: shouldPulse,
+                              dimmed: session.isForgotten)
                 Text(displayName.prefix(4))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundColor(.white.opacity(0.5))

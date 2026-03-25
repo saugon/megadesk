@@ -71,15 +71,9 @@ struct AlertsView: View {
                     .buttonStyle(.borderless)
                     .disabled(completedAlerts.isEmpty)
                 } else {
-                    Button(action: addAlert) {
-                        Image(systemName: "plus")
-                    }
-                    .buttonStyle(.borderless)
-                    Button(action: removeSelected) {
-                        Image(systemName: "minus")
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(selectedAlertId == nil)
+                    ToolbarButton(icon: "plus", action: addAlert)
+                    ToolbarButton(icon: "minus", action: removeSelected)
+                        .disabled(selectedAlertId == nil)
                 }
                 Spacer()
             }
@@ -683,5 +677,25 @@ struct AlertsView: View {
             return .interval(minutes: 60)
         default: return .once
         }
+    }
+}
+
+private struct ToolbarButton: View {
+    let icon: String
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(isHovered ? Color.primary.opacity(0.1) : Color.clear)
+                )
+        }
+        .buttonStyle(.borderless)
+        .onHover { isHovered = $0 }
     }
 }
