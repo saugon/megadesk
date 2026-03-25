@@ -282,9 +282,15 @@ final class StatusStore {
         guard !isSyncingActiveSession else { return }
         isSyncingActiveSession = true
 
+        // Only detect the terminal that is currently frontmost to avoid
+        // one terminal's detection overwriting a session the user just clicked in another.
+        let frontBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        let syncIterm = hasItermSessions && frontBundleId == "com.googlecode.iterm2"
+        let syncGhostty = hasGhosttySessions && frontBundleId == "com.mitchellh.ghostty"
+
         let group = DispatchGroup()
 
-        if hasItermSessions {
+        if syncIterm {
             group.enter()
             detectCurrentItermSession { [weak self] currentId in
                 DispatchQueue.main.async {
@@ -300,7 +306,7 @@ final class StatusStore {
             }
         }
 
-        if hasGhosttySessions {
+        if syncGhostty {
             group.enter()
             detectCurrentGhosttySession { [weak self] terminalId in
                 DispatchQueue.main.async {
