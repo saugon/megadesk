@@ -165,60 +165,35 @@ struct SessionCardView: View {
 
             Spacer()
 
-            // Right column: time on top, then shortcut/edit slot below
+            // Right column: duration on top, edit/revert button below (aligned)
             VStack(alignment: .trailing, spacing: 2) {
                 Text(formatDuration(session.timeInState))
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(.white.opacity(0.35))
 
-                // Shortcut hint and edit button share the same slot:
-                // shortcut visible at rest, edit button replaces it on hover.
                 if isEditing {
                     Button(action: revertToDefault) {
                         Image(systemName: "arrow.counterclockwise")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.white.opacity(isHovered ? 0.75 : 0.3))
+                            .foregroundColor(.white.opacity(0.75))
                             .frame(width: 18, height: 18)
-                            .background(Color.white.opacity(isHovered ? 0.12 : 0))
+                            .background(Color.white.opacity(0.12))
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
                     .opacity(hasCustomName ? 1 : 0)
                 } else {
-                    if isFlashing {
-                        ZStack(alignment: .trailing) {
-                            Text("⇧ ⌥ + ↑ / ↓")
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundColor(.white.opacity(0.45))
-                                .fixedSize()
-                                .opacity(isHovered ? 0 : 1)
-                                .allowsHitTesting(false)
-
-                            Button(action: startEdit) {
-                                Image(systemName: "pencil")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.75))
-                                    .frame(width: 18, height: 18)
-                                    .background(Color.white.opacity(0.12))
-                                    .clipShape(Circle())
-                            }
-                            .buttonStyle(.plain)
-                            .opacity(isHovered ? 1 : 0)
-                        }
-                        .animation(.easeInOut(duration: 0.15), value: isHovered)
-                    } else {
-                        Button(action: startEdit) {
-                            Image(systemName: "pencil")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.white.opacity(isHovered ? 0.75 : 0.3))
-                                .frame(width: 18, height: 18)
-                                .background(Color.white.opacity(isHovered ? 0.12 : 0))
-                                .clipShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .opacity(isHovered ? 1 : 0)
-                        .animation(.easeInOut(duration: 0.15), value: isHovered)
+                    Button(action: startEdit) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.white.opacity(0.75))
+                            .frame(width: 18, height: 18)
+                            .background(Color.white.opacity(0.12))
+                            .clipShape(Circle())
                     }
+                    .buttonStyle(.plain)
+                    .opacity(isHovered ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.15), value: isHovered)
                 }
             }
         }
