@@ -99,6 +99,8 @@ final class FloatingWindowController: NSWindowController {
     private var heightReporter = HeightReporter()
     private var userSetHeight: CGFloat? = nil  // nil = auto-height; non-nil = user-locked
     private var lastKnownHeight: CGFloat = 120 // tracks last applied height to detect real user changes
+    private var isAdjustingHeight = false       // prevents re-entrant adjustPanelHeight calls
+    private var heightAdjustWorkItem: DispatchWorkItem?
     private var resetHeightButton: NSButton?
     private var gearButton: TitlebarGearButton?
     private var alertButton: TitlebarIconButton?
@@ -171,7 +173,7 @@ final class FloatingWindowController: NSWindowController {
 
         self.heightReporter = reporter
         reporter.onHeightChange = { [weak self] in
-            self?.adjustPanelHeight()
+            self?.scheduleHeightAdjust()
         }
 
         let savedH = UserDefaults.standard.double(forKey: "megadesk.windowHeight")
@@ -432,7 +434,12 @@ final class FloatingWindowController: NSWindowController {
             UserDefaults.standard.set(newValue, forKey: "megadesk.compact")  // SwiftUI re-render mientras invisible
             panel.alphaValue = AppSettings.shared.idleOpacity   // reset para show()
 
-            let width: CGFloat = newValue ? 78 : 280
+            let savedWidth = UserDefaults.standard.double(forKey: "megadesk.windowWidth")
+            let normalWidth: CGFloat = savedWidth > 0 ? max(220, min(280, CGFloat(savedWidth))) : 280
+            let width: CGFloat = newValue ? 78 : normalWidth
+            // Pin width so SwiftUI layout cannot oscillate it
+            panel.minSize = NSSize(width: width, height: 120)
+            panel.maxSize = NSSize(width: width, height: NSScreen.main?.frame.height ?? 2000)
             self.suppressPositionSave = true
             if let screen = NSScreen.main {
                 let x = screen.visibleFrame.maxX - width - 16
@@ -442,6 +449,13 @@ final class FloatingWindowController: NSWindowController {
             }
             self.suppressPositionSave = false
             self.adjustPanelHeight()
+            // Re-enable user resizing in normal mode
+            if !newValue {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    panel.minSize = NSSize(width: 220, height: 120)
+                    panel.maxSize = NSSize(width: 280, height: NSScreen.main?.frame.height ?? 2000)
+                }
+            }
             self.titleLabel?.stringValue = newValue ? "md" : "megadesk"
             self.titleLabel?.sizeToFit()
             if let label = self.titleLabel, let superview = label.superview {
@@ -452,8 +466,15 @@ final class FloatingWindowController: NSWindowController {
         }
     }
 
+    private func scheduleHeightAdjust() {
+        heightAdjustWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in self?.adjustPanelHeight() }
+        heightAdjustWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: item)
+    }
+
     private func adjustPanelHeight() {
-        guard !isLiveResizing else { return }
+        guard !isLiveResizing, !isAdjustingHeight else { return }
         guard let panel = window else { return }
 
         let screenMax: CGFloat
@@ -466,19 +487,19 @@ final class FloatingWindowController: NSWindowController {
 
         let targetHeight: CGFloat
         if let fixedHeight = userSetHeight {
-            // Height is user-locked: respect it, only clamp to screen bounds
             targetHeight = max(120, min(fixedHeight, screenMax))
         } else {
-            // Auto-height: content + footer + titlebar safe-area inset.
-            // The VStack inside the hosting view has its usable height reduced by the
-            // safe-area inset (≈28pt for the titlebar), so the panel frame must be
-            // contentHeight + footerHeight + safeTop to fit without clipping the footer.
             let contentHeight = heightReporter.contentHeight
             guard contentHeight > 0 else { return }
             let safeTop = panel.contentView?.safeAreaInsets.top ?? 0
             targetHeight = max(120, min(contentHeight + heightReporter.footerHeight + safeTop, screenMax))
         }
 
+        // Skip if the height barely changed — prevents oscillation from
+        // measurement jitter after mode switches or layout recalculations.
+        guard abs(targetHeight - panel.frame.height) > 2 else { return }
+
+        isAdjustingHeight = true
         let topLeft = NSPoint(x: panel.frame.origin.x, y: panel.frame.origin.y + panel.frame.height)
         let newFrame = NSRect(x: topLeft.x, y: topLeft.y - targetHeight,
                               width: panel.frame.width, height: targetHeight)
@@ -486,6 +507,7 @@ final class FloatingWindowController: NSWindowController {
         panel.setFrame(newFrame, display: true, animate: false)
         suppressPositionSave = false
         lastKnownHeight = targetHeight
+        isAdjustingHeight = false
     }
 
     func show() {

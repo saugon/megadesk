@@ -29,14 +29,29 @@ struct ContentView: View {
     // Persisted locked height — non-zero when user has manually set a height.
     @AppStorage("megadesk.windowHeight") private var lockedHeightPref: Double = 0
 
+    // Estimated height of non-scrollable chrome: titlebar, footer, labels, alerts, PR controls.
+    private var fixedOverhead: CGFloat {
+        var h: CGFloat = 56  // titlebar safe area (28) + footer (28)
+        h += 24              // "sessions" label + padding
+        if !widgetAlerts.isEmpty {
+            h += 24          // "alerts" label + padding
+            h += CGFloat(widgetAlerts.count) * 60  // alert cards (~56pt + spacing)
+        }
+        if prTrackingEnabled {
+            h += 60          // PR header + "Track PR" button
+            // PR cards are in their own scroll, accounted for in sessionsMaxHeight
+        }
+        h += 16              // outer padding
+        return h
+    }
+
     // Budget available for the two scrollable sections combined.
     // Uses screen-based limit in auto-height mode; switches to locked-height-based limit
     // when the user has manually set a height, so sections scroll rather than overflow.
     private var sectionBudget: CGFloat {
         let screenBudget = max(200, (NSScreen.main?.visibleFrame.height ?? 700) - 68 - 250)
         if lockedHeightPref > 0 {
-            // ~150pt overhead: titlebar safeArea(28) + footer(28) + labels/buttons/padding(94)
-            return min(max(150, CGFloat(lockedHeightPref) - 150), screenBudget)
+            return min(max(100, CGFloat(lockedHeightPref) - fixedOverhead), screenBudget)
         }
         return screenBudget
     }
