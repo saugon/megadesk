@@ -179,13 +179,25 @@ final class StatusStore {
             loaded.append(session)
         }
 
-        // Deduplicate by terminal session ID — one terminal tab = one card
+        // Deduplicate — one terminal tab = one card.
+        // Primary key: terminalSessionId. For Ghostty sessions whose
+        // terminalSessionId was never resolved (equals sessionId), also
+        // deduplicate by ghosttyTerminalId so two sessions pointing at the
+        // same Ghostty tab collapse into one card.
         var seen: [String: Session] = [:]
         for s in loaded {
-            if let existing = seen[s.terminalSessionId] {
-                if s.lastUpdated > existing.lastUpdated { seen[s.terminalSessionId] = s }
+            let key: String
+            if s.terminal == .ghostty,
+               !s.ghosttyTerminalId.isEmpty,
+               s.terminalSessionId == s.sessionId {
+                key = "ghostty:\(s.ghosttyTerminalId)"
             } else {
-                seen[s.terminalSessionId] = s
+                key = s.terminalSessionId
+            }
+            if let existing = seen[key] {
+                if s.lastUpdated > existing.lastUpdated { seen[key] = s }
+            } else {
+                seen[key] = s
             }
         }
         let deduped = Array(seen.values)

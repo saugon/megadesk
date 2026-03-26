@@ -313,16 +313,22 @@ struct StatusDot: View {
         Circle()
             .fill(color)
             .frame(width: 8, height: 8)
-            .scaleEffect(pulse && animating ? 1.4 : 1.0)
-            .opacity(pulse && animating ? 0.6 : 1.0)
-            .animation(
-                pulse
-                    ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true)
-                    : .default,
-                value: animating
-            )
-            .onAppear { if pulse { animating = true } }
-            .onChange(of: pulse) { _, newValue in animating = newValue }
+            .opacity(pulse && animating ? 0.5 : 1.0)
+            .onAppear {
+                guard pulse else { return }
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                    animating = true
+                }
+            }
+            .onChange(of: pulse) { _, newValue in
+                if newValue {
+                    withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                        animating = true
+                    }
+                } else {
+                    withAnimation(.default) { animating = false }
+                }
+            }
     }
 }
 

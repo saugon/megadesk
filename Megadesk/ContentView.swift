@@ -13,6 +13,7 @@ private struct PRHeightKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
+
 struct ContentView: View {
     @State private var store = StatusStore.shared
     @AppStorage("megadesk.compact") private var isCompact = false
@@ -43,14 +44,14 @@ struct ContentView: View {
     // Dynamic allocation: PRs get their natural height (up to 35% of budget), sessions
     // gets everything else. When both sections fit naturally, no scrolling occurs.
     private var sessionsMaxHeight: CGFloat {
-        guard prTrackingEnabled else { return sectionBudget }
+        guard prTrackingEnabled, prContentHeight > 0 else { return sectionBudget }
         let totalNatural = sessionsContentHeight + prContentHeight
         if totalNatural > 0 && totalNatural <= sectionBudget {
             return sessionsContentHeight  // both fit: no caps needed
         }
         // PRs take their natural size (or 35% cap if unusually large).
         // Sessions gets the rest — no wasted space below PRs.
-        let prAlloc = prContentHeight > 0 ? min(prContentHeight, sectionBudget * 0.35) : sectionBudget * 0.35
+        let prAlloc = min(prContentHeight, sectionBudget * 0.35)
         return max(80, sectionBudget - prAlloc)
     }
     private var prMaxHeight: CGFloat {
@@ -71,8 +72,8 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            if prTrackingEnabled && (isCompact || widgetAlerts.isEmpty) {
-                sectionLabel(isCompact ? "s" : "sessions")
+            if isCompact {
+                sectionLabel("s")
             }
 
             if store.sessions.isEmpty && widgetAlerts.isEmpty {
@@ -90,16 +91,18 @@ struct ContentView: View {
                     )
                 }
             } else {
-                // Sessions section — independent scroll (alerts appear at top)
+                // Alerts section — fixed (not scrollable), pinned above sessions
+                if !widgetAlerts.isEmpty {
+                    sectionLabel("alerts")
+                    ForEach(widgetAlerts) { alert in
+                        AlertCardView(alert: alert, isCompact: false)
+                    }
+                }
+
+                // Sessions section — independent scroll
+                sectionLabel("sessions")
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(spacing: 4) {
-                        if !widgetAlerts.isEmpty {
-                            sectionLabel("alerts")
-                            ForEach(widgetAlerts) { alert in
-                                AlertCardView(alert: alert, isCompact: false)
-                            }
-                            sectionLabel("sessions")
-                        }
                         ForEach(store.sessions) { session in
                             SessionCardView(
                                 session: session,
