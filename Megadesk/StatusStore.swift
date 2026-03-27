@@ -58,6 +58,10 @@ final class StatusStore {
     var activeToolDetails: [String: String] = [:]
     private var jsonlWatchers: [String: JSONLWatcher] = [:]
 
+    // Spinner scraping: sessionId → info (verb + timing/tokens)
+    var spinnerInfos: [String: TerminalFocuser.SpinnerInfo] = [:]
+    private var isScrapingSpinners = false
+
     init() {
         loadCustomNames()
         loadSessions()
@@ -205,6 +209,7 @@ final class StatusStore {
         sessions = sorted(deduped)
         updateProcessWatchers()
         syncJSONLWatchers()
+        scrapeSpinnerVerbs()
     }
 
     func sorted(_ list: [Session]) -> [Session] {
@@ -279,6 +284,8 @@ final class StatusStore {
             }
             // Every 2 seconds, sync the active session indicator with the current terminal tab.
             if (self?.tick ?? 0) % 2 == 0 { self?.syncActiveSession() }
+            // Every tick, scrape spinner verbs for working sessions.
+            self?.scrapeSpinnerVerbs()
         }
     }
 
@@ -343,6 +350,55 @@ final class StatusStore {
         activeToolDetails[session.sessionId]
     }
 
+    func spinnerInfo(for session: Session) -> TerminalFocuser.SpinnerInfo? {
+        spinnerInfos[session.sessionId]
+    }
+
+    private func scrapeSpinnerVerbs() {
+        let candidates = sessions.filter { s in
+            s.isWorking &&
+            !s.needsConfirmation &&
+            s.terminal == .iterm2
+        }
+
+        // Always clean up, even if a scrape is in progress
+        for id in spinnerInfos.keys where !candidates.contains(where: { $0.sessionId == id }) {
+            spinnerInfos.removeValue(forKey: id)
+        }
+
+        guard !isScrapingSpinners, !candidates.isEmpty else { return }
+        isScrapingSpinners = true
+
+        let group = DispatchGroup()
+        var results: [(String, TerminalFocuser.SpinnerInfo?)] = []
+        let lock = NSLock()
+
+        for session in candidates {
+            group.enter()
+            let termId = session.terminalSessionId
+            let sessId = session.sessionId
+            DispatchQueue.global(qos: .utility).async {
+                let info = TerminalFocuser.readiTerm2SpinnerInfo(terminalSessionId: termId)
+                lock.lock()
+                results.append((sessId, info))
+                lock.unlock()
+                group.leave()
+            }
+        }
+
+        group.notify(queue: .main) { [weak self] in
+            guard let self else { return }
+            self.isScrapingSpinners = false
+            for (sessionId, info) in results {
+                if let info {
+                    self.spinnerInfos[sessionId] = info
+                } else {
+                    self.spinnerInfos.removeValue(forKey: sessionId)
+                }
+            }
+        }
+    }
+
     private func syncJSONLWatchers() {
         let activeIds = Set(sessions.map(\.sessionId))
 
@@ -350,6 +406,7 @@ final class StatusStore {
         for id in Set(jsonlWatchers.keys).subtracting(activeIds) {
             jsonlWatchers.removeValue(forKey: id)
             activeToolDetails.removeValue(forKey: id)
+            spinnerInfos.removeValue(forKey: id)
         }
 
         // Start watchers for new sessions

@@ -98,6 +98,7 @@ struct SessionCardView: View {
     let hasCustomName: Bool
     let isFlashing: Bool
     let toolDetail: String?
+    let spinnerInfo: TerminalFocuser.SpinnerInfo?
     let onFocus: () -> Bool
     let onRename: (String) -> Void
     let onEditStart: () -> Void
@@ -106,6 +107,7 @@ struct SessionCardView: View {
     @State private var isHovered = false
     @State private var isEditing = false
     @State private var editText = ""
+    @State private var spinnerFrame = 0
 
     var body: some View {
         // When editing, drop the outer Button so it doesn't intercept the space key
@@ -120,12 +122,27 @@ struct SessionCardView: View {
         .onHover { isHovered = $0 }
     }
 
+    private static let spinnerFrames: [String] = [
+        "✳", "✶", "✢", "✻", "·", "✽"
+    ]
+
     @ViewBuilder private var cardContent: some View {
         HStack(alignment: .top, spacing: 8) {
-            ProviderBadge(letter: session.provider == .codex ? "X" : "C",
-                          color: dotColor, pulse: shouldPulse,
-                          dimmed: session.isForgotten)
-                .padding(.top, 4)
+            if spinnerInfo != nil && session.isWorking {
+                Text(Self.spinnerFrames[spinnerFrame % Self.spinnerFrames.count])
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(spinnerVerbColor)
+                    .frame(width: 16, height: 16)
+                    .padding(.top, 4)
+                    .onReceive(Timer.publish(every: 0.2, on: .main, in: .common).autoconnect()) { _ in
+                        spinnerFrame += 1
+                    }
+            } else {
+                ProviderBadge(letter: session.provider == .codex ? "X" : "C",
+                              color: dotColor, pulse: shouldPulse,
+                              dimmed: session.isForgotten)
+                    .padding(.top, 4)
+            }
 
             // Left column: name/TextField + status
             VStack(alignment: .leading, spacing: 2) {
@@ -150,7 +167,8 @@ struct SessionCardView: View {
                         .font(.system(size: statusFontSize))
                         .foregroundColor(labelColor)
                         .lineLimit(1)
-                    if session.isWorking && !session.needsConfirmation {
+                        .animation(.easeInOut(duration: 0.8), value: tick)
+                    if session.isWorking && !session.needsConfirmation && spinnerInfo == nil {
                         let detail = toolDetail ?? (session.toolName.isEmpty ? nil : session.toolName)
                         if let detail {
                             Text(detail)
@@ -160,6 +178,13 @@ struct SessionCardView: View {
                                 .truncationMode(.tail)
                         }
                     }
+                }
+                if let info = spinnerInfo, session.isWorking, !info.detail.isEmpty {
+                    Text("(\(info.detail))")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.35))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
             }
 
@@ -276,16 +301,37 @@ struct SessionCardView: View {
 
     private var statusLabel: String {
         if session.needsConfirmation { return "needs confirmation" }
-        if session.isWorking         { return "working" }
+        if session.isWorking {
+            if let info = spinnerInfo { return "\(info.verb)\u{2026}" }
+            return "working"
+        }
         if session.isForgotten       { return "forgotten" }
         return "waiting for input"
     }
 
     private var labelColor: Color {
         if session.needsConfirmation { return AppSettings.shared.colorConfirmation.opacity(0.9) }
-        if session.isWorking         { return AppSettings.shared.colorWorking.opacity(0.8) }
+        if session.isWorking {
+            if spinnerInfo != nil { return spinnerVerbColor }
+            return AppSettings.shared.colorWorking.opacity(0.8)
+        }
         if session.isForgotten       { return isFlashing ? Color(white: 0.7) : Color(white: 0.4) }
         return AppSettings.shared.colorWaiting.opacity(0.9)
+    }
+
+    /// Animated color for the spinner verb — cycles through warm oranges,
+    /// or steady red when high effort is active.
+    private var spinnerVerbColor: Color {
+        guard let info = spinnerInfo else { return labelColor }
+        if info.isHighEffort {
+            return Color(hue: 0.02, saturation: 0.85, brightness: 0.9)
+        }
+        // Triangle wave over 8 seconds: 0→1→0
+        let cycle = tick % 8
+        let t = cycle < 4 ? Double(cycle) / 4.0 : Double(8 - cycle) / 4.0
+        let hue = 0.09 - t * 0.05          // 0.09 (amber) → 0.04 (red-orange)
+        let saturation = 0.75 + t * 0.15   // 0.75 → 0.90
+        return Color(hue: hue, saturation: saturation, brightness: 0.95)
     }
 
     private var cardBackground: Color {

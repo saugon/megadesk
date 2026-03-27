@@ -108,6 +108,71 @@ struct TerminalFocuser {
         return result.booleanValue
     }
 
+    // MARK: - Spinner scraping
+
+    struct SpinnerInfo {
+        let verb: String
+        let detail: String      // e.g., "14m 43s · ↓ 9.4k tokens"
+        let isHighEffort: Bool
+    }
+
+    private static let spinnerRegex = try! NSRegularExpression(
+        pattern: "^. ([A-Z][A-Za-z\u{00C0}-\u{00FF}\u{2019}'-]+)\u{2026} ?(?:\\(([^)]+)\\))?",
+        options: .anchorsMatchLines
+    )
+
+    /// Reads the current spinner verb and detail from an iTerm2 session's terminal content.
+    static func readiTerm2SpinnerInfo(terminalSessionId: String) -> SpinnerInfo? {
+        let rawId = terminalSessionId.components(separatedBy: ":").first ?? terminalSessionId
+        guard !rawId.isEmpty else { return nil }
+
+        let script = """
+        tell application "iTerm2"
+            repeat with w in windows
+                repeat with t in tabs of w
+                    repeat with s in sessions of t
+                        if unique id of s is "\(rawId)" then
+                            return contents of s
+                        end if
+                    end repeat
+                end repeat
+            end repeat
+        end tell
+        """
+
+        var error: NSDictionary?
+        guard let appleScript = NSAppleScript(source: script) else { return nil }
+        let result = appleScript.executeAndReturnError(&error)
+        guard error == nil, let content = result.stringValue, !content.isEmpty else { return nil }
+        return parseSpinnerInfo(from: content)
+    }
+
+    private static func parseSpinnerInfo(from content: String) -> SpinnerInfo? {
+        let suffix = content
+        let range = NSRange(suffix.startIndex..., in: suffix)
+        let matches = spinnerRegex.matches(in: suffix, range: range)
+        guard let lastMatch = matches.last,
+              let verbRange = Range(lastMatch.range(at: 1), in: suffix)
+        else { return nil }
+
+        // Detail is optional — spinner initially shows just the verb
+        let detail: String
+        if lastMatch.range(at: 2).location != NSNotFound,
+           let detailRange = Range(lastMatch.range(at: 2), in: suffix) {
+            detail = String(suffix[detailRange])
+        } else {
+            detail = ""
+        }
+
+        let isHighEffort = detail.contains("high effort")
+
+        return SpinnerInfo(
+            verb: String(suffix[verbRange]),
+            detail: detail,
+            isHighEffort: isHighEffort
+        )
+    }
+
     private static var shownPermissionAlerts: Set<String> = []
 
     private static func showPermissionAlert(terminal: String) {

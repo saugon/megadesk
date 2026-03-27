@@ -126,6 +126,7 @@ struct ContentView: View {
                                 hasCustomName: store.hasCustomName(for: session),
                                 isFlashing: store.activeSessionId == session.sessionId,
                                 toolDetail: store.toolDetail(for: session),
+                                spinnerInfo: store.spinnerInfo(for: session),
                                 onFocus: { store.focusTerminal(session: session) },
                                 onRename: { name in store.setCustomName(session: session, name: name) },
                                 onEditStart: beginEditing,
