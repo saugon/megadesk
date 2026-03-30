@@ -154,6 +154,7 @@ Open Settings with `⌘,` or via the menu bar icon.
 |---------|-------------|
 | **Forgotten after** | How long a session must be idle before it turns gray (default: 5 min) |
 | **Widget opacity** | Opacity of the widget when the mouse is not over it. Hover restores full opacity |
+| **Card font size** | Adjust the font size of card titles and status text (10–18 pt). Applies to sessions, alerts, and PRs |
 | **Sort sessions** | Order cards by state, last activity, name, or creation time |
 | **Colors** | Customize the dot color for each session and PR state |
 

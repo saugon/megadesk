@@ -54,6 +54,7 @@ struct HelpView: View {
                     FeatureRow(icon: "bolt.horizontal",             text: "Supports Claude Code and Codex CLI sessions")
                     FeatureRow(icon: "cursorarrow.click",           text: "Click a card to focus its terminal tab (iTerm2, Ghostty)")
                     FeatureRow(icon: "pencil",                      text: "Click ✏ on a card to rename it — persists through cd changes")
+                    FeatureRow(icon: "textformat.size",             text: "Adjustable card font size (10–18 pt) for sessions, alerts, and PRs")
                     FeatureRow(icon: "rectangle.compress.vertical", text: "Compact Mode: condensed single-column view")
                     FeatureRow(icon: "arrow.triangle.pull",         text: "PR Tracking: paste a PR URL to monitor CI status via the gh CLI")
                     FeatureRow(icon: "bell.badge",                  text: "Alerts: set one-time or recurring reminders with toast, widget, and notification display")
