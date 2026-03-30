@@ -10,6 +10,9 @@ struct PRCardView: View {
 
     @State private var isHovered = false
 
+    private var nameFontSize: CGFloat { CGFloat(AppSettings.shared.cardFontSize) }
+    private var statusFontSize: CGFloat { CGFloat(AppSettings.shared.cardFontSize - 2) }
+
     var body: some View {
         Group {
             if let pr = trackedPR.data {
@@ -45,7 +48,7 @@ struct PRCardView: View {
                 .frame(width: 14, height: 14)
 
             Text(trackedPR.id)
-                .font(.system(size: 11, design: .monospaced))
+                .font(.system(size: statusFontSize, design: .monospaced))
                 .foregroundColor(.white.opacity(0.35))
                 .lineLimit(1)
 
@@ -61,16 +64,16 @@ struct PRCardView: View {
     private func errorCard(_ message: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.circle")
-                .font(.system(size: 11))
+                .font(.system(size: statusFontSize))
                 .foregroundColor(.red.opacity(0.7))
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(trackedPR.id)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.system(size: statusFontSize, design: .monospaced))
                     .foregroundColor(.white.opacity(0.5))
                     .lineLimit(1)
                 Text(message)
-                    .font(.system(size: 10))
+                    .font(.system(size: statusFontSize - 1))
                     .foregroundColor(.red.opacity(0.7))
                     .lineLimit(1)
             }
@@ -104,12 +107,12 @@ struct PRCardView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("#\(pr.number) · \(pr.title)")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: nameFontSize, weight: .medium))
                         .foregroundColor(.white.opacity(0.9))
                         .lineLimit(1)
 
                     Text("\(trackedPR.repo) · \(pr.shortBranch)")
-                        .font(.system(size: 10, design: .monospaced))
+                        .font(.system(size: statusFontSize, design: .monospaced))
                         .foregroundColor(.white.opacity(0.35))
                         .lineLimit(1)
                 }
@@ -118,7 +121,7 @@ struct PRCardView: View {
 
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(relativeDate(pr.updatedAt))
-                        .font(.system(size: 10, design: .monospaced))
+                        .font(.system(size: statusFontSize, design: .monospaced))
                         .foregroundColor(trackedPR.fetchState == .loading ? .clear : .white.opacity(0.35))
                         .overlay {
                             if trackedPR.fetchState == .loading {

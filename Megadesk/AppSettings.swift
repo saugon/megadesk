@@ -39,6 +39,7 @@ final class AppSettings {
     var forgottenMinutes: Int
     var sortOrder: SessionSortOrder
     var idleOpacity: Double
+    var cardFontSize: Double  // session card name size; status text is cardFontSize - 2
 
     // MARK: - Session state colors (stored as hex strings)
     var hexWorking:      String
@@ -84,6 +85,7 @@ final class AppSettings {
         forgottenMinutes = ud.object(forKey: "megadesk.forgottenMinutes") as? Int ?? 5
         sortOrder    = SessionSortOrder(rawValue: ud.string(forKey: "megadesk.sortOrder") ?? "") ?? .byState
         idleOpacity  = ud.object(forKey: "megadesk.idleOpacity") as? Double ?? 1.0
+        cardFontSize = ud.object(forKey: "megadesk.cardFontSize") as? Double ?? 13
         hexWorking       = ud.string(forKey: "megadesk.color.working")      ?? "#34C759"
         hexConfirmation  = ud.string(forKey: "megadesk.color.confirmation") ?? "#5AC8FA"
         hexWaiting       = ud.string(forKey: "megadesk.color.waiting")      ?? "#FF9500"
@@ -108,6 +110,7 @@ final class AppSettings {
         ud.set(forgottenMinutes,    forKey: "megadesk.forgottenMinutes")
         ud.set(sortOrder.rawValue,  forKey: "megadesk.sortOrder")
         ud.set(idleOpacity,         forKey: "megadesk.idleOpacity")
+        ud.set(cardFontSize,        forKey: "megadesk.cardFontSize")
         ud.set(hexWorking,          forKey: "megadesk.color.working")
         ud.set(hexConfirmation,     forKey: "megadesk.color.confirmation")
         ud.set(hexWaiting,          forKey: "megadesk.color.waiting")
@@ -131,6 +134,7 @@ final class AppSettings {
         forgottenMinutes = 5
         sortOrder        = .byState
         idleOpacity      = 1.0
+        cardFontSize     = 13
         hexWorking       = "#34C759"
         hexConfirmation  = "#5AC8FA"
         hexWaiting       = "#FF9500"

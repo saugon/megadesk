@@ -23,6 +23,16 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    LabeledContent("Card font size") {
+                        HStack(spacing: 8) {
+                            Slider(value: $settings.cardFontSize, in: 10...18, step: 1)
+                                .frame(width: 120)
+                                .onChange(of: settings.cardFontSize) { _, _ in settings.save() }
+                            Text("\(Int(settings.cardFontSize))pt")
+                                .frame(width: 36, alignment: .trailing)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     LabeledContent("Sort sessions") {
                         Picker("", selection: $settings.sortOrder) {
                             ForEach(SessionSortOrder.allCases, id: \.self) {

@@ -133,28 +133,28 @@ struct SessionCardView: View {
                     LimitedTextField(
                         text: $editText,
                         limit: 15,
-                        font: .monospacedSystemFont(ofSize: 13, weight: .semibold),
+                        font: .monospacedSystemFont(ofSize: nameFontSize, weight: .semibold),
                         onCommit: commitEdit,
                         onCancel: cancelEdit
                     )
-                    .frame(height: 18)
+                    .frame(height: nameFontSize + 5)
                 } else {
                     Text(displayName)
-                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .font(.system(size: nameFontSize, weight: .semibold, design: .monospaced))
                         .foregroundColor(session.isForgotten && !isFlashing ? .white.opacity(0.4) : .white)
                         .lineLimit(1)
                 }
 
                 HStack(spacing: 4) {
                     Text(statusLabel)
-                        .font(.system(size: 11))
+                        .font(.system(size: statusFontSize))
                         .foregroundColor(labelColor)
                         .lineLimit(1)
                     if session.isWorking && !session.needsConfirmation {
                         let detail = toolDetail ?? (session.toolName.isEmpty ? nil : session.toolName)
                         if let detail {
                             Text(detail)
-                                .font(.system(size: 11, design: .monospaced))
+                                .font(.system(size: statusFontSize, design: .monospaced))
                                 .foregroundColor(.white.opacity(0.4))
                                 .lineLimit(1)
                                 .truncationMode(.tail)
@@ -168,7 +168,7 @@ struct SessionCardView: View {
             // Right column: duration on top, edit/revert button below (aligned)
             VStack(alignment: .trailing, spacing: 2) {
                 Text(formatDuration(session.timeInState))
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.system(size: statusFontSize, design: .monospaced))
                     .foregroundColor(.white.opacity(0.35))
 
                 if isEditing {
@@ -258,6 +258,11 @@ struct SessionCardView: View {
         onEditEnd()
     }
 
+    // MARK: - Font sizes (from settings)
+
+    private var nameFontSize: CGFloat { CGFloat(AppSettings.shared.cardFontSize) }
+    private var statusFontSize: CGFloat { CGFloat(AppSettings.shared.cardFontSize - 2) }
+
     // MARK: - Derived appearance
 
     private var dotColor: Color {
@@ -338,11 +343,15 @@ struct ProviderBadge: View {
     let pulse: Bool
     var dimmed: Bool = false
 
+    private var scale: CGFloat { CGFloat(AppSettings.shared.cardFontSize) / 13 }
+
     var body: some View {
+        let size = round(16 * scale)
+        let fontSize = round(10 * scale)
         Text(letter)
-            .font(.system(size: 10, weight: .bold, design: .monospaced))
+            .font(.system(size: fontSize, weight: .bold, design: .monospaced))
             .foregroundColor(dimmed ? Color(white: 0.75) : .white)
-            .frame(width: 16, height: 16)
+            .frame(width: size, height: size)
             .background(RoundedRectangle(cornerRadius: 4).fill(color))
     }
 }

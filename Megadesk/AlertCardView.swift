@@ -7,6 +7,8 @@ struct AlertCardView: View {
     @State private var isHovered = false
 
     private var alertColor: Color { AppSettings.shared.colorAlert }
+    private var nameFontSize: CGFloat { CGFloat(AppSettings.shared.cardFontSize) }
+    private var statusFontSize: CGFloat { CGFloat(AppSettings.shared.cardFontSize - 2) }
 
     private var timeString: String {
         let formatter = DateFormatter()
@@ -51,11 +53,11 @@ struct AlertCardView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(alert.title)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .font(.system(size: nameFontSize, weight: .medium, design: .monospaced))
                     .foregroundColor(.white)
                     .lineLimit(1)
                 Text(timeString)
-                    .font(.system(size: 10))
+                    .font(.system(size: statusFontSize))
                     .foregroundColor(.white.opacity(0.4))
             }
 
