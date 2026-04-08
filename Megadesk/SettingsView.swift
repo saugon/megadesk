@@ -33,6 +33,11 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    LabeledContent("Spinner verb (iTerm2)") {
+                        Toggle("", isOn: $settings.showSpinnerVerb)
+                            .labelsHidden()
+                            .onChange(of: settings.showSpinnerVerb) { _, _ in settings.save() }
+                    }
                     LabeledContent("Sort sessions") {
                         Picker("", selection: $settings.sortOrder) {
                             ForEach(SessionSortOrder.allCases, id: \.self) {

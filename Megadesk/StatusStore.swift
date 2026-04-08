@@ -355,6 +355,10 @@ final class StatusStore {
     }
 
     private func scrapeSpinnerVerbs() {
+        guard AppSettings.shared.showSpinnerVerb else {
+            spinnerInfos.removeAll()
+            return
+        }
         let candidates = sessions.filter { s in
             s.isWorking &&
             !s.needsConfirmation &&
