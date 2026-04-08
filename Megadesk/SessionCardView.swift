@@ -137,10 +137,15 @@ struct SessionCardView: View {
                     .onReceive(Timer.publish(every: 0.2, on: .main, in: .common).autoconnect()) { _ in
                         spinnerFrame += 1
                     }
-            } else {
-                ProviderBadge(letter: session.provider == .codex ? "X" : "C",
-                              color: dotColor, pulse: shouldPulse,
+            } else if session.provider == .codex {
+                ProviderBadge(letter: "X", color: dotColor, pulse: shouldPulse,
                               dimmed: session.isForgotten)
+                    .padding(.top, 4)
+            } else {
+                Text("\u{2733}")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(session.isForgotten ? Color(white: 0.75) : dotColor)
+                    .frame(width: 16, height: 16)
                     .padding(.top, 4)
             }
 
