@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sessionHotKeyRefs: [EventHotKeyRef?] = []
     private var updaterController: SPUStandardUpdaterController!
     private var alertsController: AlertsWindowController?
+    private var contextSaveController: ContextSaveWindowController?
     private var alertBadgeObserver: Any?
     private var originalMenuBarIcon: NSImage?
 
@@ -47,6 +48,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         AlertNotificationService.shared.setup()
         setupAlertBadge()
+
+        NotificationCenter.default.addObserver(forName: .megadeskOpenContextSave, object: nil, queue: .main) { [weak self] _ in
+            self?.openContextSave()
+        }
         let storedVersion = UserDefaults.standard.integer(forKey: "megadesk.onboardingVersion")
         if storedVersion >= OnboardingView.currentOnboardingVersion {
             windowController?.show()
@@ -59,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onboardingController?.showWindow(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
+
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -105,6 +111,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     } else if capturedID == 13 {
                         delegate.windowController?.show()
                         delegate.windowController?.showQuickAlert()
+                    } else if capturedID == 14 {
+                        delegate.openContextSave()
                     }
                 }
                 return noErr
@@ -156,6 +164,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         RegisterEventHotKey(UInt32(kVK_ANSI_A), UInt32(cmdKey | shiftKey),
                             quickAlertHkID, GetApplicationEventTarget(), OptionBits(0), &qaRef)
         sessionHotKeyRefs.append(qaRef)
+
+        // ⌘⇧C — context save (hotkey ID 14)
+        var contextHkID = EventHotKeyID()
+        contextHkID.signature = 0x4d47444b
+        contextHkID.id = 14
+        var csRef: EventHotKeyRef?
+        RegisterEventHotKey(UInt32(kVK_ANSI_C), UInt32(cmdKey | shiftKey),
+                            contextHkID, GetApplicationEventTarget(), OptionBits(0), &csRef)
+        sessionHotKeyRefs.append(csRef)
     }
 
     // MARK: - Menu bar
@@ -183,6 +200,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alertsItem = NSMenuItem(title: "Alerts...", action: #selector(openAlerts), keyEquivalent: "")
         alertsItem.target = self
         menu.addItem(alertsItem)
+        let contextItem = NSMenuItem(title: "Context Note...", action: #selector(openContextSave), keyEquivalent: "")
+        contextItem.target = self
+        menu.addItem(contextItem)
         let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -235,6 +255,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         helpController?.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func openContextSave() {
+        if contextSaveController == nil {
+            contextSaveController = ContextSaveWindowController()
+        }
+        contextSaveController?.showForInput()
     }
 
     @objc private func openAlerts() {

@@ -39,6 +39,8 @@
 		AA000031 /* QuickAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000032 /* QuickAlertView.swift */; };
 		AA000033 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000033 /* Provider.swift */; };
 		AA000034 /* megadesk-codex-hook.py in Resources */ = {isa = PBXBuildFile; fileRef = AB000031 /* megadesk-codex-hook.py */; };
+		AA000035 /* ContextSaveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000034 /* ContextSaveView.swift */; };
+		AA000036 /* ContextSaveWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000035 /* ContextSaveWindowController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -75,6 +77,8 @@
 		AB000030 /* AlertCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCardView.swift; sourceTree = "<group>"; };
 		AB000031 /* megadesk-codex-hook.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "megadesk-codex-hook.py"; sourceTree = "<group>"; };
 		AB000032 /* QuickAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAlertView.swift; sourceTree = "<group>"; };
+		AB000034 /* ContextSaveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextSaveView.swift; sourceTree = "<group>"; };
+		AB000035 /* ContextSaveWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextSaveWindowController.swift; sourceTree = "<group>"; };
 
 /* End PBXFileReference section */
 
@@ -117,6 +121,8 @@
 				AB000029 /* AlertsWindowController.swift */,
 				AB000030 /* AlertCardView.swift */,
 				AB000032 /* QuickAlertView.swift */,
+				AB000034 /* ContextSaveView.swift */,
+				AB000035 /* ContextSaveWindowController.swift */,
 				AD000002 /* Models */,
 				AD000003 /* Services */,
 				AB000009 /* Info.plist */,
@@ -284,6 +290,8 @@
 				AA000028 /* AlertsWindowController.swift in Sources */,
 				AA000029 /* AlertCardView.swift in Sources */,
 				AA000031 /* QuickAlertView.swift in Sources */,
+				AA000035 /* ContextSaveView.swift in Sources */,
+				AA000036 /* ContextSaveWindowController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
