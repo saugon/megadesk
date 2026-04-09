@@ -48,6 +48,10 @@ private struct ContextTextEditor: NSViewRepresentable {
             textView.alignment = .center
             textView.updatePlaceholderVisibility()
             textView.centerVertically()
+            // Re-focus when text is set programmatically (e.g. editNote)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                textView.window?.makeFirstResponder(textView)
+            }
         }
     }
 
@@ -114,6 +118,7 @@ private final class CenteringTextView: NSTextView {
         didSet { setupPlaceholder() }
     }
     private var placeholderLabel: NSTextField?
+    private var isCentering = false
 
     override func layout() {
         super.layout()
@@ -122,13 +127,18 @@ private final class CenteringTextView: NSTextView {
     }
 
     func centerVertically() {
-        guard let layoutManager, let textContainer else { return }
+        guard !isCentering, let layoutManager, let textContainer else { return }
+        isCentering = true
+        defer { isCentering = false }
         layoutManager.ensureLayout(for: textContainer)
         let textHeight = layoutManager.usedRect(for: textContainer).height
         let viewHeight = enclosingScrollView?.contentView.bounds.height ?? bounds.height
         let insetX = textContainerInset.width
         let topInset = max(16, (viewHeight - textHeight) / 2)
-        textContainerInset = NSSize(width: insetX, height: topInset)
+        let newInset = NSSize(width: insetX, height: topInset)
+        if abs(textContainerInset.height - newInset.height) > 0.5 {
+            textContainerInset = newInset
+        }
     }
 
     func updatePlaceholderVisibility() {

@@ -33,16 +33,19 @@ final class ContextSaveWindowController: NSWindowController {
         self.init(window: panel)
     }
 
+    private var isShowingInput = false
+
     func showForInput() {
         snoozeTimer?.invalidate()
         snoozeTimer = nil
-        // If already visible, just bring to front without resetting in-progress text
-        if window?.isVisible == true {
+        // If already showing input, just bring to front without resetting in-progress text
+        if window?.isVisible == true && isShowingInput {
             window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
         installView(reminderMode: false)
+        isShowingInput = true
         window?.center()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
@@ -54,6 +57,7 @@ final class ContextSaveWindowController: NSWindowController {
         snoozeTimer = nil
         guard AppSettings.shared.contextNote != nil else { return }
         installView(reminderMode: true)
+        isShowingInput = false
         window?.center()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
@@ -61,6 +65,7 @@ final class ContextSaveWindowController: NSWindowController {
     }
 
     func dismiss() {
+        isShowingInput = false
         window?.orderOut(nil)
     }
 
