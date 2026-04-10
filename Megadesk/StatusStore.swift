@@ -9,6 +9,7 @@ final class StatusStore {
 
     var sessions: [Session] = []
     var tick: Int = 0  // increments every second to force time re-renders
+    var spinnerTick: Int = 0  // increments every 200ms for spinner animation
     var customNames: [String: String] = [:]  // terminalSessionId → custom display name
 
     // MARK: PR Tracking
@@ -31,6 +32,7 @@ final class StatusStore {
 
     private var watchSource: DispatchSourceFileSystemObject?
     private var timer: Timer?
+    private var spinnerTimer: Timer?
     private var dirFD: Int32 = -1
     private var focusSessionObserver: Any?
     private var cycleSessionObserver: Any?
@@ -58,11 +60,18 @@ final class StatusStore {
     var activeToolDetails: [String: String] = [:]
     private var jsonlWatchers: [String: JSONLWatcher] = [:]
 
+    // Spinner scraping: sessionId → info (verb + timing/tokens)
+    var spinnerInfos: [String: TerminalFocuser.SpinnerInfo] = [:]
+    private var isScrapingSpinners = false
+
     init() {
         loadCustomNames()
         loadSessions()
         startWatching()
         startTimer()
+        spinnerTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+            self?.spinnerTick += 1
+        }
         loadTrackedPRSlugs()
         startPRTimer()
         loadAlerts()
@@ -87,6 +96,7 @@ final class StatusStore {
     deinit {
         watchSource?.cancel()
         timer?.invalidate()
+        spinnerTimer?.invalidate()
         prTimer?.invalidate()
         if dirFD >= 0 { close(dirFD) }
         if let obs = focusSessionObserver { NotificationCenter.default.removeObserver(obs) }
@@ -278,7 +288,10 @@ final class StatusStore {
                 self?.checkOrphanedSessions()
             }
             // Every 2 seconds, sync the active session indicator with the current terminal tab.
-            if (self?.tick ?? 0) % 2 == 0 { self?.syncActiveSession() }
+            if (self?.tick ?? 0) % 2 == 0 {
+                self?.syncActiveSession()
+                self?.scrapeSpinnerVerbs()
+            }
         }
     }
 
@@ -343,6 +356,79 @@ final class StatusStore {
         activeToolDetails[session.sessionId]
     }
 
+    func spinnerInfo(for session: Session) -> TerminalFocuser.SpinnerInfo? {
+        if let scraped = spinnerInfos[session.sessionId] { return scraped }
+        // For non-iTerm2 sessions, derive from JSONL tool detail reactively
+        // (no polling delay — updates as soon as the watcher fires).
+        if session.terminal != .iterm2,
+           let detail = activeToolDetails[session.sessionId] {
+            return Self.spinnerInfoFromToolDetail(detail)
+        }
+        return nil
+    }
+
+    private func scrapeSpinnerVerbs() {
+        guard AppSettings.shared.showSpinnerVerb else {
+            spinnerInfos.removeAll()
+            return
+        }
+
+        // iTerm2 sessions: scrape the terminal via AppleScript.
+        // Non-iTerm2 (Ghostty, etc.) are handled reactively in spinnerInfo(for:).
+        let itermCandidates = sessions.filter {
+            $0.isWorking && !$0.needsConfirmation && $0.terminal == .iterm2
+        }
+
+        // Clean up stale entries
+        let itermIds = Set(itermCandidates.map(\.sessionId))
+        for id in spinnerInfos.keys where !itermIds.contains(id) {
+            spinnerInfos.removeValue(forKey: id)
+        }
+        guard !isScrapingSpinners, !itermCandidates.isEmpty else { return }
+
+        isScrapingSpinners = true
+        let sessionsToScrape = itermCandidates.map { ($0.sessionId, $0.terminalSessionId) }
+
+        StatusStore.appleScriptQueue.async { [weak self] in
+            // NSAppleScript is not thread-safe — run all scrapes serially on the dedicated queue.
+            var results: [(String, TerminalFocuser.SpinnerInfo?)] = []
+            for (sessId, termId) in sessionsToScrape {
+                let info = TerminalFocuser.readiTerm2SpinnerInfo(terminalSessionId: termId)
+                results.append((sessId, info))
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isScrapingSpinners = false
+                for (sessionId, info) in results {
+                    if let info {
+                        self.spinnerInfos[sessionId] = info
+                    } else {
+                        self.spinnerInfos.removeValue(forKey: sessionId)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Derives a SpinnerInfo from a JSONL tool detail string (e.g. "Reading file.swift").
+    /// Used for terminals that don't support screen scraping (Ghostty, etc.).
+    private static func spinnerInfoFromToolDetail(_ detail: String) -> TerminalFocuser.SpinnerInfo {
+        let verb: String
+        if detail.hasPrefix("Reading ")   { verb = "Reading" }
+        else if detail.hasPrefix("Editing ")   { verb = "Editing" }
+        else if detail.hasPrefix("Writing ")   { verb = "Writing" }
+        else if detail.hasPrefix("$ ")         { verb = "Running" }
+        else if detail.hasPrefix("Glob ")      { verb = "Searching" }
+        else if detail.hasPrefix("Grep ")      { verb = "Searching" }
+        else if detail.hasPrefix("Search: ")   { verb = "Searching" }
+        else if detail.hasPrefix("Fetching ")  { verb = "Fetching" }
+        else if detail.hasPrefix("Task: ")     { verb = "Working" }
+        else if detail.hasPrefix("Updating ")  { verb = "Updating" }
+        else { verb = "Working" }
+        return TerminalFocuser.SpinnerInfo(verb: verb, detail: detail, isHighEffort: false)
+    }
+
     private func syncJSONLWatchers() {
         let activeIds = Set(sessions.map(\.sessionId))
 
@@ -350,6 +436,7 @@ final class StatusStore {
         for id in Set(jsonlWatchers.keys).subtracting(activeIds) {
             jsonlWatchers.removeValue(forKey: id)
             activeToolDetails.removeValue(forKey: id)
+            spinnerInfos.removeValue(forKey: id)
         }
 
         // Start watchers for new sessions

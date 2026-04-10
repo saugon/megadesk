@@ -40,6 +40,8 @@ final class AppSettings {
     var sortOrder: SessionSortOrder
     var idleOpacity: Double
     var cardFontSize: Double  // session card name size; status text is cardFontSize - 2
+    var showSpinnerVerb: Bool
+    var spinnerVerbAnimatedColor: Bool
 
     // MARK: - Session state colors (stored as hex strings)
     var hexWorking:      String
@@ -86,6 +88,8 @@ final class AppSettings {
         sortOrder    = SessionSortOrder(rawValue: ud.string(forKey: "megadesk.sortOrder") ?? "") ?? .byState
         idleOpacity  = ud.object(forKey: "megadesk.idleOpacity") as? Double ?? 1.0
         cardFontSize = ud.object(forKey: "megadesk.cardFontSize") as? Double ?? 13
+        showSpinnerVerb = ud.object(forKey: "megadesk.showSpinnerVerb") as? Bool ?? true
+        spinnerVerbAnimatedColor = ud.object(forKey: "megadesk.spinnerVerbAnimatedColor") as? Bool ?? false
         hexWorking       = ud.string(forKey: "megadesk.color.working")      ?? "#34C759"
         hexConfirmation  = ud.string(forKey: "megadesk.color.confirmation") ?? "#5AC8FA"
         hexWaiting       = ud.string(forKey: "megadesk.color.waiting")      ?? "#FF9500"
@@ -111,6 +115,8 @@ final class AppSettings {
         ud.set(sortOrder.rawValue,  forKey: "megadesk.sortOrder")
         ud.set(idleOpacity,         forKey: "megadesk.idleOpacity")
         ud.set(cardFontSize,        forKey: "megadesk.cardFontSize")
+        ud.set(showSpinnerVerb,     forKey: "megadesk.showSpinnerVerb")
+        ud.set(spinnerVerbAnimatedColor, forKey: "megadesk.spinnerVerbAnimatedColor")
         ud.set(hexWorking,          forKey: "megadesk.color.working")
         ud.set(hexConfirmation,     forKey: "megadesk.color.confirmation")
         ud.set(hexWaiting,          forKey: "megadesk.color.waiting")
@@ -135,6 +141,8 @@ final class AppSettings {
         sortOrder        = .byState
         idleOpacity      = 1.0
         cardFontSize     = 13
+        showSpinnerVerb  = true
+        spinnerVerbAnimatedColor = false
         hexWorking       = "#34C759"
         hexConfirmation  = "#5AC8FA"
         hexWaiting       = "#FF9500"
