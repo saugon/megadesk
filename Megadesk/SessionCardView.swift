@@ -110,7 +110,6 @@ struct SessionCardView: View {
     @State private var isHovered = false
     @State private var isEditing = false
     @State private var editText = ""
-    @State private var spinnerFrame = 0
 
     var body: some View {
         // When editing, drop the outer Button so it doesn't intercept the space key
@@ -131,23 +130,21 @@ struct SessionCardView: View {
 
     @ViewBuilder private var cardContent: some View {
         HStack(alignment: .top, spacing: 8) {
-            if activeSpinner != nil && session.isWorking {
-                Text(Self.spinnerFrames[spinnerFrame % Self.spinnerFrames.count])
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(spinnerVerbColor)
-                    .frame(width: 16, height: 16)
-                    .padding(.top, 4)
-                    .onReceive(Timer.publish(every: 0.2, on: .main, in: .common).autoconnect()) { _ in
-                        spinnerFrame += 1
-                    }
-            } else if !AppSettings.shared.showSpinnerVerb || session.provider == .codex {
-                ProviderBadge(letter: session.provider == .codex ? "X" : "C",
+            if session.provider == .codex {
+                ProviderBadge(letter: "X",
                               color: dotColor, pulse: shouldPulse,
                               dimmed: session.isForgotten)
                     .padding(.top, 4)
+            } else if activeSpinner != nil && session.isWorking {
+                // Derive frame from tick (1 Hz) — no per-card timer needed
+                Text(Self.spinnerFrames[tick % Self.spinnerFrames.count])
+                    .font(.system(size: 15, design: .monospaced))
+                    .foregroundColor(spinnerIconColor)
+                    .frame(width: 16, height: 16)
+                    .padding(.top, 4)
             } else {
                 Text("\u{2733}")
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.system(size: 16, design: .monospaced))
                     .foregroundColor(session.isForgotten ? Color(white: 0.75) : dotColor)
                     .frame(width: 16, height: 16)
                     .padding(.top, 4)
@@ -176,7 +173,6 @@ struct SessionCardView: View {
                         .font(.system(size: statusFontSize))
                         .foregroundColor(labelColor)
                         .lineLimit(1)
-                        .animation(.easeInOut(duration: 0.8), value: tick)
                     if session.isWorking && !session.needsConfirmation && activeSpinner == nil {
                         let detail = toolDetail ?? (session.toolName.isEmpty ? nil : session.toolName)
                         if let detail {
@@ -321,21 +317,25 @@ struct SessionCardView: View {
     private var labelColor: Color {
         if session.needsConfirmation { return AppSettings.shared.colorConfirmation.opacity(0.9) }
         if session.isWorking {
-            if activeSpinner != nil { return spinnerVerbColor }
+            if activeSpinner != nil && AppSettings.shared.spinnerVerbAnimatedColor {
+                return spinnerAnimatedColor
+            }
             return AppSettings.shared.colorWorking.opacity(0.8)
         }
         if session.isForgotten       { return isFlashing ? Color(white: 0.7) : Color(white: 0.4) }
         return AppSettings.shared.colorWaiting.opacity(0.9)
     }
 
-    /// Animated color for the spinner verb — cycles through warm oranges,
+    private var spinnerIconColor: Color {
+        AppSettings.shared.spinnerVerbAnimatedColor ? spinnerAnimatedColor : dotColor
+    }
+
+    /// Animated color for the spinner — cycles through warm oranges,
     /// or steady red when high effort is active.
-    private var spinnerVerbColor: Color {
-        guard let info = activeSpinner else { return labelColor }
-        if info.isHighEffort {
+    private var spinnerAnimatedColor: Color {
+        if let info = activeSpinner, info.isHighEffort {
             return Color(hue: 0.02, saturation: 0.85, brightness: 0.9)
         }
-        // Triangle wave over 8 seconds: 0→1→0
         let cycle = tick % 8
         let t = cycle < 4 ? Double(cycle) / 4.0 : Double(8 - cycle) / 4.0
         let hue = 0.09 - t * 0.05          // 0.09 (amber) → 0.04 (red-orange)

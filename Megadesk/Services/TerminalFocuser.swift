@@ -122,6 +122,7 @@ struct TerminalFocuser {
     )
 
     /// Reads the current spinner verb and detail from an iTerm2 session's terminal content.
+    /// Must be called from the AppleScript serial queue (NSAppleScript is not thread-safe).
     static func readiTerm2SpinnerInfo(terminalSessionId: String) -> SpinnerInfo? {
         let rawId = terminalSessionId.components(separatedBy: ":").first ?? terminalSessionId
         guard !rawId.isEmpty else { return nil }
@@ -148,18 +149,20 @@ struct TerminalFocuser {
     }
 
     private static func parseSpinnerInfo(from content: String) -> SpinnerInfo? {
-        let suffix = content
-        let range = NSRange(suffix.startIndex..., in: suffix)
-        let matches = spinnerRegex.matches(in: suffix, range: range)
+        // Only scan the tail — the spinner line is always near the bottom of the screen.
+        // This avoids running regex over the entire scrollback buffer (potentially MB of text).
+        let tail = content.count > 2000 ? String(content.suffix(2000)) : content
+        let range = NSRange(tail.startIndex..., in: tail)
+        let matches = spinnerRegex.matches(in: tail, range: range)
         guard let lastMatch = matches.last,
-              let verbRange = Range(lastMatch.range(at: 1), in: suffix)
+              let verbRange = Range(lastMatch.range(at: 1), in: tail)
         else { return nil }
 
         // Detail is optional — spinner initially shows just the verb
         let detail: String
         if lastMatch.range(at: 2).location != NSNotFound,
-           let detailRange = Range(lastMatch.range(at: 2), in: suffix) {
-            detail = String(suffix[detailRange])
+           let detailRange = Range(lastMatch.range(at: 2), in: tail) {
+            detail = String(tail[detailRange])
         } else {
             detail = ""
         }
@@ -167,7 +170,7 @@ struct TerminalFocuser {
         let isHighEffort = detail.contains("high effort")
 
         return SpinnerInfo(
-            verb: String(suffix[verbRange]),
+            verb: String(tail[verbRange]),
             detail: detail,
             isHighEffort: isHighEffort
         )

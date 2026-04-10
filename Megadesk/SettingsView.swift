@@ -33,10 +33,15 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    LabeledContent("Spinner verb (iTerm2)") {
+                    LabeledContent("Spinner verb") {
                         Toggle("", isOn: $settings.showSpinnerVerb)
                             .labelsHidden()
                             .onChange(of: settings.showSpinnerVerb) { _, _ in settings.save() }
+                    }
+                    LabeledContent("Animated spinner color") {
+                        Toggle("", isOn: $settings.spinnerVerbAnimatedColor)
+                            .labelsHidden()
+                            .onChange(of: settings.spinnerVerbAnimatedColor) { _, _ in settings.save() }
                     }
                     LabeledContent("Sort sessions") {
                         Picker("", selection: $settings.sortOrder) {
