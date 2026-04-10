@@ -94,6 +94,7 @@ struct PointingHandCursor: NSViewRepresentable {
 struct SessionCardView: View {
     let session: Session
     let tick: Int
+    let spinnerTick: Int
     let displayName: String
     let hasCustomName: Bool
     let isFlashing: Bool
@@ -137,7 +138,7 @@ struct SessionCardView: View {
                     .padding(.top, 4)
             } else if activeSpinner != nil && session.isWorking {
                 // Derive frame from tick (1 Hz) — no per-card timer needed
-                Text(Self.spinnerFrames[tick % Self.spinnerFrames.count])
+                Text(Self.spinnerFrames[spinnerTick % Self.spinnerFrames.count])
                     .font(.system(size: 15, design: .monospaced))
                     .foregroundColor(spinnerIconColor)
                     .frame(width: 16, height: 16)

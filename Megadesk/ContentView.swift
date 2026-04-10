@@ -122,6 +122,7 @@ struct ContentView: View {
                             SessionCardView(
                                 session: session,
                                 tick: store.tick,
+                                spinnerTick: store.spinnerTick,
                                 displayName: store.displayName(for: session),
                                 hasCustomName: store.hasCustomName(for: session),
                                 isFlashing: store.activeSessionId == session.sessionId,

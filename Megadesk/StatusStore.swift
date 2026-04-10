@@ -9,6 +9,7 @@ final class StatusStore {
 
     var sessions: [Session] = []
     var tick: Int = 0  // increments every second to force time re-renders
+    var spinnerTick: Int = 0  // increments every 200ms for spinner animation
     var customNames: [String: String] = [:]  // terminalSessionId → custom display name
 
     // MARK: PR Tracking
@@ -31,6 +32,7 @@ final class StatusStore {
 
     private var watchSource: DispatchSourceFileSystemObject?
     private var timer: Timer?
+    private var spinnerTimer: Timer?
     private var dirFD: Int32 = -1
     private var focusSessionObserver: Any?
     private var cycleSessionObserver: Any?
@@ -67,6 +69,9 @@ final class StatusStore {
         loadSessions()
         startWatching()
         startTimer()
+        spinnerTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+            self?.spinnerTick += 1
+        }
         loadTrackedPRSlugs()
         startPRTimer()
         loadAlerts()
@@ -91,6 +96,7 @@ final class StatusStore {
     deinit {
         watchSource?.cancel()
         timer?.invalidate()
+        spinnerTimer?.invalidate()
         prTimer?.invalidate()
         if dirFD >= 0 { close(dirFD) }
         if let obs = focusSessionObserver { NotificationCenter.default.removeObserver(obs) }
