@@ -68,6 +68,9 @@ final class AppSettings {
     var toastPosition: ToastPosition
     var snoozeMinutes: Int
 
+    // MARK: - Context Save
+    var contextNote: String?
+
     // MARK: - Computed Color accessors
     var colorWorking:      Color { Color(hex: hexWorking)      ?? .green }
     var colorConfirmation: Color { Color(hex: hexConfirmation) ?? .cyan  }
@@ -107,6 +110,7 @@ final class AppSettings {
         alertPlaySound        = ud.object(forKey: "megadesk.alert.playSound") as? Bool ?? true
         toastPosition         = ToastPosition(rawValue: ud.string(forKey: "megadesk.alert.toastPosition") ?? "") ?? .center
         snoozeMinutes         = ud.object(forKey: "megadesk.alert.snoozeMinutes") as? Int ?? 5
+        contextNote           = ud.string(forKey: "megadesk.contextNote")
     }
 
     func save() {
@@ -134,6 +138,11 @@ final class AppSettings {
         ud.set(alertPlaySound,        forKey: "megadesk.alert.playSound")
         ud.set(toastPosition.rawValue, forKey: "megadesk.alert.toastPosition")
         ud.set(snoozeMinutes,         forKey: "megadesk.alert.snoozeMinutes")
+        if let note = contextNote {
+            ud.set(note, forKey: "megadesk.contextNote")
+        } else {
+            ud.removeObject(forKey: "megadesk.contextNote")
+        }
     }
 
     func resetToDefaults() {
@@ -160,6 +169,7 @@ final class AppSettings {
         alertPlaySound        = true
         toastPosition         = .center
         snoozeMinutes         = 5
+        contextNote           = nil
         save()
     }
 }

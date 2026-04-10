@@ -89,6 +89,7 @@ extension Notification.Name {
     static let megadeskHideWidget    = Notification.Name("megadesk.hideWidget")
     static let megadeskFocusSession  = Notification.Name("megadesk.focusSession")
     static let megadeskCycleSession  = Notification.Name("megadesk.cycleSession")
+    static let megadeskOpenContextSave = Notification.Name("megadesk.openContextSave")
 }
 
 final class FloatingWindowController: NSWindowController {
@@ -104,6 +105,7 @@ final class FloatingWindowController: NSWindowController {
     private var resetHeightButton: NSButton?
     private var gearButton: TitlebarGearButton?
     private var alertButton: TitlebarIconButton?
+    private var contextNoteButton: TitlebarIconButton?
     private var quickAlertPopover: NSPopover?
     private var isLiveResizing = false
 
@@ -292,6 +294,21 @@ final class FloatingWindowController: NSWindowController {
         alertBtn.action = #selector(alertButtonPressed)
         titlebarView.addSubview(alertBtn)
         self.alertButton = alertBtn
+
+        // Context note button — to the left of the alert button, hidden in compact mode
+        if !compact {
+            let contextFrame = NSRect(
+                x: titlebarView.bounds.width - gearSize * 3 - 18,
+                y: sysClose.frame.midY - gearSize / 2,
+                width: gearSize, height: gearSize
+            )
+            let contextBtn = TitlebarIconButton(frame: contextFrame, symbolName: "note.text", label: "Context Note")
+            contextBtn.autoresizingMask = [.minXMargin]
+            contextBtn.target = self
+            contextBtn.action = #selector(contextNoteButtonPressed)
+            titlebarView.addSubview(contextBtn)
+            self.contextNoteButton = contextBtn
+        }
     }
 
     @objc private func gearPressed(_ sender: NSButton) {
@@ -301,6 +318,10 @@ final class FloatingWindowController: NSWindowController {
 
     @objc private func alertButtonPressed() {
         showQuickAlert()
+    }
+
+    @objc private func contextNoteButtonPressed() {
+        NotificationCenter.default.post(name: .megadeskOpenContextSave, object: nil)
     }
 
     func showQuickAlert() {
