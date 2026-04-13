@@ -24,17 +24,16 @@
 		AA000015 /* PullRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000017 /* PullRequest.swift */; };
 		AA000016 /* PRCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000018 /* PRCardView.swift */; };
 		AA000017 /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000019 /* HelpView.swift */; };
-		AA000018 /* HelpWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000020 /* HelpWindowController.swift */; };
+		AA000018 /* MainWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000020 /* MainWindowController.swift */; };
 		AA000019 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000021 /* AppSettings.swift */; };
 		AA000020 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000022 /* SettingsView.swift */; };
-		AA000021 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000023 /* SettingsWindowController.swift */; };
+		AA000021 /* MainWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000023 /* MainWindowView.swift */; };
 		AA000022 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = AE000003 /* Sparkle */; };
 		AA000023 /* JSONLWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000024 /* JSONLWatcher.swift */; };
 		AA000024 /* Alert.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000025 /* Alert.swift */; };
 		AA000025 /* AlertNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000026 /* AlertNotificationService.swift */; };
 		AA000026 /* ToastWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000027 /* ToastWindowController.swift */; };
 		AA000027 /* AlertsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000028 /* AlertsView.swift */; };
-		AA000028 /* AlertsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000029 /* AlertsWindowController.swift */; };
 		AA000029 /* AlertCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000030 /* AlertCardView.swift */; };
 		AA000031 /* QuickAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000032 /* QuickAlertView.swift */; };
 		AA000033 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000033 /* Provider.swift */; };
@@ -64,16 +63,15 @@
 		AB000017 /* PullRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PullRequest.swift; sourceTree = "<group>"; };
 		AB000018 /* PRCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PRCardView.swift; sourceTree = "<group>"; };
 		AB000019 /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
-		AB000020 /* HelpWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpWindowController.swift; sourceTree = "<group>"; };
+		AB000020 /* MainWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
 		AB000021 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		AB000022 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		AB000023 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		AB000023 /* MainWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowView.swift; sourceTree = "<group>"; };
 		AB000033 /* Provider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Provider.swift; sourceTree = "<group>"; };
 		AB000025 /* Alert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Alert.swift; sourceTree = "<group>"; };
 		AB000026 /* AlertNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertNotificationService.swift; sourceTree = "<group>"; };
 		AB000027 /* ToastWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastWindowController.swift; sourceTree = "<group>"; };
 		AB000028 /* AlertsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertsView.swift; sourceTree = "<group>"; };
-		AB000029 /* AlertsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertsWindowController.swift; sourceTree = "<group>"; };
 		AB000030 /* AlertCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCardView.swift; sourceTree = "<group>"; };
 		AB000031 /* megadesk-codex-hook.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "megadesk-codex-hook.py"; sourceTree = "<group>"; };
 		AB000032 /* QuickAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAlertView.swift; sourceTree = "<group>"; };
@@ -112,13 +110,12 @@
 				AB000015 /* OnboardingView.swift */,
 				AB000016 /* OnboardingWindowController.swift */,
 				AB000019 /* HelpView.swift */,
-				AB000020 /* HelpWindowController.swift */,
+				AB000020 /* MainWindowController.swift */,
 				AB000021 /* AppSettings.swift */,
 				AB000022 /* SettingsView.swift */,
-				AB000023 /* SettingsWindowController.swift */,
+				AB000023 /* MainWindowView.swift */,
 				AB000027 /* ToastWindowController.swift */,
 				AB000028 /* AlertsView.swift */,
-				AB000029 /* AlertsWindowController.swift */,
 				AB000030 /* AlertCardView.swift */,
 				AB000032 /* QuickAlertView.swift */,
 				AB000034 /* ContextSaveView.swift */,
@@ -277,17 +274,16 @@
 				AA000015 /* PullRequest.swift in Sources */,
 				AA000016 /* PRCardView.swift in Sources */,
 				AA000017 /* HelpView.swift in Sources */,
-				AA000018 /* HelpWindowController.swift in Sources */,
+				AA000018 /* MainWindowController.swift in Sources */,
 				AA000019 /* AppSettings.swift in Sources */,
 				AA000020 /* SettingsView.swift in Sources */,
-				AA000021 /* SettingsWindowController.swift in Sources */,
+				AA000021 /* MainWindowView.swift in Sources */,
 				AA000033 /* Provider.swift in Sources */,
 				AA000023 /* JSONLWatcher.swift in Sources */,
 				AA000024 /* Alert.swift in Sources */,
 				AA000025 /* AlertNotificationService.swift in Sources */,
 				AA000026 /* ToastWindowController.swift in Sources */,
 				AA000027 /* AlertsView.swift in Sources */,
-				AA000028 /* AlertsWindowController.swift in Sources */,
 				AA000029 /* AlertCardView.swift in Sources */,
 				AA000031 /* QuickAlertView.swift in Sources */,
 				AA000035 /* ContextSaveView.swift in Sources */,

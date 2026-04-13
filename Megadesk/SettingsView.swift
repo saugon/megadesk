@@ -4,90 +4,87 @@ struct SettingsView: View {
     @Bindable private var settings = AppSettings.shared
 
     var body: some View {
-        VStack(spacing: 0) {
-            Form {
-                Section("Behavior") {
-                    LabeledContent("Forgotten after") {
-                        Stepper("\(settings.forgottenMinutes) min",
-                                value: $settings.forgottenMinutes,
-                                in: 1...120)
-                        .onChange(of: settings.forgottenMinutes) { _, _ in settings.save() }
+        Form {
+            Section("Behavior") {
+                LabeledContent("Forgotten after") {
+                    Stepper("\(settings.forgottenMinutes) min",
+                            value: $settings.forgottenMinutes,
+                            in: 1...120)
+                    .onChange(of: settings.forgottenMinutes) { _, _ in settings.save() }
+                }
+                LabeledContent("Widget opacity") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.idleOpacity, in: 0.1...1.0)
+                            .frame(width: 160)
+                            .onChange(of: settings.idleOpacity) { _, _ in settings.save() }
+                        Text("\(Int(settings.idleOpacity * 100))%")
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
                     }
-                    LabeledContent("Widget opacity") {
-                        HStack(spacing: 8) {
-                            Slider(value: $settings.idleOpacity, in: 0.1...1.0)
-                                .frame(width: 120)
-                                .onChange(of: settings.idleOpacity) { _, _ in settings.save() }
-                            Text("\(Int(settings.idleOpacity * 100))%")
-                                .frame(width: 36, alignment: .trailing)
-                                .foregroundStyle(.secondary)
-                        }
+                }
+                LabeledContent("Card font size") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.cardFontSize, in: 10...18, step: 1)
+                            .frame(width: 160)
+                            .onChange(of: settings.cardFontSize) { _, _ in settings.save() }
+                        Text("\(Int(settings.cardFontSize))pt")
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
                     }
-                    LabeledContent("Card font size") {
-                        HStack(spacing: 8) {
-                            Slider(value: $settings.cardFontSize, in: 10...18, step: 1)
-                                .frame(width: 120)
-                                .onChange(of: settings.cardFontSize) { _, _ in settings.save() }
-                            Text("\(Int(settings.cardFontSize))pt")
-                                .frame(width: 36, alignment: .trailing)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    LabeledContent("Spinner verb") {
-                        Toggle("", isOn: $settings.showSpinnerVerb)
-                            .labelsHidden()
+                }
+                LabeledContent {
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Toggle("Show in session cards", isOn: $settings.showSpinnerVerb)
                             .onChange(of: settings.showSpinnerVerb) { _, _ in settings.save() }
-                    }
-                    LabeledContent("Animated spinner color") {
-                        Toggle("", isOn: $settings.spinnerVerbAnimatedColor)
-                            .labelsHidden()
+                        Toggle("Animated color", isOn: $settings.spinnerVerbAnimatedColor)
+                            .disabled(!settings.showSpinnerVerb)
                             .onChange(of: settings.spinnerVerbAnimatedColor) { _, _ in settings.save() }
                     }
-                    LabeledContent("Sort sessions") {
-                        Picker("", selection: $settings.sortOrder) {
-                            ForEach(SessionSortOrder.allCases, id: \.self) {
-                                Text($0.label).tag($0)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                        .onChange(of: settings.sortOrder) { _, _ in settings.save() }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Spinner verb")
+                        Text("Show Claude's current activity in session cards")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
-
-                Section("Session States") {
-                    colorRow("Working",            hex: $settings.hexWorking)
-                    colorRow("Needs Confirmation", hex: $settings.hexConfirmation)
-                    colorRow("Waiting",            hex: $settings.hexWaiting)
-                    colorRow("Forgotten",          hex: $settings.hexForgotten)
-                }
-
-                Section("Alerts") {
-                    colorRow("Alert", hex: $settings.hexAlert)
-                }
-
-                Section("Pull Request States") {
-                    colorRow("CI Passing", hex: $settings.hexPRPassing)
-                    colorRow("CI Pending", hex: $settings.hexPRPending)
-                    colorRow("CI Failing", hex: $settings.hexPRFailing)
-                    colorRow("Merged",     hex: $settings.hexPRMerged)
-                    colorRow("Closed",     hex: $settings.hexPRClosed)
+                LabeledContent("Sort sessions") {
+                    Picker("", selection: $settings.sortOrder) {
+                        ForEach(SessionSortOrder.allCases, id: \.self) {
+                            Text($0.label).tag($0)
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: settings.sortOrder) { _, _ in settings.save() }
                 }
             }
-            .formStyle(.grouped)
 
-            Divider()
+            Section("Session States") {
+                colorRow("Working",            hex: $settings.hexWorking)
+                colorRow("Needs Confirmation", hex: $settings.hexConfirmation)
+                colorRow("Waiting",            hex: $settings.hexWaiting)
+                colorRow("Forgotten",          hex: $settings.hexForgotten)
+            }
 
-            HStack {
+            Section("Alerts") {
+                colorRow("Alert", hex: $settings.hexAlert)
+            }
+
+            Section("Pull Request States") {
+                colorRow("CI Passing", hex: $settings.hexPRPassing)
+                colorRow("CI Pending", hex: $settings.hexPRPending)
+                colorRow("CI Failing", hex: $settings.hexPRFailing)
+                colorRow("Merged",     hex: $settings.hexPRMerged)
+                colorRow("Closed",     hex: $settings.hexPRClosed)
+            }
+
+            Section {
                 Button("Reset to Defaults") {
                     settings.resetToDefaults()
                 }
-                Spacer()
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
         }
-        .frame(width: 380)
+        .formStyle(.grouped)
     }
 
     @ViewBuilder

@@ -7,12 +7,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: FloatingWindowController?
     private var statusItem: NSStatusItem?
     private var onboardingController: OnboardingWindowController?
-    private var helpController: HelpWindowController?
-    private var settingsController: SettingsWindowController?
+    private var mainController: MainWindowController?
     private var hotKeyRef: EventHotKeyRef?
     private var sessionHotKeyRefs: [EventHotKeyRef?] = []
     private var updaterController: SPUStandardUpdaterController!
-    private var alertsController: AlertsWindowController?
     private var contextSaveController: ContextSaveWindowController?
     private var alertBadgeObserver: Any?
     private var originalMenuBarIcon: NSImage?
@@ -236,12 +234,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.set(!current, forKey: key)
     }
 
-    @objc private func openSettings() {
-        if settingsController == nil {
-            settingsController = SettingsWindowController()
+    private func showMain(section: MainSection) {
+        if mainController == nil {
+            mainController = MainWindowController()
         }
-        settingsController?.showWindow(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        mainController?.show(section: section)
+    }
+
+    @objc private func openSettings() {
+        showMain(section: .settings)
     }
 
     @objc private func checkForUpdates() {
@@ -250,11 +251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openHelp() {
-        if helpController == nil {
-            helpController = HelpWindowController()
-        }
-        helpController?.showWindow(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        showMain(section: .help)
     }
 
     @objc private func openContextSave() {
@@ -265,11 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openAlerts() {
-        if alertsController?.window == nil {
-            alertsController = AlertsWindowController()
-        }
-        alertsController?.showWindow(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        showMain(section: .alerts)
         StatusStore.shared.clearAlertBadge()
         updateMenuBarBadge()
     }
