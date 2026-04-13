@@ -58,6 +58,7 @@ struct HelpView: View {
                     FeatureRow(icon: "rectangle.compress.vertical", text: "Compact Mode: condensed single-column view")
                     FeatureRow(icon: "arrow.triangle.pull",         text: "PR Tracking: paste a PR URL to monitor CI status via the gh CLI")
                     FeatureRow(icon: "bell.badge",                  text: "Alerts: set one-time or recurring reminders with toast, widget, and notification display")
+                    FeatureRow(icon: "note.text",                   text: "Context Save: jot down what you're working on before stepping away, with snooze and resume")
                 }
                 .padding(6)
             }
@@ -67,6 +68,7 @@ struct HelpView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     FeatureRow(icon: "keyboard", text: "⌘⇧M — toggle widget visibility from anywhere")
                     FeatureRow(icon: "keyboard", text: "⌘⇧A — quick alert popover for fast reminders")
+                    FeatureRow(icon: "keyboard", text: "⌘⇧C — save a context note before stepping away")
                     FeatureRow(icon: "keyboard", text: "⇧⌥↑ / ⇧⌥↓ — cycle through sessions up or down")
                 }
                 .padding(6)
