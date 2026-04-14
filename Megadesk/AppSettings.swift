@@ -91,7 +91,7 @@ final class AppSettings {
         sortOrder    = SessionSortOrder(rawValue: ud.string(forKey: "megadesk.sortOrder") ?? "") ?? .byState
         idleOpacity  = ud.object(forKey: "megadesk.idleOpacity") as? Double ?? 1.0
         cardFontSize = ud.object(forKey: "megadesk.cardFontSize") as? Double ?? 13
-        showSpinnerVerb = ud.object(forKey: "megadesk.showSpinnerVerb") as? Bool ?? true
+        showSpinnerVerb = ud.object(forKey: "megadesk.showSpinnerVerb") as? Bool ?? false
         spinnerVerbAnimatedColor = ud.object(forKey: "megadesk.spinnerVerbAnimatedColor") as? Bool ?? false
         hexWorking       = ud.string(forKey: "megadesk.color.working")      ?? "#34C759"
         hexConfirmation  = ud.string(forKey: "megadesk.color.confirmation") ?? "#5AC8FA"
@@ -150,7 +150,7 @@ final class AppSettings {
         sortOrder        = .byState
         idleOpacity      = 1.0
         cardFontSize     = 13
-        showSpinnerVerb  = true
+        showSpinnerVerb  = false
         spinnerVerbAnimatedColor = false
         hexWorking       = "#34C759"
         hexConfirmation  = "#5AC8FA"
