@@ -59,6 +59,57 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Alert Defaults") {
+                LabeledContent("Notify via") {
+                    Picker("", selection: Binding(
+                        get: {
+                            if settings.alertShowToast { return 0 }
+                            if settings.alertShowWidget { return 1 }
+                            return 2
+                        },
+                        set: { tag in
+                            settings.alertShowToast = tag == 0
+                            settings.alertShowWidget = tag == 1
+                            settings.save()
+                        }
+                    )) {
+                        Text("Toast").tag(0)
+                        Text("Widget").tag(1)
+                        Text("None").tag(2)
+                    }
+                    .labelsHidden()
+                }
+                if settings.alertShowToast {
+                    LabeledContent("Toast position") {
+                        Picker("", selection: $settings.toastPosition) {
+                            ForEach(ToastPosition.allCases, id: \.self) {
+                                Text($0.label).tag($0)
+                            }
+                        }
+                        .labelsHidden()
+                        .onChange(of: settings.toastPosition) { _, _ in settings.save() }
+                    }
+                }
+                Toggle("System notification", isOn: $settings.alertShowNotification)
+                    .onChange(of: settings.alertShowNotification) { _, _ in settings.save() }
+                Toggle("Menu bar badge", isOn: $settings.alertShowBadge)
+                    .onChange(of: settings.alertShowBadge) { _, _ in settings.save() }
+                Toggle("Sound", isOn: $settings.alertPlaySound)
+                    .onChange(of: settings.alertPlaySound) { _, _ in settings.save() }
+                LabeledContent("Snooze duration") {
+                    Picker("", selection: $settings.snoozeMinutes) {
+                        Text("1 min").tag(1)
+                        Text("5 min").tag(5)
+                        Text("10 min").tag(10)
+                        Text("15 min").tag(15)
+                        Text("30 min").tag(30)
+                        Text("60 min").tag(60)
+                    }
+                    .labelsHidden()
+                    .onChange(of: settings.snoozeMinutes) { _, _ in settings.save() }
+                }
+            }
+
             Section("Session States") {
                 colorRow("Working",            hex: $settings.hexWorking)
                 colorRow("Needs Confirmation", hex: $settings.hexConfirmation)

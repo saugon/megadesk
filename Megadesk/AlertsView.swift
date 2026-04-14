@@ -7,22 +7,14 @@ struct AlertsView: View {
     @State private var showingCompleted = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                sidebar
-                    .frame(width: 170)
-                Divider()
-                detailPane
-                    .frame(maxWidth: .infinity)
-            }
-            .frame(minHeight: 240)
-
+        HStack(spacing: 0) {
+            sidebar
+                .frame(width: 200)
             Divider()
-
-            notificationSettings
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+            detailPane
+                .frame(maxWidth: .infinity)
         }
+        .padding(.top, 8)
         .frame(minWidth: 520, minHeight: 400)
     }
 
@@ -117,7 +109,9 @@ struct AlertsView: View {
     @ViewBuilder
     private var detailPane: some View {
         if let id = selectedAlertId, let alert = store.alerts.first(where: { $0.id == id }) {
-            ScrollView {
+            VStack(spacing: 0) {
+                detailToolbar(id: id)
+                Divider()
                 Form {
                     Section("Alert") {
                         TextField("Title", text: stringBinding(id: id, keyPath: \.title))
@@ -127,45 +121,73 @@ struct AlertsView: View {
                             get: { store.alerts.first(where: { $0.id == id })?.isEnabled ?? false },
                             set: { store.toggleAlert(id: id, enabled: $0) }
                         ))
+                    }
 
+                    Section("Schedule") {
                         recurrencePicker(id: id)
-
                         dateTimePicker(id: id, recurrence: alert.recurrence)
                     }
 
-                    Section("Notification Overrides") {
-                        displayOverridePicker(id: id)
-                        overrideToggle("Notification", id: id, keyPath: \.overrideShowNotification, globalDefault: settings.alertShowNotification)
-                        overrideToggle("Badge", id: id, keyPath: \.overrideShowBadge, globalDefault: settings.alertShowBadge)
-                        overrideToggle("Sound", id: id, keyPath: \.overridePlaySound, globalDefault: settings.alertPlaySound)
-                    }
+                    Section("Notifications") {
+                        Toggle("Customize for this alert", isOn: Binding(
+                            get: { isCustomized(id: id) },
+                            set: { setCustomized(id: id, $0) }
+                        ))
 
-                    Section {
-                        HStack {
-                            Button("Test Alert") {
-                                store.fireAlertForTest(id: id)
-                            }
-                            Spacer()
-                            Button("Delete", role: .destructive) {
-                                selectedAlertId = nil
-                                store.removeAlert(id: id)
-                            }
-                            .foregroundStyle(.red)
+                        if isCustomized(id: id) {
+                            customDisplayPicker(id: id)
+                            Toggle("System notification", isOn: nonNilBoolBinding(id: id, keyPath: \.overrideShowNotification, default: settings.alertShowNotification))
+                            Toggle("Menu bar badge", isOn: nonNilBoolBinding(id: id, keyPath: \.overrideShowBadge, default: settings.alertShowBadge))
+                            Toggle("Sound", isOn: nonNilBoolBinding(id: id, keyPath: \.overridePlaySound, default: settings.alertPlaySound))
                         }
                     }
                 }
                 .formStyle(.grouped)
             }
         } else {
-            VStack {
+            VStack(spacing: 12) {
                 Spacer()
-                Text("Select an alert")
+                Image(systemName: "bell.slash")
+                    .font(.system(size: 36, weight: .light))
                     .foregroundStyle(.secondary)
-                    .font(.system(size: 14))
+                Text("No alert selected")
+                    .foregroundStyle(.secondary)
+                Button {
+                    addAlert()
+                } label: {
+                    Label("New Alert", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
                 Spacer()
             }
             .frame(maxWidth: .infinity)
         }
+    }
+
+    // MARK: - Detail Toolbar
+
+    private func detailToolbar(id: UUID) -> some View {
+        HStack(spacing: 8) {
+            Spacer()
+            Button {
+                store.fireAlertForTest(id: id)
+            } label: {
+                Label("Test", systemImage: "play.fill")
+            }
+            .buttonStyle(.bordered)
+
+            Button {
+                selectedAlertId = nil
+                store.removeAlert(id: id)
+            } label: {
+                Image(systemName: "trash")
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.bordered)
+            .help("Delete alert")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Recurrence Picker
@@ -386,186 +408,74 @@ struct AlertsView: View {
         }
     }
 
-    // MARK: - Notification Settings
+    // MARK: - Notification Customization
 
-    private var notificationSettings: some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 16) {
-                Text("Notify via:")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-
-                Picker("", selection: Binding(
-                    get: {
-                        if settings.alertShowToast { return 0 }
-                        if settings.alertShowWidget { return 1 }
-                        return 2  // none
-                    },
-                    set: { tag in
-                        settings.alertShowToast = tag == 0
-                        settings.alertShowWidget = tag == 1
-                        settings.save()
-                    }
-                )) {
-                    Text("Toast").tag(0)
-                    Text("Widget").tag(1)
-                    Text("None").tag(2)
-                }
-                .labelsHidden()
-                .fixedSize()
-                .font(.system(size: 11))
-
-                Toggle("Notification", isOn: $settings.alertShowNotification)
-                    .toggleStyle(.checkbox)
-                    .font(.system(size: 11))
-                    .onChange(of: settings.alertShowNotification) { _, _ in settings.save() }
-
-                Toggle("Badge", isOn: $settings.alertShowBadge)
-                    .toggleStyle(.checkbox)
-                    .font(.system(size: 11))
-                    .onChange(of: settings.alertShowBadge) { _, _ in settings.save() }
-
-                Toggle("Sound", isOn: $settings.alertPlaySound)
-                    .toggleStyle(.checkbox)
-                    .font(.system(size: 11))
-                    .onChange(of: settings.alertPlaySound) { _, _ in settings.save() }
-
-                Spacer()
-            }
-
-            if settings.alertShowToast {
-                HStack(spacing: 8) {
-                    Text("Toast position:")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-
-                    Picker("", selection: $settings.toastPosition) {
-                        ForEach(ToastPosition.allCases, id: \.self) {
-                            Text($0.label).tag($0)
-                        }
-                    }
-                    .labelsHidden()
-                    .fixedSize()
-                    .font(.system(size: 11))
-                    .onChange(of: settings.toastPosition) { _, _ in settings.save() }
-
-                    Spacer()
-                }
-            }
-
-            HStack(spacing: 8) {
-                Text("Snooze duration:")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-
-                Picker("", selection: $settings.snoozeMinutes) {
-                    Text("1 min").tag(1)
-                    Text("5 min").tag(5)
-                    Text("10 min").tag(10)
-                    Text("15 min").tag(15)
-                    Text("30 min").tag(30)
-                    Text("60 min").tag(60)
-                }
-                .labelsHidden()
-                .fixedSize()
-                .font(.system(size: 11))
-                .onChange(of: settings.snoozeMinutes) { _, _ in settings.save() }
-
-                Spacer()
-            }
-        }
+    private func isCustomized(id: UUID) -> Bool {
+        guard let a = store.alerts.first(where: { $0.id == id }) else { return false }
+        return a.overrideShowToast != nil
+            || a.overrideShowWidget != nil
+            || a.overrideShowNotification != nil
+            || a.overrideShowBadge != nil
+            || a.overridePlaySound != nil
     }
 
-    // MARK: - Display Override (Toast/Widget mutually exclusive)
+    private func setCustomized(id: UUID, _ on: Bool) {
+        guard let i = store.alerts.firstIndex(where: { $0.id == id }) else { return }
+        if on {
+            // Snapshot current global defaults into per-alert overrides
+            store.alerts[i].overrideShowToast        = settings.alertShowToast
+            store.alerts[i].overrideShowWidget       = settings.alertShowWidget
+            store.alerts[i].overrideShowNotification = settings.alertShowNotification
+            store.alerts[i].overrideShowBadge        = settings.alertShowBadge
+            store.alerts[i].overridePlaySound        = settings.alertPlaySound
+        } else {
+            store.alerts[i].overrideShowToast        = nil
+            store.alerts[i].overrideShowWidget       = nil
+            store.alerts[i].overrideShowNotification = nil
+            store.alerts[i].overrideShowBadge        = nil
+            store.alerts[i].overridePlaySound        = nil
+        }
+        store.saveAlerts()
+    }
 
     @ViewBuilder
-    private func displayOverridePicker(id: UUID) -> some View {
+    private func customDisplayPicker(id: UUID) -> some View {
         let alert = store.alerts.first(where: { $0.id == id })
-        let toastOverride = alert?.overrideShowToast
-        let widgetOverride = alert?.overrideShowWidget
-
-        // Compute current effective state for the "Default" label
-        let globalLabel: String = {
-            if settings.alertShowToast { return "Toast" }
-            if settings.alertShowWidget { return "Widget" }
-            return "None"
-        }()
-
-        // tag: -1 = default, 0 = toast, 1 = widget, 2 = none
         let currentTag: Int = {
-            if toastOverride == nil && widgetOverride == nil { return -1 }
-            if toastOverride == true { return 0 }
-            if widgetOverride == true { return 1 }
+            if alert?.overrideShowToast == true { return 0 }
+            if alert?.overrideShowWidget == true { return 1 }
             return 2
         }()
-
-        HStack {
-            Text("Display")
-            Spacer()
+        LabeledContent("Display") {
             Picker("", selection: Binding(
                 get: { currentTag },
                 set: { tag in
                     guard let i = store.alerts.firstIndex(where: { $0.id == id }) else { return }
                     switch tag {
-                    case -1:
-                        store.alerts[i].overrideShowToast = nil
-                        store.alerts[i].overrideShowWidget = nil
-                    case 0:
-                        store.alerts[i].overrideShowToast = true
-                        store.alerts[i].overrideShowWidget = false
-                    case 1:
-                        store.alerts[i].overrideShowToast = false
-                        store.alerts[i].overrideShowWidget = true
-                    default:
-                        store.alerts[i].overrideShowToast = false
-                        store.alerts[i].overrideShowWidget = false
+                    case 0: store.alerts[i].overrideShowToast = true;  store.alerts[i].overrideShowWidget = false
+                    case 1: store.alerts[i].overrideShowToast = false; store.alerts[i].overrideShowWidget = true
+                    default: store.alerts[i].overrideShowToast = false; store.alerts[i].overrideShowWidget = false
                     }
                     store.saveAlerts()
                 }
             )) {
-                Text("Default (\(globalLabel))").tag(-1)
                 Text("Toast").tag(0)
                 Text("Widget").tag(1)
                 Text("None").tag(2)
             }
             .labelsHidden()
-            .fixedSize()
         }
     }
 
-    // MARK: - Per-alert Override Toggle
-
-    /// Three-state toggle: nil (use default), true, false.
-    /// Shows "Default (On/Off)" when nil, otherwise the explicit override.
-    @ViewBuilder
-    private func overrideToggle(_ label: String, id: UUID, keyPath: WritableKeyPath<MegadeskAlert, Bool?>, globalDefault: Bool) -> some View {
-        let current = store.alerts.first(where: { $0.id == id })?[keyPath: keyPath]
-
-        HStack {
-            Text(label)
-            Spacer()
-            Picker("", selection: Binding(
-                get: {
-                    if let v = current { return v ? 1 : 0 }
-                    return -1
-                },
-                set: { tag in
-                    guard let i = store.alerts.firstIndex(where: { $0.id == id }) else { return }
-                    switch tag {
-                    case -1: store.alerts[i][keyPath: keyPath] = nil
-                    case 1:  store.alerts[i][keyPath: keyPath] = true
-                    default: store.alerts[i][keyPath: keyPath] = false
-                    }
-                    store.saveAlerts()
-                }
-            )) {
-                Text("Default (\(globalDefault ? "On" : "Off"))").tag(-1)
-                Text("On").tag(1)
-                Text("Off").tag(0)
+    private func nonNilBoolBinding(id: UUID, keyPath: WritableKeyPath<MegadeskAlert, Bool?>, default defaultValue: Bool) -> Binding<Bool> {
+        Binding(
+            get: { store.alerts.first(where: { $0.id == id })?[keyPath: keyPath] ?? defaultValue },
+            set: {
+                guard let i = store.alerts.firstIndex(where: { $0.id == id }) else { return }
+                store.alerts[i][keyPath: keyPath] = $0
+                store.saveAlerts()
             }
-            .labelsHidden()
-            .fixedSize()
-        }
+        )
     }
 
     // MARK: - ID-based Bindings

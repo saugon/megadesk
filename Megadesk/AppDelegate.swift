@@ -2,6 +2,17 @@ import AppKit
 import SwiftUI
 import Carbon.HIToolbox
 import Sparkle
+import ObjectiveC
+
+// Swizzle NSMenuItem.image to suppress macOS auto-injected icons (gear on Settings, etc.)
+extension NSMenuItem {
+    static func disableAutoIcons() {
+        guard let original = class_getInstanceMethod(NSMenuItem.self, #selector(getter: image)),
+              let replacement = class_getInstanceMethod(NSMenuItem.self, #selector(_nilImage)) else { return }
+        method_exchangeImplementations(original, replacement)
+    }
+    @objc private func _nilImage() -> NSImage? { nil }
+}
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: FloatingWindowController?
@@ -16,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var originalMenuBarIcon: NSImage?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSMenuItem.disableAutoIcons()
+
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: nil,
