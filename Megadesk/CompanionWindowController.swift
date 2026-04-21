@@ -11,13 +11,14 @@ final class CompanionWindowController: NSWindowController {
 
     convenience init(mainWidgetWindow: NSWindow?) {
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 200, height: 90),
+            contentRect: NSRect(x: 0, y: 0, width: 175, height: 90),
             styleMask: [.nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
 
-        panel.level = .floating
+        // One level above the main widget so the pet always sits in front.
+        panel.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
         panel.isMovableByWindowBackground = true
@@ -53,8 +54,9 @@ final class CompanionWindowController: NSWindowController {
             object: nil,
             queue: .main
         ) { [weak self] note in
-            guard let h = note.userInfo?["height"] as? CGFloat else { return }
-            self?.resizeContent(height: h)
+            let h = note.userInfo?["height"] as? CGFloat
+            let w = note.userInfo?["width"]  as? CGFloat
+            self?.resizeContent(width: w, height: h)
         }
 
         // Save position when the user drags the companion panel (floating mode).
@@ -99,16 +101,21 @@ final class CompanionWindowController: NSWindowController {
 
     // MARK: - Resize on content change (grow/shrink upward)
 
-    private func resizeContent(height: CGFloat) {
+    private func resizeContent(width: CGFloat?, height: CGFloat?) {
         guard let window else { return }
-        let targetHeight = max(60, ceil(height))
 
-        guard abs(targetHeight - window.frame.height) > 1 else { return }
+        let targetWidth  = width.map  { max(80, ceil($0)) } ?? window.frame.width
+        let targetHeight = height.map { max(60, ceil($0)) } ?? window.frame.height
 
-        // Preserve bottom-left — panel grows upward when content grows.
+        guard abs(targetWidth  - window.frame.width)  > 1 ||
+              abs(targetHeight - window.frame.height) > 1 else { return }
+
+        // Preserve bottom-left — panel grows upward and outward to the right
+        // when content grows, keeping the pet anchored at the same screen
+        // position.
         let bottomLeft = NSPoint(x: window.frame.origin.x, y: window.frame.origin.y)
         let newFrame = NSRect(x: bottomLeft.x, y: bottomLeft.y,
-                              width: window.frame.width, height: targetHeight)
+                              width: targetWidth, height: targetHeight)
         suppressPositionSave = true
         window.setFrame(newFrame, display: true, animate: false)
         suppressPositionSave = false

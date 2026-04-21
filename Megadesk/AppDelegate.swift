@@ -133,6 +133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         delegate.openContextSave()
                     } else if capturedID == 15 {
                         CompanionEngine.shared.emitTestMessage()
+                    } else if capturedID == 16 {
+                        delegate.togglePet()
                     }
                 }
                 return noErr
@@ -202,6 +204,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         RegisterEventHotKey(UInt32(kVK_ANSI_L), UInt32(cmdKey | shiftKey),
                             companionHkID, GetApplicationEventTarget(), OptionBits(0), &compRef)
         sessionHotKeyRefs.append(compRef)
+
+        // ⌘⇧P — toggle pet visibility (hotkey ID 16)
+        var petHkID = EventHotKeyID()
+        petHkID.signature = 0x4d47444b
+        petHkID.id = 16
+        var petRef: EventHotKeyRef?
+        RegisterEventHotKey(UInt32(kVK_ANSI_P), UInt32(cmdKey | shiftKey),
+                            petHkID, GetApplicationEventTarget(), OptionBits(0), &petRef)
+        sessionHotKeyRefs.append(petRef)
     }
 
     // MARK: - Menu bar
@@ -263,6 +274,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showCompanionIfFloating() {
         guard AppSettings.shared.companionMode == .floating else { return }
         companionController?.show()
+    }
+
+    @objc func togglePet() {
+        let settings = AppSettings.shared
+        settings.companionEnabled.toggle()
+        settings.save()
+
+        if settings.companionEnabled {
+            showCompanionIfFloating()
+        } else {
+            companionController?.hide()
+        }
     }
 
     @objc private func toggleCompact() {

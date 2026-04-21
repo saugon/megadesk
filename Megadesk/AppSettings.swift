@@ -74,6 +74,15 @@ final class AppSettings {
     var companionWaitingThresholdMinutes: Int
     var companionStuckWorkingThresholdMinutes: Int
     var companionIdleThresholdMinutes: Int
+    var hexCompanionSubject: String
+    var colorCompanionSubject: Color { Color(hex: hexCompanionSubject) ?? .orange }
+    var companionFontSize: Double
+    var companionHorizontalPadding: Double
+    var companionName: String
+    var companionShowName: Bool
+    var companionNameFontSize: Double
+    var companionNameTopPadding: Double    // between ghost and name
+    var companionNameBottomPadding: Double // between name and container edge
 
     // MARK: - Context Save
     var contextNote: String?
@@ -122,6 +131,14 @@ final class AppSettings {
         companionWaitingThresholdMinutes      = ud.object(forKey: "megadesk.companion.waitingThreshold") as? Int ?? 15
         companionStuckWorkingThresholdMinutes = ud.object(forKey: "megadesk.companion.stuckWorkingThreshold") as? Int ?? 30
         companionIdleThresholdMinutes         = ud.object(forKey: "megadesk.companion.idleThreshold") as? Int ?? 45
+        hexCompanionSubject                   = ud.string(forKey: "megadesk.companion.color.subject") ?? "#FF9500"
+        companionFontSize                     = ud.object(forKey: "megadesk.companion.fontSize") as? Double ?? 16
+        companionHorizontalPadding            = ud.object(forKey: "megadesk.companion.horizontalPadding") as? Double ?? 45
+        companionName                         = ud.string(forKey: "megadesk.companion.name") ?? "Brume"
+        companionShowName                     = ud.object(forKey: "megadesk.companion.showName") as? Bool ?? true
+        companionNameFontSize                 = ud.object(forKey: "megadesk.companion.nameFontSize") as? Double ?? 9
+        companionNameTopPadding               = ud.object(forKey: "megadesk.companion.nameTopPadding") as? Double ?? 2
+        companionNameBottomPadding            = ud.object(forKey: "megadesk.companion.nameBottomPadding") as? Double ?? 6
         contextNote           = ud.string(forKey: "megadesk.contextNote")
     }
 
@@ -155,6 +172,14 @@ final class AppSettings {
         ud.set(companionWaitingThresholdMinutes,      forKey: "megadesk.companion.waitingThreshold")
         ud.set(companionStuckWorkingThresholdMinutes, forKey: "megadesk.companion.stuckWorkingThreshold")
         ud.set(companionIdleThresholdMinutes,         forKey: "megadesk.companion.idleThreshold")
+        ud.set(hexCompanionSubject,                   forKey: "megadesk.companion.color.subject")
+        ud.set(companionFontSize,                     forKey: "megadesk.companion.fontSize")
+        ud.set(companionHorizontalPadding,            forKey: "megadesk.companion.horizontalPadding")
+        ud.set(companionName,                         forKey: "megadesk.companion.name")
+        ud.set(companionShowName,                     forKey: "megadesk.companion.showName")
+        ud.set(companionNameFontSize,                 forKey: "megadesk.companion.nameFontSize")
+        ud.set(companionNameTopPadding,               forKey: "megadesk.companion.nameTopPadding")
+        ud.set(companionNameBottomPadding,            forKey: "megadesk.companion.nameBottomPadding")
         if let note = contextNote {
             ud.set(note, forKey: "megadesk.contextNote")
         } else {
@@ -191,6 +216,14 @@ final class AppSettings {
         companionWaitingThresholdMinutes      = 15
         companionStuckWorkingThresholdMinutes = 30
         companionIdleThresholdMinutes         = 45
+        hexCompanionSubject                   = "#FF9500"
+        companionFontSize                     = 16
+        companionHorizontalPadding            = 45
+        companionName                         = "Brume"
+        companionShowName                     = true
+        companionNameFontSize                 = 9
+        companionNameTopPadding               = 2
+        companionNameBottomPadding            = 6
         contextNote           = nil
         save()
     }

@@ -6,6 +6,9 @@ final class CompanionEngine {
     static let shared = CompanionEngine()
 
     var currentMessage: CompanionMessage?
+    /// The most recently emitted message, kept after dismissal so it can be
+    /// repeated on demand (double-clicking the pet).
+    private(set) var lastMessage: CompanionMessage?
 
     var ghostState: GhostState {
         currentMessage?.ghostState ?? .idle
@@ -72,19 +75,20 @@ final class CompanionEngine {
         let sessionName = sessions.randomElement().map { store.displayName(for: $0) } ?? "session"
         let otherName  = sessions.randomElement().map { store.displayName(for: $0) } ?? "project"
 
-        let candidates: [(String, GhostState)] = [
-            ("Hey \u{2014} \(sessionName) has been waiting for you for 23 min.", .alert),
-            ("You have \(max(3, sessions.count)) sessions waiting. Oldest is \(sessionName).", .alert),
-            ("\(sessionName) has been working for 45 min. Might be stuck.", .alert),
-            ("CI is failing on \(sessionName).", .alert),
-            ("\(otherName) has merge conflicts.", .alert),
-            ("Still there?", .idle),
-            ("All quiet. Good time for a break.", .idle),
-            ("Hey! Let's get to work.", .happy),
-            ("\(sessionName) merged. Nice.", .happy),
+        // (text, ghostState, subject-to-highlight)
+        let candidates: [(String, GhostState, String?)] = [
+            ("Hey \u{2014} \(sessionName) has been waiting for you for 23 min.", .alert, sessionName),
+            ("You have \(max(3, sessions.count)) sessions waiting. Oldest is \(sessionName).", .alert, sessionName),
+            ("\(sessionName) has been working for 45 min. Might be stuck.", .alert, sessionName),
+            ("CI is failing on \(sessionName).", .alert, sessionName),
+            ("\(otherName) has merge conflicts.", .alert, otherName),
+            ("Still there?", .idle, nil),
+            ("All quiet. Good time for a break.", .idle, nil),
+            ("Hey! Let's get to work.", .happy, nil),
+            ("\(sessionName) merged. Nice.", .happy, sessionName),
         ]
         let pick = candidates.randomElement()!
-        emit(CompanionMessage(text: pick.0, ghostState: pick.1, ruleId: "test"))
+        emit(CompanionMessage(text: pick.0, ghostState: pick.1, ruleId: "test", subject: pick.2))
     }
 
     // MARK: - Observation
@@ -140,11 +144,24 @@ final class CompanionEngine {
 
     private func emit(_ message: CompanionMessage) {
         currentMessage = message
+        lastMessage = message
         dismissTimer?.invalidate()
         dismissTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: false) { [weak self] _ in
             self?.currentMessage = nil
             self?.dismissTimer = nil
         }
+    }
+
+    /// Re-emits the last message (triggered by double-clicking the pet).
+    func repeatLastMessage() {
+        guard let last = lastMessage else { return }
+        // Re-wrap so SwiftUI sees a new identity (triggers re-render).
+        emit(CompanionMessage(
+            text: last.text,
+            ghostState: last.ghostState,
+            ruleId: last.ruleId,
+            subject: last.subject
+        ))
     }
 
     // MARK: - State-change rules
@@ -194,7 +211,8 @@ final class CompanionEngine {
             emit(CompanionMessage(
                 text: "Hey \u{2014} \(name) has been waiting for you for \(duration).",
                 ghostState: .alert,
-                ruleId: "waitingTooLong"
+                ruleId: "waitingTooLong",
+                subject: name
             ))
             return
         }
@@ -213,7 +231,8 @@ final class CompanionEngine {
             emit(CompanionMessage(
                 text: "You have \(count) sessions waiting. Oldest is \(name).",
                 ghostState: .alert,
-                ruleId: "multipleWaiting"
+                ruleId: "multipleWaiting",
+                subject: name
             ))
         }
         wasAboveMultipleWaitingThreshold = isAbove
@@ -241,7 +260,8 @@ final class CompanionEngine {
             emit(CompanionMessage(
                 text: "\(name) has been working for \(duration). Might be stuck.",
                 ghostState: .alert,
-                ruleId: "stuckWorking"
+                ruleId: "stuckWorking",
+                subject: name
             ))
             return
         }
@@ -266,7 +286,8 @@ final class CompanionEngine {
                     emit(CompanionMessage(
                         text: "CI is failing on \(data.title).",
                         ghostState: .alert,
-                        ruleId: "prCIFailing"
+                        ruleId: "prCIFailing",
+                        subject: data.title
                     ))
                 }
             } else if data.ciStatus != .failing {
@@ -285,7 +306,8 @@ final class CompanionEngine {
                     emit(CompanionMessage(
                         text: "\(data.title) has merge conflicts.",
                         ghostState: .alert,
-                        ruleId: "prConflicts"
+                        ruleId: "prConflicts",
+                        subject: data.title
                     ))
                 }
             } else if !data.hasConflicts {
@@ -304,7 +326,8 @@ final class CompanionEngine {
                     emit(CompanionMessage(
                         text: "\(data.title) merged. Nice.",
                         ghostState: .happy,
-                        ruleId: "prMerged"
+                        ruleId: "prMerged",
+                        subject: data.title
                     ))
                 }
             }

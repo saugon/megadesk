@@ -132,6 +132,49 @@ struct SettingsView: View {
             Section("Companion") {
                 Toggle("Enabled", isOn: $settings.companionEnabled)
                     .onChange(of: settings.companionEnabled) { _, _ in settings.save() }
+                Toggle("Show name", isOn: $settings.companionShowName)
+                    .onChange(of: settings.companionShowName) { _, _ in settings.save() }
+                    .disabled(!settings.companionEnabled)
+                LabeledContent("Name") {
+                    TextField("", text: $settings.companionName)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 140)
+                        .onChange(of: settings.companionName) { _, _ in settings.save() }
+                }
+                .disabled(!settings.companionEnabled || !settings.companionShowName)
+                LabeledContent("Name size") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.companionNameFontSize, in: 7...18, step: 1)
+                            .frame(width: 160)
+                            .onChange(of: settings.companionNameFontSize) { _, _ in settings.save() }
+                        Text("\(Int(settings.companionNameFontSize))pt")
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!settings.companionEnabled || !settings.companionShowName)
+                LabeledContent("Name top gap") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.companionNameTopPadding, in: 0...24, step: 1)
+                            .frame(width: 160)
+                            .onChange(of: settings.companionNameTopPadding) { _, _ in settings.save() }
+                        Text("\(Int(settings.companionNameTopPadding))pt")
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!settings.companionEnabled || !settings.companionShowName)
+                LabeledContent("Name bottom gap") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.companionNameBottomPadding, in: 0...24, step: 1)
+                            .frame(width: 160)
+                            .onChange(of: settings.companionNameBottomPadding) { _, _ in settings.save() }
+                        Text("\(Int(settings.companionNameBottomPadding))pt")
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!settings.companionEnabled || !settings.companionShowName)
                 LabeledContent("Mode") {
                     Picker("", selection: $settings.companionMode) {
                         ForEach(CompanionMode.allCases, id: \.self) {
@@ -161,6 +204,37 @@ struct SettingsView: View {
                             value: $settings.companionIdleThresholdMinutes,
                             in: 15...180)
                     .onChange(of: settings.companionIdleThresholdMinutes) { _, _ in settings.save() }
+                }
+                .disabled(!settings.companionEnabled)
+                colorRow("Message highlight", hex: $settings.hexCompanionSubject)
+                    .disabled(!settings.companionEnabled)
+                LabeledContent("Pet size") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.companionFontSize, in: 10...32, step: 1)
+                            .frame(width: 160)
+                            .onChange(of: settings.companionFontSize) { _, _ in settings.save() }
+                        Text("\(Int(settings.companionFontSize))pt")
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!settings.companionEnabled)
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.companionHorizontalPadding, in: 0...80, step: 1)
+                            .frame(width: 160)
+                            .onChange(of: settings.companionHorizontalPadding) { _, _ in settings.save() }
+                        Text("\(Int(settings.companionHorizontalPadding))pt")
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Lateral padding")
+                        Text("Extra space on the sides — widens the panel so text has more room")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .disabled(!settings.companionEnabled)
             }

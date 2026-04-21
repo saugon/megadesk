@@ -1,0 +1,65 @@
+# Megadesk Companion Frames
+#
+# Format: each frame starts with a delimiter `---<state>-<letter>[:<ms>]---`
+# followed by the lines of ASCII art. Valid states:
+#   idle, alert, happy
+#
+# Per-frame duration (optional): append `:<ms>` to the delimiter to set how
+# long this frame stays on screen before advancing. If omitted, falls back
+# to 500 ms. Examples:
+#   ---idle-a---        → uses default 500 ms
+#   ---idle-a:1200---   → this frame stays visible 1.2 seconds
+#   ---idle-b:200---    → this frame flashes by in 200 ms
+# Combine short + long frames to make rare poses appear briefly.
+#
+# You can add as many frames per state as you like — every key that starts
+# with the state prefix (`idle-*`, `alert-*`, `happy-*`) is picked up and
+# cycled through in alphabetical order.
+#
+# Lines starting with `#` are ignored (comments). Leading whitespace is
+# normalized and lines are auto-padded so the ghost stays centered even
+# if your editor strips trailing spaces.
+# The first two lines of each frame are intentionally blank to leave
+# room to add decoration above the ghost (antennas, hats, etc.).
+
+---idle-a:2500---
+
+   .----.
+  / ·  · \
+  |      |
+  ~`~``~`~
+
+---idle-b:1000---
+    ~  ~
+   .----.
+  / ·  · \
+  |      |
+  ~~`~~`~~
+
+---alert-a:500---
+
+   .----.
+  / o  o \
+  |      |
+  ~`~``~`~
+
+---alert-b:500---
+
+   .----.
+  /  o  o\
+  |      |
+  ~`~``~`~
+
+---happy-a:500---
+
+   .----.
+  / ^  ^ \
+  |      |
+  ~`~``~`~
+
+---happy-b:500---
+    ~  ~
+   .----.
+  / ^  ^ \
+  |      |
+  ~~`~~`~~
