@@ -68,6 +68,13 @@ final class AppSettings {
     var toastPosition: ToastPosition
     var snoozeMinutes: Int
 
+    // MARK: - Companion
+    var companionEnabled: Bool
+    var companionMode: CompanionMode
+    var companionWaitingThresholdMinutes: Int
+    var companionStuckWorkingThresholdMinutes: Int
+    var companionIdleThresholdMinutes: Int
+
     // MARK: - Context Save
     var contextNote: String?
 
@@ -110,6 +117,11 @@ final class AppSettings {
         alertPlaySound        = ud.object(forKey: "megadesk.alert.playSound") as? Bool ?? true
         toastPosition         = ToastPosition(rawValue: ud.string(forKey: "megadesk.alert.toastPosition") ?? "") ?? .center
         snoozeMinutes         = ud.object(forKey: "megadesk.alert.snoozeMinutes") as? Int ?? 5
+        companionEnabled      = ud.object(forKey: "megadesk.companion.enabled") as? Bool ?? true
+        companionMode         = CompanionMode(rawValue: ud.string(forKey: "megadesk.companion.mode") ?? "") ?? .docked
+        companionWaitingThresholdMinutes      = ud.object(forKey: "megadesk.companion.waitingThreshold") as? Int ?? 15
+        companionStuckWorkingThresholdMinutes = ud.object(forKey: "megadesk.companion.stuckWorkingThreshold") as? Int ?? 30
+        companionIdleThresholdMinutes         = ud.object(forKey: "megadesk.companion.idleThreshold") as? Int ?? 45
         contextNote           = ud.string(forKey: "megadesk.contextNote")
     }
 
@@ -138,6 +150,11 @@ final class AppSettings {
         ud.set(alertPlaySound,        forKey: "megadesk.alert.playSound")
         ud.set(toastPosition.rawValue, forKey: "megadesk.alert.toastPosition")
         ud.set(snoozeMinutes,         forKey: "megadesk.alert.snoozeMinutes")
+        ud.set(companionEnabled,      forKey: "megadesk.companion.enabled")
+        ud.set(companionMode.rawValue, forKey: "megadesk.companion.mode")
+        ud.set(companionWaitingThresholdMinutes,      forKey: "megadesk.companion.waitingThreshold")
+        ud.set(companionStuckWorkingThresholdMinutes, forKey: "megadesk.companion.stuckWorkingThreshold")
+        ud.set(companionIdleThresholdMinutes,         forKey: "megadesk.companion.idleThreshold")
         if let note = contextNote {
             ud.set(note, forKey: "megadesk.contextNote")
         } else {
@@ -169,6 +186,11 @@ final class AppSettings {
         alertPlaySound        = true
         toastPosition         = .center
         snoozeMinutes         = 5
+        companionEnabled      = true
+        companionMode         = .docked
+        companionWaitingThresholdMinutes      = 15
+        companionStuckWorkingThresholdMinutes = 30
+        companionIdleThresholdMinutes         = 45
         contextNote           = nil
         save()
     }

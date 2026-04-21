@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sessionHotKeyRefs: [EventHotKeyRef?] = []
     private var updaterController: SPUStandardUpdaterController!
     private var contextSaveController: ContextSaveWindowController?
+    private var companionController: CompanionWindowController?
     private var alertBadgeObserver: Any?
     private var originalMenuBarIcon: NSImage?
 
@@ -60,17 +61,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AlertNotificationService.shared.setup()
         setupAlertBadge()
 
+        // Companion ghost
+        _ = CompanionEngine.shared  // bootstrap observation
+        companionController = CompanionWindowController(mainWidgetWindow: windowController?.window)
+
         NotificationCenter.default.addObserver(forName: .megadeskOpenContextSave, object: nil, queue: .main) { [weak self] _ in
             self?.openContextSave()
         }
         let storedVersion = UserDefaults.standard.integer(forKey: "megadesk.onboardingVersion")
         if storedVersion >= OnboardingView.currentOnboardingVersion {
             windowController?.show()
+            showCompanionIfFloating()
         } else {
             let isReturningUser = UserDefaults.standard.bool(forKey: "megadesk.onboardingComplete")
             onboardingController = OnboardingWindowController(isReturningUser: isReturningUser, previousVersion: storedVersion) {
                 self.onboardingController = nil
                 self.windowController?.show()
+                self.showCompanionIfFloating()
             }
             onboardingController?.showWindow(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -108,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.async {
                     let delegate = Unmanaged<AppDelegate>.fromOpaque(ptr).takeUnretainedValue()
                     if capturedID == 1 {
-                        delegate.windowController?.toggle()
+                        delegate.toggleWidget()
                     } else if capturedID >= 2 && capturedID <= 10 {
                         NotificationCenter.default.post(
                             name: .megadeskFocusSession,
@@ -124,6 +131,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         delegate.windowController?.showQuickAlert()
                     } else if capturedID == 14 {
                         delegate.openContextSave()
+                    } else if capturedID == 15 {
+                        CompanionEngine.shared.emitTestMessage()
                     }
                 }
                 return noErr
@@ -184,6 +193,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         RegisterEventHotKey(UInt32(kVK_ANSI_C), UInt32(cmdKey | shiftKey),
                             contextHkID, GetApplicationEventTarget(), OptionBits(0), &csRef)
         sessionHotKeyRefs.append(csRef)
+
+        // ⌘⇧L — companion test message (hotkey ID 15)
+        var companionHkID = EventHotKeyID()
+        companionHkID.signature = 0x4d47444b
+        companionHkID.id = 15
+        var compRef: EventHotKeyRef?
+        RegisterEventHotKey(UInt32(kVK_ANSI_L), UInt32(cmdKey | shiftKey),
+                            companionHkID, GetApplicationEventTarget(), OptionBits(0), &compRef)
+        sessionHotKeyRefs.append(compRef)
     }
 
     // MARK: - Menu bar
@@ -235,6 +253,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func toggleWidget() {
         windowController?.toggle()
+        if windowController?.isWidgetVisible == true {
+            showCompanionIfFloating()
+        } else {
+            companionController?.hide()
+        }
+    }
+
+    private func showCompanionIfFloating() {
+        guard AppSettings.shared.companionMode == .floating else { return }
+        companionController?.show()
     }
 
     @objc private func toggleCompact() {
@@ -369,6 +397,7 @@ extension AppDelegate {
 extension AppDelegate: NSWindowDelegate {
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         windowController?.hide()
+        companionController?.hide()
         return false
     }
 }

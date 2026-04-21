@@ -40,6 +40,11 @@
 		AA000034 /* megadesk-codex-hook.py in Resources */ = {isa = PBXBuildFile; fileRef = AB000031 /* megadesk-codex-hook.py */; };
 		AA000035 /* ContextSaveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000034 /* ContextSaveView.swift */; };
 		AA000036 /* ContextSaveWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000035 /* ContextSaveWindowController.swift */; };
+		AA000037 /* CompanionMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000036 /* CompanionMessage.swift */; };
+		AA000038 /* CompanionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000037 /* CompanionEngine.swift */; };
+		AA000039 /* CompanionAnimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000038 /* CompanionAnimator.swift */; };
+		AA000040 /* CompanionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000039 /* CompanionView.swift */; };
+		AA000041 /* CompanionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000040 /* CompanionWindowController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -77,6 +82,11 @@
 		AB000032 /* QuickAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAlertView.swift; sourceTree = "<group>"; };
 		AB000034 /* ContextSaveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextSaveView.swift; sourceTree = "<group>"; };
 		AB000035 /* ContextSaveWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextSaveWindowController.swift; sourceTree = "<group>"; };
+		AB000036 /* CompanionMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionMessage.swift; sourceTree = "<group>"; };
+		AB000037 /* CompanionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionEngine.swift; sourceTree = "<group>"; };
+		AB000038 /* CompanionAnimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionAnimator.swift; sourceTree = "<group>"; };
+		AB000039 /* CompanionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionView.swift; sourceTree = "<group>"; };
+		AB000040 /* CompanionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionWindowController.swift; sourceTree = "<group>"; };
 
 /* End PBXFileReference section */
 
@@ -120,6 +130,10 @@
 				AB000032 /* QuickAlertView.swift */,
 				AB000034 /* ContextSaveView.swift */,
 				AB000035 /* ContextSaveWindowController.swift */,
+				AB000037 /* CompanionEngine.swift */,
+				AB000038 /* CompanionAnimator.swift */,
+				AB000039 /* CompanionView.swift */,
+				AB000040 /* CompanionWindowController.swift */,
 				AD000002 /* Models */,
 				AD000003 /* Services */,
 				AB000009 /* Info.plist */,
@@ -134,6 +148,7 @@
 				AB000007 /* Session.swift */,
 				AB000017 /* PullRequest.swift */,
 				AB000025 /* Alert.swift */,
+				AB000036 /* CompanionMessage.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -288,6 +303,11 @@
 				AA000031 /* QuickAlertView.swift in Sources */,
 				AA000035 /* ContextSaveView.swift in Sources */,
 				AA000036 /* ContextSaveWindowController.swift in Sources */,
+				AA000037 /* CompanionMessage.swift in Sources */,
+				AA000038 /* CompanionEngine.swift in Sources */,
+				AA000039 /* CompanionAnimator.swift in Sources */,
+				AA000040 /* CompanionView.swift in Sources */,
+				AA000041 /* CompanionWindowController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

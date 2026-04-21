@@ -158,6 +158,14 @@ struct ContentView: View {
                 }
             }
 
+            // Companion ghost — docked mode, normal (non-compact) only
+            if !isCompact,
+               AppSettings.shared.companionEnabled,
+               AppSettings.shared.companionMode == .docked {
+                sectionLabel("companion")
+                CompanionView(inline: true)
+            }
+
         }
         .padding(8)
         .frame(minWidth: isCompact ? 78 : 220, maxWidth: isCompact ? 78 : 280)

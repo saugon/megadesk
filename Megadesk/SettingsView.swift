@@ -129,6 +129,42 @@ struct SettingsView: View {
                 colorRow("Closed",     hex: $settings.hexPRClosed)
             }
 
+            Section("Companion") {
+                Toggle("Enabled", isOn: $settings.companionEnabled)
+                    .onChange(of: settings.companionEnabled) { _, _ in settings.save() }
+                LabeledContent("Mode") {
+                    Picker("", selection: $settings.companionMode) {
+                        ForEach(CompanionMode.allCases, id: \.self) {
+                            Text($0.label).tag($0)
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: settings.companionMode) { _, _ in settings.save() }
+                }
+                .disabled(!settings.companionEnabled)
+                LabeledContent("Waiting alert") {
+                    Stepper("\(settings.companionWaitingThresholdMinutes) min",
+                            value: $settings.companionWaitingThresholdMinutes,
+                            in: 5...120)
+                    .onChange(of: settings.companionWaitingThresholdMinutes) { _, _ in settings.save() }
+                }
+                .disabled(!settings.companionEnabled)
+                LabeledContent("Stuck working alert") {
+                    Stepper("\(settings.companionStuckWorkingThresholdMinutes) min",
+                            value: $settings.companionStuckWorkingThresholdMinutes,
+                            in: 10...180)
+                    .onChange(of: settings.companionStuckWorkingThresholdMinutes) { _, _ in settings.save() }
+                }
+                .disabled(!settings.companionEnabled)
+                LabeledContent("Idle alert") {
+                    Stepper("\(settings.companionIdleThresholdMinutes) min",
+                            value: $settings.companionIdleThresholdMinutes,
+                            in: 15...180)
+                    .onChange(of: settings.companionIdleThresholdMinutes) { _, _ in settings.save() }
+                }
+                .disabled(!settings.companionEnabled)
+            }
+
             Section {
                 Button("Reset to Defaults") {
                     settings.resetToDefaults()
