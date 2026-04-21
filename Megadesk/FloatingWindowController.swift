@@ -110,11 +110,11 @@ final class FloatingWindowController: NSWindowController {
     private var contextNoteButton: TitlebarIconButton?
     private var quickAlertPopover: NSPopover?
     private var isLiveResizing = false
-    // When true, the next adjustPanelHeight() will preserve the panel's
-    // bottom-left corner instead of top-left, so the panel grows upward.
-    // Used when the companion speech bubble appears/disappears so the
-    // ghost stays pinned at the bottom.
-    private var preserveBottomOnNextResize = false
+    // Timestamp of the last programmatic panel.setFrame() we triggered.
+    // Resize notifications that arrive within 500ms are treated as programmatic,
+    // even if `suppressPositionSave` was already cleared by the time the async
+    // notification was delivered.
+    private var lastProgrammaticResize: Date?
 
     convenience init(contentView: some View, footerView: some View) {
         let initialCompact = UserDefaults.standard.bool(forKey: "megadesk.compact")
@@ -213,12 +213,6 @@ final class FloatingWindowController: NSWindowController {
         ) { [weak self] _ in
             self?.adjustPanelHeight()
         }
-
-        NotificationCenter.default.addObserver(
-            forName: .megadeskCompanionBubbleChanged,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in self?.preserveBottomOnNextResize = true }
 
         NotificationCenter.default.addObserver(
             forName: NSWindow.willStartLiveResizeNotification,
@@ -397,8 +391,13 @@ final class FloatingWindowController: NSWindowController {
         if !isCompact {
             UserDefaults.standard.set(Double(panel.frame.width), forKey: "megadesk.windowWidth")
         }
-        // Only lock height for user-initiated resizes, not programmatic ones
-        if !suppressPositionSave && abs(panel.frame.height - lastKnownHeight) > 1 {
+        let isRecentProgrammatic = lastProgrammaticResize.map {
+            Date().timeIntervalSince($0) < 0.5
+        } ?? false
+        // Only lock height for user-initiated resizes. Skip programmatic ones
+        // even if their async notification arrived after suppressPositionSave
+        // was cleared (hence the timestamp fallback).
+        if !suppressPositionSave && !isRecentProgrammatic && abs(panel.frame.height - lastKnownHeight) > 1 {
             userSetHeight = panel.frame.height
             UserDefaults.standard.set(Double(panel.frame.height), forKey: "megadesk.windowHeight")
             resetHeightButton?.isHidden = false
@@ -534,19 +533,11 @@ final class FloatingWindowController: NSWindowController {
         guard abs(targetHeight - panel.frame.height) > 2 else { return }
 
         isAdjustingHeight = true
-        let newFrame: NSRect
-        if preserveBottomOnNextResize {
-            // Grow upward: keep bottom-left fixed, extend top upward.
-            let bottomLeft = NSPoint(x: panel.frame.origin.x, y: panel.frame.origin.y)
-            newFrame = NSRect(x: bottomLeft.x, y: bottomLeft.y,
+        // Keep top-left fixed — widget grows downward when content grows.
+        let topLeft = NSPoint(x: panel.frame.origin.x, y: panel.frame.origin.y + panel.frame.height)
+        let newFrame = NSRect(x: topLeft.x, y: topLeft.y - targetHeight,
                               width: panel.frame.width, height: targetHeight)
-            preserveBottomOnNextResize = false
-        } else {
-            // Default: keep top-left fixed, extend bottom downward.
-            let topLeft = NSPoint(x: panel.frame.origin.x, y: panel.frame.origin.y + panel.frame.height)
-            newFrame = NSRect(x: topLeft.x, y: topLeft.y - targetHeight,
-                              width: panel.frame.width, height: targetHeight)
-        }
+        lastProgrammaticResize = Date()
         suppressPositionSave = true
         panel.setFrame(newFrame, display: true, animate: false)
         suppressPositionSave = false

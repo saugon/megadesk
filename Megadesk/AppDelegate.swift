@@ -64,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Companion ghost
         _ = CompanionEngine.shared  // bootstrap observation
         companionController = CompanionWindowController(mainWidgetWindow: windowController?.window)
+        observeCompanionMode()
 
         NotificationCenter.default.addObserver(forName: .megadeskOpenContextSave, object: nil, queue: .main) { [weak self] _ in
             self?.openContextSave()
@@ -274,6 +275,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showCompanionIfFloating() {
         guard AppSettings.shared.companionMode == .floating else { return }
         companionController?.show()
+    }
+
+    /// Observe changes to the companion mode so we hide the floating window
+    /// when the user switches to docked (and show it again when switching back).
+    private func observeCompanionMode() {
+        withObservationTracking {
+            _ = AppSettings.shared.companionMode
+        } onChange: {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if AppSettings.shared.companionMode == .floating,
+                   self.windowController?.isWidgetVisible == true,
+                   AppSettings.shared.companionEnabled {
+                    self.companionController?.show()
+                } else {
+                    self.companionController?.hide()
+                }
+                self.observeCompanionMode()
+            }
+        }
     }
 
     @objc func togglePet() {
