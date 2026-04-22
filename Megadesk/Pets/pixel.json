@@ -1,0 +1,90 @@
+{
+  "id": "pixel",
+  "displayName": "Pixel",
+  "defaultDurationMs": 500,
+  "voice": {
+    "waitingTooLong":    "[alert] {name} idle for {duration}",
+    "multipleWaiting":   "[queue] {count} pending. next={oldest}",
+    "stuckWorking":      "[warn] {name} running {duration} — stuck?",
+    "prCIFailing":       "[ci] {prTitle} → FAIL",
+    "prConflicts":       "[git] {prTitle} has conflicts",
+    "userIdle":          "> standby. input?",
+    "allForgotten":      "> all channels idle.",
+    "firstSessionOfDay": "> boot ok. ready.",
+    "prMerged":          "[git] {prTitle} merged OK"
+  },
+  "frames": [
+    {
+      "key": "idle-a",
+      "durationMs": 700,
+      "lines": [
+        "",
+        "",
+        "  .------.",
+        "  | o  o |",
+        "  |  --  |",
+        "  '------'"
+      ]
+    },
+    {
+      "key": "idle-b",
+      "durationMs": 700,
+      "lines": [
+        "",
+        "    | |",
+        "  .------.",
+        "  | o  o |",
+        "  |  --  |",
+        "  '------'"
+      ]
+    },
+    {
+      "key": "alert-a",
+      "durationMs": 300,
+      "lines": [
+        "    ! !",
+        "    | |",
+        "  .------.",
+        "  | O  O |",
+        "  |  --  |",
+        "  '------'"
+      ]
+    },
+    {
+      "key": "alert-b",
+      "durationMs": 300,
+      "lines": [
+        "",
+        "    | |",
+        "  .------.",
+        "  | O  O |",
+        "  |  --  |",
+        "  '------'"
+      ]
+    },
+    {
+      "key": "happy-a",
+      "durationMs": 450,
+      "lines": [
+        "",
+        "    | |",
+        "  .------.",
+        "  | ^  ^ |",
+        "  |  \\/  |",
+        "  '------'"
+      ]
+    },
+    {
+      "key": "happy-b",
+      "durationMs": 450,
+      "lines": [
+        "   ~   ~",
+        "    | |",
+        "  .------.",
+        "  | ^  ^ |",
+        "  |  \\/  |",
+        "  '------'"
+      ]
+    }
+  ]
+}

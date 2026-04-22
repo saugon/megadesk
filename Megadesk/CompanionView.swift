@@ -74,8 +74,12 @@ struct CompanionView: View {
         .onChange(of: engine.ghostState) { _, newState in
             animator.ghostState = newState
         }
+        .onChange(of: settings.companionPetId) { _, newPetId in
+            animator.petId = newPetId
+        }
         .onAppear {
             animator.ghostState = engine.ghostState
+            animator.petId = settings.companionPetId
             animator.isVisible = true
         }
         .onDisappear {
@@ -162,8 +166,9 @@ struct CompanionView: View {
             }
 
             if settings.companionShowName,
-               !settings.companionName.trimmingCharacters(in: .whitespaces).isEmpty {
-                Text(settings.companionName)
+               let petName = CompanionPetRegistry.shared.pet(id: settings.companionPetId)?.displayName,
+               !petName.trimmingCharacters(in: .whitespaces).isEmpty {
+                Text(petName)
                     .font(.system(size: CGFloat(settings.companionNameFontSize), weight: .medium, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.4))
                     .padding(.top, CGFloat(settings.companionNameTopPadding))

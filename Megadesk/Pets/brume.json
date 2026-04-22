@@ -1,0 +1,90 @@
+{
+  "id": "brume",
+  "displayName": "Brume",
+  "defaultDurationMs": 500,
+  "voice": {
+    "waitingTooLong":    "Hey — {name} has been waiting for you for {duration}.",
+    "multipleWaiting":   "You have {count} sessions waiting. Oldest is {oldest}.",
+    "stuckWorking":      "{name} has been working for {duration}. Might be stuck.",
+    "prCIFailing":       "CI is failing on {prTitle}.",
+    "prConflicts":       "{prTitle} has merge conflicts.",
+    "userIdle":          "Still there?",
+    "allForgotten":      "All quiet. Good time for a break.",
+    "firstSessionOfDay": "Hey! Let's get to work.",
+    "prMerged":          "{prTitle} merged. Nice."
+  },
+  "frames": [
+    {
+      "key": "idle-a",
+      "durationMs": 2500,
+      "lines": [
+        "",
+        "",
+        "   .----.",
+        "  / ·  · \\",
+        "  |      |",
+        "  ~`~``~`~"
+      ]
+    },
+    {
+      "key": "idle-b",
+      "durationMs": 1000,
+      "lines": [
+        "",
+        "    ~  ~",
+        "   .----.",
+        "  / ·  · \\",
+        "  |      |",
+        "  ~~`~~`~~"
+      ]
+    },
+    {
+      "key": "alert-a",
+      "durationMs": 500,
+      "lines": [
+        "",
+        "",
+        "   .----.",
+        "  / o  o \\",
+        "  |      |",
+        "  ~`~``~`~"
+      ]
+    },
+    {
+      "key": "alert-b",
+      "durationMs": 500,
+      "lines": [
+        "",
+        "",
+        "   .----.",
+        "  /  o  o\\",
+        "  |      |",
+        "  ~`~``~`~"
+      ]
+    },
+    {
+      "key": "happy-a",
+      "durationMs": 500,
+      "lines": [
+        "",
+        "",
+        "   .----.",
+        "  / ^  ^ \\",
+        "  |      |",
+        "  ~`~``~`~"
+      ]
+    },
+    {
+      "key": "happy-b",
+      "durationMs": 500,
+      "lines": [
+        "",
+        "    ~  ~",
+        "   .----.",
+        "  / ^  ^ \\",
+        "  |      |",
+        "  ~~`~~`~~"
+      ]
+    }
+  ]
+}

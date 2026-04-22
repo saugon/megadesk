@@ -74,18 +74,19 @@ final class CompanionEngine {
         let sessions = store.sessions
         let sessionName = sessions.randomElement().map { store.displayName(for: $0) } ?? "session"
         let otherName  = sessions.randomElement().map { store.displayName(for: $0) } ?? "project"
+        let v = activeVoice
 
         // (text, ghostState, subject-to-highlight)
         let candidates: [(String, GhostState, String?)] = [
-            ("Hey \u{2014} \(sessionName) has been waiting for you for 23 min.", .alert, sessionName),
-            ("You have \(max(3, sessions.count)) sessions waiting. Oldest is \(sessionName).", .alert, sessionName),
-            ("\(sessionName) has been working for 45 min. Might be stuck.", .alert, sessionName),
-            ("CI is failing on \(sessionName).", .alert, sessionName),
-            ("\(otherName) has merge conflicts.", .alert, otherName),
-            ("Still there?", .idle, nil),
-            ("All quiet. Good time for a break.", .idle, nil),
-            ("Hey! Let's get to work.", .happy, nil),
-            ("\(sessionName) merged. Nice.", .happy, sessionName),
+            (v.waitingTooLong.filling(["name": sessionName, "duration": "23 min"]),                    .alert, sessionName),
+            (v.multipleWaiting.filling(["count": "\(max(3, sessions.count))", "oldest": sessionName]), .alert, sessionName),
+            (v.stuckWorking.filling(["name": sessionName, "duration": "45 min"]),                      .alert, sessionName),
+            (v.prCIFailing.filling(["prTitle": sessionName]),                                          .alert, sessionName),
+            (v.prConflicts.filling(["prTitle": otherName]),                                            .alert, otherName),
+            (v.userIdle,                                                                               .idle,  nil),
+            (v.allForgotten,                                                                           .idle,  nil),
+            (v.firstSessionOfDay,                                                                      .happy, nil),
+            (v.prMerged.filling(["prTitle": sessionName]),                                             .happy, sessionName),
         ]
         let pick = candidates.randomElement()!
         emit(CompanionMessage(text: pick.0, ghostState: pick.1, ruleId: "test", subject: pick.2))
@@ -186,6 +187,14 @@ final class CompanionEngine {
         checkUserIdle(sessions)
     }
 
+    // MARK: - Voice lookup
+
+    private var activeVoice: CompanionPetDefinition.VoiceTemplates {
+        let id = AppSettings.shared.companionPetId
+        let registry = CompanionPetRegistry.shared
+        return (registry.pet(id: id) ?? registry.defaultPet).voice
+    }
+
     // MARK: - Rule 1: waitingTooLong
 
     private func checkWaitingTooLong(_ sessions: [Session]) {
@@ -209,7 +218,7 @@ final class CompanionEngine {
             persistedState.firedRules[key] = ISO8601DateFormatter().string(from: Date())
             saveState()
             emit(CompanionMessage(
-                text: "Hey \u{2014} \(name) has been waiting for you for \(duration).",
+                text: activeVoice.waitingTooLong.filling(["name": name, "duration": duration]),
                 ghostState: .alert,
                 ruleId: "waitingTooLong",
                 subject: name
@@ -229,7 +238,7 @@ final class CompanionEngine {
             let oldest = waiting.max(by: { $0.timeInState < $1.timeInState })
             let name = oldest.map { StatusStore.shared.displayName(for: $0) } ?? "unknown"
             emit(CompanionMessage(
-                text: "You have \(count) sessions waiting. Oldest is \(name).",
+                text: activeVoice.multipleWaiting.filling(["count": "\(count)", "oldest": name]),
                 ghostState: .alert,
                 ruleId: "multipleWaiting",
                 subject: name
@@ -258,7 +267,7 @@ final class CompanionEngine {
             persistedState.firedRules[key] = ISO8601DateFormatter().string(from: Date())
             saveState()
             emit(CompanionMessage(
-                text: "\(name) has been working for \(duration). Might be stuck.",
+                text: activeVoice.stuckWorking.filling(["name": name, "duration": duration]),
                 ghostState: .alert,
                 ruleId: "stuckWorking",
                 subject: name
@@ -284,7 +293,7 @@ final class CompanionEngine {
                 if persistedState.firedRules[firedKey] == nil {
                     persistedState.firedRules[firedKey] = ISO8601DateFormatter().string(from: Date())
                     emit(CompanionMessage(
-                        text: "CI is failing on \(data.title).",
+                        text: activeVoice.prCIFailing.filling(["prTitle": data.title]),
                         ghostState: .alert,
                         ruleId: "prCIFailing",
                         subject: data.title
@@ -304,7 +313,7 @@ final class CompanionEngine {
                 if persistedState.firedRules[firedKey] == nil {
                     persistedState.firedRules[firedKey] = ISO8601DateFormatter().string(from: Date())
                     emit(CompanionMessage(
-                        text: "\(data.title) has merge conflicts.",
+                        text: activeVoice.prConflicts.filling(["prTitle": data.title]),
                         ghostState: .alert,
                         ruleId: "prConflicts",
                         subject: data.title
@@ -324,7 +333,7 @@ final class CompanionEngine {
                 if persistedState.firedRules[firedKey] == nil {
                     persistedState.firedRules[firedKey] = ISO8601DateFormatter().string(from: Date())
                     emit(CompanionMessage(
-                        text: "\(data.title) merged. Nice.",
+                        text: activeVoice.prMerged.filling(["prTitle": data.title]),
                         ghostState: .happy,
                         ruleId: "prMerged",
                         subject: data.title
@@ -360,7 +369,7 @@ final class CompanionEngine {
 
         persistedState.firedRules[key] = ISO8601DateFormatter().string(from: Date())
         saveState()
-        emit(CompanionMessage(text: "Still there?", ghostState: .idle, ruleId: "userIdle"))
+        emit(CompanionMessage(text: activeVoice.userIdle, ghostState: .idle, ruleId: "userIdle"))
     }
 
     // MARK: - Rule 7: allForgotten
@@ -371,7 +380,7 @@ final class CompanionEngine {
 
         if allForgotten && !wasAllForgotten {
             emit(CompanionMessage(
-                text: "All quiet. Good time for a break.",
+                text: activeVoice.allForgotten,
                 ghostState: .idle,
                 ruleId: "allForgotten"
             ))
@@ -390,7 +399,7 @@ final class CompanionEngine {
         persistedState.lastGreetedDate = today
         saveState()
         emit(CompanionMessage(
-            text: "Hey! Let's get to work.",
+            text: activeVoice.firstSessionOfDay,
             ghostState: .happy,
             ruleId: "firstSessionOfDay"
         ))

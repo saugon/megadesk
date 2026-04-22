@@ -1,0 +1,90 @@
+{
+  "id": "mochi",
+  "displayName": "Mochi",
+  "defaultDurationMs": 500,
+  "voice": {
+    "waitingTooLong":    "mrrp… {name} se aburre hace {duration}.",
+    "multipleWaiting":   "miau! {count} esperando. El primero es {oldest}.",
+    "stuckWorking":      "{name} lleva {duration} laburando… te vas a cansar.",
+    "prCIFailing":       "hiss! CI explotó en {prTitle}.",
+    "prConflicts":       "{prTitle} tiene rulos. Dale cepillo.",
+    "userIdle":          "miau? seguís ahí?",
+    "allForgotten":      "purrr… silencio total. Siesta?",
+    "firstSessionOfDay": "¡Miau! A trabajar.",
+    "prMerged":          "¡Mrp! {prTitle} mergeó."
+  },
+  "frames": [
+    {
+      "key": "idle-a",
+      "durationMs": 1800,
+      "lines": [
+        "",
+        "  /\\_/\\",
+        " ( ·.· )",
+        "  > ^ <",
+        "",
+        ""
+      ]
+    },
+    {
+      "key": "idle-b",
+      "durationMs": 250,
+      "lines": [
+        "",
+        "  /\\_/\\",
+        " ( -.- )",
+        "  > ^ <",
+        "",
+        ""
+      ]
+    },
+    {
+      "key": "alert-a",
+      "durationMs": 400,
+      "lines": [
+        "",
+        "  /\\_/\\",
+        " ( O.O )",
+        "  > ! <",
+        "",
+        ""
+      ]
+    },
+    {
+      "key": "alert-b",
+      "durationMs": 400,
+      "lines": [
+        "",
+        "  /\\_/\\ ",
+        " ( O.O )",
+        " > ! <",
+        "",
+        ""
+      ]
+    },
+    {
+      "key": "happy-a",
+      "durationMs": 400,
+      "lines": [
+        "",
+        "  /\\_/\\",
+        " ( ^.^ )",
+        "  > w <",
+        "   ~",
+        ""
+      ]
+    },
+    {
+      "key": "happy-b",
+      "durationMs": 400,
+      "lines": [
+        "",
+        "  /\\_/\\",
+        " ( ^.^ )",
+        "  > w <",
+        "    ~",
+        ""
+      ]
+    }
+  ]
+}

@@ -1,7 +1,9 @@
 import SwiftUI
+import AppKit
 
 struct SettingsView: View {
     @Bindable private var settings = AppSettings.shared
+    @Bindable private var petRegistry = CompanionPetRegistry.shared
 
     var body: some View {
         Form {
@@ -132,16 +134,42 @@ struct SettingsView: View {
             Section("Companion") {
                 Toggle("Enabled", isOn: $settings.companionEnabled)
                     .onChange(of: settings.companionEnabled) { _, _ in settings.save() }
+                LabeledContent("Pet") {
+                    Picker("", selection: $settings.companionPetId) {
+                        ForEach(petRegistry.all) { pet in
+                            Text(pet.displayName).tag(pet.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: settings.companionPetId) { _, _ in settings.save() }
+                }
+                .disabled(!settings.companionEnabled)
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        Button("Open pets folder") {
+                            NSWorkspace.shared.open(petRegistry.userPetsURL)
+                        }
+                        Button("Copy LLM prompt") {
+                            let pb = NSPasteboard.general
+                            pb.clearContents()
+                            pb.setString(CompanionPetRegistry.llmPrompt, forType: .string)
+                        }
+                        Button("Reload") {
+                            petRegistry.reload()
+                        }
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Custom pets")
+                        Text("Drop JSONs in the folder, then Reload. Or paste the LLM prompt into Claude / ChatGPT and have it generate one for you.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!settings.companionEnabled)
                 Toggle("Show name", isOn: $settings.companionShowName)
                     .onChange(of: settings.companionShowName) { _, _ in settings.save() }
                     .disabled(!settings.companionEnabled)
-                LabeledContent("Name") {
-                    TextField("", text: $settings.companionName)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 140)
-                        .onChange(of: settings.companionName) { _, _ in settings.save() }
-                }
-                .disabled(!settings.companionEnabled || !settings.companionShowName)
                 LabeledContent("Name size") {
                     HStack(spacing: 8) {
                         Slider(value: $settings.companionNameFontSize, in: 7...18, step: 1)

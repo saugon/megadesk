@@ -78,7 +78,10 @@ final class AppSettings {
     var colorCompanionSubject: Color { Color(hex: hexCompanionSubject) ?? .orange }
     var companionFontSize: Double
     var companionHorizontalPadding: Double
-    var companionName: String
+    /// ID of the selected pet (matches a JSON in `Megadesk/Pets/`). The
+    /// pet's JSON also drives its display name — there's no separate name
+    /// override setting.
+    var companionPetId: String
     var companionShowName: Bool
     var companionNameFontSize: Double
     var companionNameTopPadding: Double    // between ghost and name
@@ -134,7 +137,7 @@ final class AppSettings {
         hexCompanionSubject                   = ud.string(forKey: "megadesk.companion.color.subject") ?? "#FF9500"
         companionFontSize                     = ud.object(forKey: "megadesk.companion.fontSize") as? Double ?? 16
         companionHorizontalPadding            = ud.object(forKey: "megadesk.companion.horizontalPadding") as? Double ?? 45
-        companionName                         = ud.string(forKey: "megadesk.companion.name") ?? "Brume"
+        companionPetId                        = ud.string(forKey: "megadesk.companion.pet") ?? CompanionPetRegistry.defaultId
         companionShowName                     = ud.object(forKey: "megadesk.companion.showName") as? Bool ?? true
         companionNameFontSize                 = ud.object(forKey: "megadesk.companion.nameFontSize") as? Double ?? 9
         companionNameTopPadding               = ud.object(forKey: "megadesk.companion.nameTopPadding") as? Double ?? 2
@@ -175,7 +178,7 @@ final class AppSettings {
         ud.set(hexCompanionSubject,                   forKey: "megadesk.companion.color.subject")
         ud.set(companionFontSize,                     forKey: "megadesk.companion.fontSize")
         ud.set(companionHorizontalPadding,            forKey: "megadesk.companion.horizontalPadding")
-        ud.set(companionName,                         forKey: "megadesk.companion.name")
+        ud.set(companionPetId,                        forKey: "megadesk.companion.pet")
         ud.set(companionShowName,                     forKey: "megadesk.companion.showName")
         ud.set(companionNameFontSize,                 forKey: "megadesk.companion.nameFontSize")
         ud.set(companionNameTopPadding,               forKey: "megadesk.companion.nameTopPadding")
@@ -219,7 +222,7 @@ final class AppSettings {
         hexCompanionSubject                   = "#FF9500"
         companionFontSize                     = 16
         companionHorizontalPadding            = 45
-        companionName                         = "Brume"
+        companionPetId                        = CompanionPetRegistry.defaultId
         companionShowName                     = true
         companionNameFontSize                 = 9
         companionNameTopPadding               = 2

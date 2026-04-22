@@ -45,7 +45,10 @@
 		AA000039 /* CompanionAnimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000038 /* CompanionAnimator.swift */; };
 		AA000040 /* CompanionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000039 /* CompanionView.swift */; };
 		AA000041 /* CompanionWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000040 /* CompanionWindowController.swift */; };
-		AA000042 /* companion-frames.txt in Resources */ = {isa = PBXBuildFile; fileRef = AB000041 /* companion-frames.txt */; };
+		AA000043 /* CompanionPet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000042 /* CompanionPet.swift */; };
+		AA000044 /* brume.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000043 /* brume.json */; };
+		AA000045 /* pixel.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000044 /* pixel.json */; };
+		AA000046 /* mochi.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000045 /* mochi.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -88,7 +91,10 @@
 		AB000038 /* CompanionAnimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionAnimator.swift; sourceTree = "<group>"; };
 		AB000039 /* CompanionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionView.swift; sourceTree = "<group>"; };
 		AB000040 /* CompanionWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionWindowController.swift; sourceTree = "<group>"; };
-		AB000041 /* companion-frames.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "companion-frames.txt"; sourceTree = "<group>"; };
+		AB000042 /* CompanionPet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionPet.swift; sourceTree = "<group>"; };
+		AB000043 /* brume.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = brume.json; sourceTree = "<group>"; };
+		AB000044 /* pixel.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = pixel.json; sourceTree = "<group>"; };
+		AB000045 /* mochi.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = mochi.json; sourceTree = "<group>"; };
 
 /* End PBXFileReference section */
 
@@ -136,7 +142,7 @@
 				AB000038 /* CompanionAnimator.swift */,
 				AB000039 /* CompanionView.swift */,
 				AB000040 /* CompanionWindowController.swift */,
-				AB000041 /* companion-frames.txt */,
+				AD000006 /* Pets */,
 				AD000002 /* Models */,
 				AD000003 /* Services */,
 				AB000009 /* Info.plist */,
@@ -152,8 +158,19 @@
 				AB000017 /* PullRequest.swift */,
 				AB000025 /* Alert.swift */,
 				AB000036 /* CompanionMessage.swift */,
+				AB000042 /* CompanionPet.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		AD000006 /* Pets */ = {
+			isa = PBXGroup;
+			children = (
+				AB000043 /* brume.json */,
+				AB000044 /* pixel.json */,
+				AB000045 /* mochi.json */,
+			);
+			path = Pets;
 			sourceTree = "<group>";
 		};
 		AD000003 /* Services */ = {
@@ -250,7 +267,9 @@
 				AA000009 /* Assets.xcassets in Resources */,
 				AA000011 /* megadesk-hook.py in Resources */,
 				AA000034 /* megadesk-codex-hook.py in Resources */,
-				AA000042 /* companion-frames.txt in Resources */,
+				AA000044 /* brume.json in Resources */,
+				AA000045 /* pixel.json in Resources */,
+				AA000046 /* mochi.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -312,6 +331,7 @@
 				AA000039 /* CompanionAnimator.swift in Sources */,
 				AA000040 /* CompanionView.swift in Sources */,
 				AA000041 /* CompanionWindowController.swift in Sources */,
+				AA000043 /* CompanionPet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
