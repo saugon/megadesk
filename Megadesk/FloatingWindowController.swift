@@ -5,6 +5,17 @@ import SwiftUI
 /// clicks on the floating panel fire immediately without first activating the window.
 private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    /// SwiftUI's default `windowDidLayout` implementation reacts to window
+    /// layout notifications by calling `updateAnimatedWindowSize(_:)`, which
+    /// invokes `window.setFrame(...)` with content height + ~21pt title-bar
+    /// padding. Combined with `.titled + .fullSizeContentView` that extra
+    /// 21pt is unwanted: after every user live-resize the panel would grow
+    /// that much from the bottom (top pinned). Overriding this selector as
+    /// a no-op stops the auto-resize without affecting layout/rendering.
+    @objc func windowDidLayout() {
+        // Intentionally empty.
+    }
 }
 
 /// PreferenceKey that captures ContentView's natural height.
@@ -110,11 +121,12 @@ final class FloatingWindowController: NSWindowController {
     private var contextNoteButton: TitlebarIconButton?
     private var quickAlertPopover: NSPopover?
     private var isLiveResizing = false
-    // Timestamp of the last programmatic panel.setFrame() we triggered.
-    // Resize notifications that arrive within 500ms are treated as programmatic,
-    // even if `suppressPositionSave` was already cleared by the time the async
-    // notification was delivered.
-    private var lastProgrammaticResize: Date?
+    // Height captured when a live resize begins — used to decide at the end
+    // of the drag whether the user actually changed the height (vs. dragging
+    // only a side edge). The height lock is applied ONLY at didEndLiveResize,
+    // never on intermediate didResize notifications, to avoid misinterpreting
+    // system-triggered or programmatic resizes as user input.
+    private var heightAtLiveResizeStart: CGFloat?
 
     convenience init(contentView: some View, footerView: some View) {
         let initialCompact = UserDefaults.standard.bool(forKey: "megadesk.compact")
@@ -218,13 +230,29 @@ final class FloatingWindowController: NSWindowController {
             forName: NSWindow.willStartLiveResizeNotification,
             object: panel,
             queue: .main
-        ) { [weak self] _ in self?.isLiveResizing = true }
+        ) { [weak self] _ in
+            self?.isLiveResizing = true
+            self?.heightAtLiveResizeStart = panel.frame.height
+        }
 
         NotificationCenter.default.addObserver(
             forName: NSWindow.didEndLiveResizeNotification,
             object: panel,
             queue: .main
-        ) { [weak self] _ in self?.isLiveResizing = false }
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.isLiveResizing = false
+            // Commit the user-chosen height only if the drag actually changed
+            // height (a pure width drag leaves userSetHeight alone).
+            if let startH = self.heightAtLiveResizeStart,
+               abs(panel.frame.height - startH) > 1 {
+                self.userSetHeight = panel.frame.height
+                UserDefaults.standard.set(Double(panel.frame.height), forKey: "megadesk.windowHeight")
+                self.resetHeightButton?.isHidden = false
+            }
+            self.heightAtLiveResizeStart = nil
+            self.lastKnownHeight = panel.frame.height
+        }
     }
 
     // MARK: - Title bar controls
@@ -391,17 +419,8 @@ final class FloatingWindowController: NSWindowController {
         if !isCompact {
             UserDefaults.standard.set(Double(panel.frame.width), forKey: "megadesk.windowWidth")
         }
-        let isRecentProgrammatic = lastProgrammaticResize.map {
-            Date().timeIntervalSince($0) < 0.5
-        } ?? false
-        // Only lock height for user-initiated resizes. Skip programmatic ones
-        // even if their async notification arrived after suppressPositionSave
-        // was cleared (hence the timestamp fallback).
-        if !suppressPositionSave && !isRecentProgrammatic && abs(panel.frame.height - lastKnownHeight) > 1 {
-            userSetHeight = panel.frame.height
-            UserDefaults.standard.set(Double(panel.frame.height), forKey: "megadesk.windowHeight")
-            resetHeightButton?.isHidden = false
-        }
+        // Height locking happens exclusively at didEndLiveResize — this
+        // handler just tracks the current height for other logic.
         lastKnownHeight = panel.frame.height
     }
 
@@ -537,7 +556,6 @@ final class FloatingWindowController: NSWindowController {
         let topLeft = NSPoint(x: panel.frame.origin.x, y: panel.frame.origin.y + panel.frame.height)
         let newFrame = NSRect(x: topLeft.x, y: topLeft.y - targetHeight,
                               width: panel.frame.width, height: targetHeight)
-        lastProgrammaticResize = Date()
         suppressPositionSave = true
         panel.setFrame(newFrame, display: true, animate: false)
         suppressPositionSave = false
