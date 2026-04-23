@@ -29,6 +29,10 @@ struct ContentView: View {
     // Persisted locked height — non-zero when user has manually set a height.
     @AppStorage("megadesk.windowHeight") private var lockedHeightPref: Double = 0
 
+    // Live panel height, updated on every didResize (including during drag)
+    // so sectionBudget recalculates in real time while the user resizes.
+    @State private var metrics = WidgetWindowMetrics.shared
+
     // Estimated height of non-scrollable chrome: titlebar, footer, labels, alerts, PR controls.
     // Numbers calibrated against actual rendering — they feed sectionBudget, so being
     // ~1-2pt off is fine, but 20pt+ off creates visible gaps at the bottom.
@@ -51,11 +55,15 @@ struct ContentView: View {
     // Uses a screen-based cap in auto-height mode so the widget doesn't blow
     // up to fit 20+ sessions vertically. In locked-height mode, the budget
     // is derived from the user-set height so sections scroll instead of
-    // overflowing.
+    // overflowing. During a live drag, `metrics.currentHeight` reflects the
+    // panel's actual height so sections reflow in real time.
     private var sectionBudget: CGFloat {
         let screenBudget = max(200, (NSScreen.main?.visibleFrame.height ?? 700) - 68 - 250)
-        if lockedHeightPref > 0 {
-            return min(max(100, CGFloat(lockedHeightPref) - fixedOverhead), screenBudget)
+        let effectiveHeight: CGFloat = metrics.currentHeight > 0
+            ? metrics.currentHeight
+            : CGFloat(lockedHeightPref)
+        if effectiveHeight > 0 {
+            return min(max(100, effectiveHeight - fixedOverhead), screenBudget)
         }
         return screenBudget
     }

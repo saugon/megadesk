@@ -96,6 +96,16 @@ private final class EditablePanel: NSPanel {
     }
 }
 
+/// Live window-frame metrics shared with SwiftUI views. Updated on every
+/// didResize (including during live resize) so layout decisions that depend
+/// on the panel's current height reflow in real time while the user drags.
+@Observable
+final class WidgetWindowMetrics {
+    static let shared = WidgetWindowMetrics()
+    var currentHeight: CGFloat = 0
+    private init() {}
+}
+
 extension Notification.Name {
     static let megadeskHideWidget    = Notification.Name("megadesk.hideWidget")
     static let megadeskFocusSession  = Notification.Name("megadesk.focusSession")
@@ -199,6 +209,10 @@ final class FloatingWindowController: NSWindowController {
 
         let savedH = UserDefaults.standard.double(forKey: "megadesk.windowHeight")
         if savedH > 0 { self.userSetHeight = CGFloat(savedH) }
+
+        // Seed the live metric so SwiftUI has a sensible value on first render,
+        // before the first didResize fires.
+        WidgetWindowMetrics.shared.currentHeight = panel.frame.height
 
         installTitlebarControls(in: panel, compact: initialCompact)
 
@@ -422,6 +436,7 @@ final class FloatingWindowController: NSWindowController {
         // Height locking happens exclusively at didEndLiveResize — this
         // handler just tracks the current height for other logic.
         lastKnownHeight = panel.frame.height
+        WidgetWindowMetrics.shared.currentHeight = panel.frame.height
     }
 
     // MARK: - Hover opacity
