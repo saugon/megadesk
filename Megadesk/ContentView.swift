@@ -37,7 +37,7 @@ struct ContentView: View {
     // Numbers calibrated against actual rendering — they feed sectionBudget, so being
     // ~1-2pt off is fine, but 20pt+ off creates visible gaps at the bottom.
     private var fixedOverhead: CGFloat {
-        var h: CGFloat = 56  // titlebar safe area (28) + footer (28)
+        var h: CGFloat = 66  // titlebar safe area (28) + footer (38)
         h += 17              // "sessions" label (9pt font + 6pt padding)
         if !widgetAlerts.isEmpty {
             h += 17          // "alerts" label
@@ -206,9 +206,9 @@ struct ContentView: View {
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundColor(.white.opacity(0.2))
                 }
-                .padding(.top, 6)
-                .padding(.horizontal, 6)
-                .padding(.bottom, 8)
+                .padding(.top, 10)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 14)
                 .frame(minWidth: 220, maxWidth: 280)
             }
         }
