@@ -206,12 +206,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             companionHkID, GetApplicationEventTarget(), OptionBits(0), &compRef)
         sessionHotKeyRefs.append(compRef)
 
-        // ⌘⇧P — toggle pet visibility (hotkey ID 16)
+        // ⌘⇧. — toggle pet visibility (hotkey ID 16)
         var petHkID = EventHotKeyID()
         petHkID.signature = 0x4d47444b
         petHkID.id = 16
         var petRef: EventHotKeyRef?
-        RegisterEventHotKey(UInt32(kVK_ANSI_P), UInt32(cmdKey | shiftKey),
+        RegisterEventHotKey(UInt32(kVK_ANSI_Period), UInt32(cmdKey | shiftKey),
                             petHkID, GetApplicationEventTarget(), OptionBits(0), &petRef)
         sessionHotKeyRefs.append(petRef)
     }

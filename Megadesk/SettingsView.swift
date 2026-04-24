@@ -236,6 +236,10 @@ struct SettingsView: View {
                 .disabled(!settings.companionEnabled)
                 colorRow("Message highlight", hex: $settings.hexCompanionSubject)
                     .disabled(!settings.companionEnabled)
+                colorRow("Pet color", hex: $settings.hexCompanionPet)
+                    .disabled(!settings.companionEnabled)
+                colorRow("Pet background", hex: $settings.hexCompanionBackground)
+                    .disabled(!settings.companionEnabled)
                 LabeledContent("Pet size") {
                     HStack(spacing: 8) {
                         Slider(value: $settings.companionFontSize, in: 10...32, step: 1)

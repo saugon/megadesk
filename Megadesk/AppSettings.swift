@@ -76,6 +76,10 @@ final class AppSettings {
     var companionIdleThresholdMinutes: Int
     var hexCompanionSubject: String
     var colorCompanionSubject: Color { Color(hex: hexCompanionSubject) ?? .orange }
+    var hexCompanionPet: String
+    var hexCompanionBackground: String
+    var colorCompanionPet: Color { Color(hex: hexCompanionPet) ?? .white }
+    var colorCompanionBackground: Color { Color(hex: hexCompanionBackground) ?? Color(white: 0.1) }
     var companionFontSize: Double
     var companionHorizontalPadding: Double
     /// ID of the selected pet (matches a JSON in `Megadesk/Pets/`). The
@@ -135,6 +139,8 @@ final class AppSettings {
         companionStuckWorkingThresholdMinutes = ud.object(forKey: "megadesk.companion.stuckWorkingThreshold") as? Int ?? 30
         companionIdleThresholdMinutes         = ud.object(forKey: "megadesk.companion.idleThreshold") as? Int ?? 45
         hexCompanionSubject                   = ud.string(forKey: "megadesk.companion.color.subject") ?? "#FF9500"
+        hexCompanionPet                       = ud.string(forKey: "megadesk.companion.color.pet") ?? "#FFFFFF"
+        hexCompanionBackground                = ud.string(forKey: "megadesk.companion.color.background") ?? "#1A1A1A"
         companionFontSize                     = ud.object(forKey: "megadesk.companion.fontSize") as? Double ?? 16
         companionHorizontalPadding            = ud.object(forKey: "megadesk.companion.horizontalPadding") as? Double ?? 45
         companionPetId                        = ud.string(forKey: "megadesk.companion.pet") ?? CompanionPetRegistry.defaultId
@@ -176,6 +182,8 @@ final class AppSettings {
         ud.set(companionStuckWorkingThresholdMinutes, forKey: "megadesk.companion.stuckWorkingThreshold")
         ud.set(companionIdleThresholdMinutes,         forKey: "megadesk.companion.idleThreshold")
         ud.set(hexCompanionSubject,                   forKey: "megadesk.companion.color.subject")
+        ud.set(hexCompanionPet,                       forKey: "megadesk.companion.color.pet")
+        ud.set(hexCompanionBackground,                forKey: "megadesk.companion.color.background")
         ud.set(companionFontSize,                     forKey: "megadesk.companion.fontSize")
         ud.set(companionHorizontalPadding,            forKey: "megadesk.companion.horizontalPadding")
         ud.set(companionPetId,                        forKey: "megadesk.companion.pet")
@@ -220,6 +228,8 @@ final class AppSettings {
         companionStuckWorkingThresholdMinutes = 30
         companionIdleThresholdMinutes         = 45
         hexCompanionSubject                   = "#FF9500"
+        hexCompanionPet                       = "#FFFFFF"
+        hexCompanionBackground                = "#1A1A1A"
         companionFontSize                     = 16
         companionHorizontalPadding            = 45
         companionPetId                        = CompanionPetRegistry.defaultId

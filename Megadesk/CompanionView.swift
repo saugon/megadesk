@@ -70,6 +70,7 @@ struct CompanionView: View {
                 floatingLayout
             }
         }
+        .background(settings.colorCompanionBackground.opacity(inline ? 1.0 : 0.92))
         .transaction { $0.animation = nil }
         .onChange(of: engine.ghostState) { _, newState in
             animator.ghostState = newState
@@ -154,7 +155,7 @@ struct CompanionView: View {
                 Spacer(minLength: 0)
                 Text(animator.currentFrame)
                     .font(ghostFont)
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(settings.colorCompanionPet.opacity(0.9))
                     .fixedSize()
                     .background(
                         GeometryReader { geo in
@@ -202,7 +203,6 @@ struct CompanionView: View {
         Text(attributedMessage(message))
             .font(Self.bubbleFont)
             .foregroundStyle(.white)
-            .lineLimit(3)
             .lineSpacing(3)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 8)

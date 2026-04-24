@@ -27,10 +27,13 @@ final class CompanionWindowController: NSWindowController {
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
+        // Panel is transparent; the pet background color is drawn by the
+        // SwiftUI CompanionView so it updates live when the user changes
+        // the setting. Layer-level cornerRadius + masksToBounds still clip
+        // the whole thing to rounded corners.
         let hosting = NSHostingView(rootView: CompanionView())
         hosting.sizingOptions = []
         hosting.wantsLayer = true
-        hosting.layer?.backgroundColor = NSColor(white: 0.1, alpha: 0.92).cgColor
         hosting.layer?.cornerRadius = 12
         hosting.layer?.masksToBounds = true
         panel.contentView = hosting
