@@ -11,7 +11,26 @@
     "userIdle":          "Still there?",
     "allForgotten":      "All quiet. Good time for a break.",
     "firstSessionOfDay": "Hey! Let's get to work.",
-    "prMerged":          "{prTitle} merged. Nice."
+    "prMerged":          "{prTitle} merged. Nice.",
+    "sessionNew":               "New session: {name}.",
+    "sessionFinishedAfterLong": "{name} wrapped up after {duration}. Phew.",
+    "sessionConfirmation":      "{name} is asking for your input.",
+    "prOpened":                 "Now tracking {prTitle}.",
+    "prClosedWithoutMerge":     "{prTitle} closed without merging.",
+    "prCIRecovered":            "CI is back to green on {prTitle}.",
+    "prCIRegressed":            "CI just broke on {prTitle}.",
+    "sessionWorkingLong":       "{name} has been working {duration}. Going well?",
+    "sessionWorkingVeryLong":   "{name} has been working {duration}. That's a lot.",
+    "sessionConfirmationStuck": "{name} has been waiting on you for {duration}.",
+    "ambientFiller":      ["Quiet day so far.", "Nice rhythm.", "All steady."],
+    "ambientBored":       ["I'm bored.", "Anything happening?", "Wake me when something happens."],
+    "ambientHumor":       ["Tabs vs spaces… still no winner.", "I dreamt I was a semicolon.", "404: motivation not found."],
+    "ambientObservation": ["{count} sessions on the board.", "The board is empty.", "{count} sessions and counting."],
+    "morningGreeting":    "Good morning. Coffee?",
+    "afternoonSlump":     "3pm slump. Walk?",
+    "endOfDay":           "Evening already. Wrapping up?",
+    "lateNight":          "It's late. Take care of yourself.",
+    "stretchReminder":    "You've been still for {duration}. Stretch?"
   },
   "frames": [
     {

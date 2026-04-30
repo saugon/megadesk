@@ -11,7 +11,26 @@
     "userIdle":          "miau? seguís ahí?",
     "allForgotten":      "purrr… silencio total. Siesta?",
     "firstSessionOfDay": "¡Miau! A trabajar.",
-    "prMerged":          "¡Mrp! {prTitle} mergeó."
+    "prMerged":          "¡Mrp! {prTitle} mergeó.",
+    "sessionNew":               "¡Mrp! Apareció {name}.",
+    "sessionFinishedAfterLong": "{name} terminó después de {duration}. Buena.",
+    "sessionConfirmation":      "miau, {name} te quiere preguntar algo.",
+    "prOpened":                 "Mirando {prTitle}.",
+    "prClosedWithoutMerge":     "{prTitle} se cerró sin mergear. Pff.",
+    "prCIRecovered":            "¡Mrp! CI verde de nuevo en {prTitle}.",
+    "prCIRegressed":            "hiss! CI se rompió otra vez en {prTitle}.",
+    "sessionWorkingLong":       "{name} lleva {duration}. Va.",
+    "sessionWorkingVeryLong":   "{name} lleva {duration}… ¿almorzaste?",
+    "sessionConfirmationStuck": "{name} te está esperando hace {duration}.",
+    "ambientFiller":      ["purrr…", "tranquilo todo.", "buen ritmo."],
+    "ambientBored":       ["miau, me aburro.", "tirame algo.", "siesta?"],
+    "ambientHumor":       ["el bug favorito es el del mouse.", "una vez merguié sin tests. nunca más.", "rebase es como acomodar la arena."],
+    "ambientObservation": ["{count} sesiones en el tablero.", "tablero vacío. raro."],
+    "morningGreeting":    "¡Buen día! ¿Café?",
+    "afternoonSlump":     "Las 3pm. ¿Caminata?",
+    "endOfDay":           "Ya se hizo de noche. ¿Cerramos?",
+    "lateNight":          "Es tardísimo. Andá a dormir.",
+    "stretchReminder":    "Llevás {duration} quieto. Estírate."
   },
   "frames": [
     {

@@ -25,6 +25,37 @@ struct CompanionPetDefinition: Codable, Identifiable {
         let allForgotten: String
         let firstSessionOfDay: String
         let prMerged: String
+
+        // Below are optional and shared a single global cooldown so adding many
+        // new rules at once doesn't turn the pet into a chatterbox. A pet that
+        // omits any of these simply skips the corresponding rule.
+
+        // Event-driven session signals
+        let sessionNew: String?               // {name}
+        let sessionFinishedAfterLong: String? // {name}, {duration}
+        let sessionConfirmation: String?      // {name}
+
+        // Event-driven PR signals (prMerged is the legacy field, kept above)
+        let prOpened: String?              // {prTitle}
+        let prClosedWithoutMerge: String?  // {prTitle}
+        let prCIRecovered: String?         // {prTitle}
+        let prCIRegressed: String?         // {prTitle}
+
+        // Duration tiers (timer-driven)
+        let sessionWorkingLong: String?         // {name}, {duration}  — > 30 min
+        let sessionWorkingVeryLong: String?     // {name}, {duration}  — > 2 h
+        let sessionConfirmationStuck: String?   // {name}, {duration}  — > 5 min
+
+        // Ambient / time-of-day / stretch (timer-driven)
+        let ambientFiller: [String]?
+        let ambientBored: [String]?
+        let ambientHumor: [String]?
+        let ambientObservation: [String]?      // optional {count}
+        let morningGreeting: String?
+        let afternoonSlump: String?
+        let endOfDay: String?
+        let lateNight: String?
+        let stretchReminder: String?           // {duration}
     }
 
     struct Frame: Codable {
@@ -167,6 +198,7 @@ final class CompanionPetRegistry {
       "displayName": "My Pet",       // shown in Settings → Companion → Pet
       "defaultDurationMs": 500,      // optional; falls back to 500ms per frame
       "voice": {
+        // ── Required ──
         "waitingTooLong":    "…{name}… {duration}…",
         "multipleWaiting":   "…{count}… {oldest}…",
         "stuckWorking":      "…{name}… {duration}…",
@@ -175,7 +207,28 @@ final class CompanionPetRegistry {
         "userIdle":          "…",
         "allForgotten":      "…",
         "firstSessionOfDay": "…",
-        "prMerged":          "…{prTitle}…"
+        "prMerged":          "…{prTitle}…",
+
+        // ── Optional (rule skipped if omitted; share a global cooldown) ──
+        "sessionNew":               "…{name}…",
+        "sessionFinishedAfterLong": "…{name}… {duration}…",
+        "sessionConfirmation":      "…{name}…",
+        "prOpened":                 "…{prTitle}…",
+        "prClosedWithoutMerge":     "…{prTitle}…",
+        "prCIRecovered":            "…{prTitle}…",
+        "prCIRegressed":            "…{prTitle}…",
+        "sessionWorkingLong":       "…{name}… {duration}…",
+        "sessionWorkingVeryLong":   "…{name}… {duration}…",
+        "sessionConfirmationStuck": "…{name}… {duration}…",
+        "ambientFiller":     ["…", "…"],
+        "ambientBored":      ["…", "…"],
+        "ambientHumor":      ["…", "…"],
+        "ambientObservation":["… {count} …"],
+        "morningGreeting":   "…",
+        "afternoonSlump":    "…",
+        "endOfDay":          "…",
+        "lateNight":         "…",
+        "stretchReminder":   "…{duration}…"
       },
       "frames": [
         { "key": "idle-a",  "durationMs": 500, "lines": ["…", "…"] },
@@ -199,20 +252,43 @@ final class CompanionPetRegistry {
 
     ## Voice
 
-    Each template is a string with placeholders in braces. Available
-    placeholders per rule:
+    Each template is a string (or array of strings, for ambient categories)
+    with placeholders in braces. Unknown placeholders are left as-is so
+    typos stay visible. Available placeholders per rule:
 
-      waitingTooLong    {name}, {duration}
-      multipleWaiting   {count}, {oldest}
-      stuckWorking      {name}, {duration}
-      prCIFailing       {prTitle}
-      prConflicts       {prTitle}
-      prMerged          {prTitle}
-      userIdle          (none)
-      allForgotten      (none)
-      firstSessionOfDay (none)
+      Required:
+        waitingTooLong            {name}, {duration}
+        multipleWaiting           {count}, {oldest}
+        stuckWorking              {name}, {duration}
+        prCIFailing               {prTitle}
+        prConflicts               {prTitle}
+        prMerged                  {prTitle}
+        userIdle                  (none)
+        allForgotten              (none)
+        firstSessionOfDay         (none)
 
-    Unknown placeholders are left as-is so typos stay visible.
+      Optional event-driven:
+        sessionNew                {name}
+        sessionFinishedAfterLong  {name}, {duration}
+        sessionConfirmation       {name}
+        prOpened                  {prTitle}
+        prClosedWithoutMerge      {prTitle}
+        prCIRecovered             {prTitle}
+        prCIRegressed             {prTitle}
+
+      Optional duration-tier:
+        sessionWorkingLong        {name}, {duration}  (> 30 min)
+        sessionWorkingVeryLong    {name}, {duration}  (> 2 h)
+        sessionConfirmationStuck  {name}, {duration}  (> 5 min)
+
+      Optional ambient / time-of-day / stretch:
+        ambientFiller, ambientBored, ambientHumor, ambientObservation
+                                  arrays of strings; observation can use {count}
+        morningGreeting, afternoonSlump, endOfDay, lateNight   (none)
+        stretchReminder           {duration}
+
+    All optional rules share a single global cooldown so the pet stays calm
+    even with many of them defined.
 
     ## Overriding built-in pets
 
@@ -260,6 +336,7 @@ final class CompanionPetRegistry {
       "displayName": "<name shown in the Pet picker>",
       "defaultDurationMs": 500,
       "voice": {
+        // ── Required ──
         "waitingTooLong":    "… {name} … {duration} …",
         "multipleWaiting":   "… {count} … {oldest} …",
         "stuckWorking":      "… {name} … {duration} …",
@@ -268,7 +345,28 @@ final class CompanionPetRegistry {
         "userIdle":          "…",
         "allForgotten":      "…",
         "firstSessionOfDay": "…",
-        "prMerged":          "… {prTitle} …"
+        "prMerged":          "… {prTitle} …",
+
+        // ── Optional (omit a key to disable that rule for this pet) ──
+        "sessionNew":               "… {name} …",
+        "sessionFinishedAfterLong": "… {name} … {duration} …",
+        "sessionConfirmation":      "… {name} …",
+        "prOpened":                 "… {prTitle} …",
+        "prClosedWithoutMerge":     "… {prTitle} …",
+        "prCIRecovered":            "… {prTitle} …",
+        "prCIRegressed":            "… {prTitle} …",
+        "sessionWorkingLong":       "… {name} … {duration} …",
+        "sessionWorkingVeryLong":   "… {name} … {duration} …",
+        "sessionConfirmationStuck": "… {name} … {duration} …",
+        "ambientFiller":            ["…", "…"],
+        "ambientBored":             ["…", "…"],
+        "ambientHumor":             ["…", "…"],
+        "ambientObservation":       ["… {count} …"],
+        "morningGreeting":          "…",
+        "afternoonSlump":           "…",
+        "endOfDay":                 "…",
+        "lateNight":                "…",
+        "stretchReminder":          "… {duration} …"
       },
       "frames": [
         { "key": "idle-a",  "durationMs": 2000, "lines": ["…", "…"] },
@@ -282,6 +380,8 @@ final class CompanionPetRegistry {
 
     ## Voice — when each template fires
 
+    Required:
+
     | Key                | Trigger                                 | Placeholders       |
     |--------------------|-----------------------------------------|--------------------|
     | waitingTooLong     | a session has waited for input > 15min  | {name} {duration}  |
@@ -293,6 +393,31 @@ final class CompanionPetRegistry {
     | allForgotten       | all sessions marked forgotten           | (none)             |
     | firstSessionOfDay  | first session of the calendar day       | (none)             |
     | prMerged           | a tracked PR was merged                 | {prTitle}          |
+
+    Optional (sharing one global cooldown — the pet won't fire more than
+    one of these every ~minute):
+
+    | Key                       | Trigger                                          | Placeholders       |
+    |---------------------------|--------------------------------------------------|--------------------|
+    | sessionNew                | a new session appears in the widget              | {name}             |
+    | sessionFinishedAfterLong  | a long-Working session moves out of working      | {name} {duration}  |
+    | sessionConfirmation       | a session enters "Needs Confirmation"            | {name}             |
+    | prOpened                  | a PR appears in the tracked list                 | {prTitle}          |
+    | prClosedWithoutMerge      | a PR moves to CLOSED (not MERGED)                | {prTitle}          |
+    | prCIRecovered             | CI flips from failing → passing                  | {prTitle}          |
+    | prCIRegressed             | CI flips from passing → failing                  | {prTitle}          |
+    | sessionWorkingLong        | a session has been working > 30 min              | {name} {duration}  |
+    | sessionWorkingVeryLong    | a session has been working > 2 h                 | {name} {duration}  |
+    | sessionConfirmationStuck  | a confirmation request has waited > 5 min        | {name} {duration}  |
+    | ambientFiller             | quiet pad (filler chatter when nothing happens)  | (none)             |
+    | ambientBored              | quiet pad (the pet complains about boredom)      | (none)             |
+    | ambientHumor              | quiet pad (programming jokes / one-liners)       | (none)             |
+    | ambientObservation        | quiet pad (comments on widget state)             | optional {count}   |
+    | morningGreeting           | first idle tick after 8am                        | (none)             |
+    | afternoonSlump            | first idle tick after 14h                        | (none)             |
+    | endOfDay                  | first idle tick after 18h                        | (none)             |
+    | lateNight                 | first idle tick after 22h                        | (none)             |
+    | stretchReminder           | user has been continuously idle > 90 min         | {duration}         |
 
     Write every line in the pet's voice — consistent personality, tone,
     and language. Short is better.
@@ -329,7 +454,26 @@ final class CompanionPetRegistry {
         "userIdle":          "Still there?",
         "allForgotten":      "All quiet. Good time for a break.",
         "firstSessionOfDay": "Hey! Let's get to work.",
-        "prMerged":          "{prTitle} merged. Nice."
+        "prMerged":          "{prTitle} merged. Nice.",
+        "sessionNew":               "New session: {name}.",
+        "sessionFinishedAfterLong": "{name} finished after {duration}. Phew.",
+        "sessionConfirmation":      "{name} is asking for your input.",
+        "prOpened":                 "Tracking {prTitle}.",
+        "prClosedWithoutMerge":     "{prTitle} closed without merging.",
+        "prCIRecovered":            "CI is back to green on {prTitle}.",
+        "prCIRegressed":            "CI just broke on {prTitle}.",
+        "sessionWorkingLong":       "{name} has been working {duration} — going well?",
+        "sessionWorkingVeryLong":   "{name} has been working {duration}. That's a lot.",
+        "sessionConfirmationStuck": "{name} has been waiting on you for {duration}.",
+        "ambientFiller":      ["Quiet day so far.", "Nice rhythm.", "All steady."],
+        "ambientBored":       ["I'm bored.", "Anything happening?"],
+        "ambientHumor":       ["Tabs vs spaces… still no winner.", "I dreamt I was a semicolon."],
+        "ambientObservation": ["{count} sessions on the board.", "The board is empty."],
+        "morningGreeting":    "Good morning. Coffee?",
+        "afternoonSlump":     "3pm slump. Walk?",
+        "endOfDay":           "Evening already. Wrapping up?",
+        "lateNight":          "It's late. Take care of yourself.",
+        "stretchReminder":    "You've been still for {duration}. Stretch?"
       },
       "frames": [
         { "key": "idle-a",  "durationMs": 2500, "lines": ["", "", "   .----.", "  / ·  · \\", "  |      |", "  ~`~``~`~"] },

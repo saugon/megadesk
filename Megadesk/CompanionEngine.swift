@@ -25,12 +25,61 @@ final class CompanionEngine {
     private var wasAboveMultipleWaitingThreshold = false
     private var wasAllForgotten = false
 
+    // Per-session snapshot from the previous evaluation tick — used by the
+    // event-driven rules (sessionNew, sessionFinishedAfterLong,
+    // sessionConfirmation) to detect transitions rather than threshold
+    // crossings.
+    private struct SessionSnapshot {
+        var isWorking: Bool
+        var needsConfirmation: Bool
+        var workingTimeInState: TimeInterval  // captured while still working, used when a session leaves working
+    }
+    private var previousSessions: [String: SessionSnapshot] = [:]
+    private var seenSessionIds = Set<String>()
+
+    // Per-PR snapshot for prOpened / prClosedWithoutMerge / prCIRecovered /
+    // prCIRegressed. PR id → previous (state, ciStatus).
+    private struct PRSnapshot {
+        var state: String
+        var ci: String
+    }
+    private var previousPRs: [String: PRSnapshot] = [:]
+    private var seenPRIds = Set<String>()
+
+    // Shared cooldown for *new* (optional) rules — see VoiceTemplates. Existing
+    // legacy rules each keep their independent cooldown so the user-set
+    // thresholds in Settings still apply unchanged.
+    private static let newRulesGlobalCooldown: TimeInterval = 60
+    private var lastNewRuleFiredAt: Date?
+
+    // Last time *any* message (legacy or new) was emitted — used by the
+    // ambient cadence so the pet doesn't talk over itself.
+    private var lastAnyMessageAt: Date?
+    private static let ambientQuietWindow: TimeInterval = 30 * 60
+    private static let stretchIdleThreshold: TimeInterval = 90 * 60
+
+    // Time-of-day buckets (hour ranges). Each bucket fires at most once per
+    // calendar day.
+    private enum TimeBucket: String, CaseIterable {
+        case morning, afternoonSlump, endOfDay, lateNight
+        var hourRange: ClosedRange<Int> {
+            switch self {
+            case .morning:        return 8...10
+            case .afternoonSlump: return 14...16
+            case .endOfDay:       return 18...20
+            case .lateNight:      return 22...23
+            }
+        }
+    }
+
     // MARK: - Persisted state
 
     struct PersistedState: Codable {
         var lastGreetedDate: String = ""
         var firedRules: [String: String] = [:]
         var prLastKnownStatus: [String: String] = [:]
+        /// "<bucket>" → "yyyy-MM-dd" — last day each time-of-day bucket fired.
+        var lastTimeOfDayDate: [String: String] = [:]
     }
 
     // MARK: - Init
@@ -146,11 +195,27 @@ final class CompanionEngine {
     private func emit(_ message: CompanionMessage) {
         currentMessage = message
         lastMessage = message
+        lastAnyMessageAt = Date()
         dismissTimer?.invalidate()
         dismissTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: false) { [weak self] _ in
             self?.currentMessage = nil
             self?.dismissTimer = nil
         }
+    }
+
+    /// Returns true if the global cooldown shared by all *new* (optional)
+    /// rules still applies. Call this before emitting any rule defined as
+    /// optional in `VoiceTemplates`.
+    private func newRuleCooldownActive() -> Bool {
+        guard let last = lastNewRuleFiredAt else { return false }
+        return Date().timeIntervalSince(last) < Self.newRulesGlobalCooldown
+    }
+
+    /// Marks the global new-rules cooldown as "just fired" and emits the
+    /// message. Use this for any optional rule.
+    private func emitNewRule(_ message: CompanionMessage) {
+        lastNewRuleFiredAt = Date()
+        emit(message)
     }
 
     /// Re-emits the last message (triggered by double-clicking the pet).
@@ -176,6 +241,15 @@ final class CompanionEngine {
         checkMultipleWaiting(sessions)
         checkAllForgotten(sessions)
         checkPRRules(prs)
+
+        // New event-driven rules. These read the previous-tick snapshot to
+        // detect transitions, so they must run BEFORE we refresh the snapshot.
+        checkSessionNew(sessions)
+        checkSessionFinishedAfterLong(sessions)
+        checkSessionConfirmation(sessions)
+        checkPRTransitionRules(prs)
+
+        refreshSnapshots(sessions: sessions, prs: prs)
     }
 
     // MARK: - Timer rules
@@ -185,6 +259,37 @@ final class CompanionEngine {
         checkWaitingTooLong(sessions)
         checkStuckWorking(sessions)
         checkUserIdle(sessions)
+
+        // New timer-driven rules. Each respects the global new-rules cooldown.
+        checkSessionWorkingLong(sessions)
+        checkSessionWorkingVeryLong(sessions)
+        checkSessionConfirmationStuck(sessions)
+        checkStretchReminder(sessions)
+        checkTimeOfDay()
+        checkAmbient(sessions)
+    }
+
+    // MARK: - Snapshot refresh
+
+    private func refreshSnapshots(sessions: [Session], prs: [TrackedPR]) {
+        var newSessionMap: [String: SessionSnapshot] = [:]
+        for s in sessions {
+            newSessionMap[s.sessionId] = SessionSnapshot(
+                isWorking: s.isWorking,
+                needsConfirmation: s.needsConfirmation,
+                workingTimeInState: s.isWorking ? s.timeInState : (previousSessions[s.sessionId]?.workingTimeInState ?? 0)
+            )
+            seenSessionIds.insert(s.sessionId)
+        }
+        previousSessions = newSessionMap
+
+        var newPRMap: [String: PRSnapshot] = [:]
+        for pr in prs {
+            guard let data = pr.data else { continue }
+            newPRMap[pr.id] = PRSnapshot(state: data.state, ci: data.ciStatus.rawString)
+            seenPRIds.insert(pr.id)
+        }
+        previousPRs = newPRMap
     }
 
     // MARK: - Voice lookup
@@ -402,6 +507,322 @@ final class CompanionEngine {
             text: activeVoice.firstSessionOfDay,
             ghostState: .happy,
             ruleId: "firstSessionOfDay"
+        ))
+    }
+
+    // MARK: - New rule: sessionNew
+
+    private func checkSessionNew(_ sessions: [Session]) {
+        guard !newRuleCooldownActive(), let template = activeVoice.sessionNew else {
+            // Even if we don't fire, mark sessions as seen so we don't replay
+            // them as "new" the moment a pet that defines this template is
+            // selected.
+            return
+        }
+        let store = StatusStore.shared
+        for session in sessions {
+            // First time we ever see this session id (this process lifetime).
+            // Skip the very first run after launch — otherwise every existing
+            // session shows up as "new".
+            guard !seenSessionIds.contains(session.sessionId),
+                  !previousSessions.isEmpty else { continue }
+            let name = store.displayName(for: session)
+            emitNewRule(CompanionMessage(
+                text: template.filling(["name": name]),
+                ghostState: .happy,
+                ruleId: "sessionNew",
+                subject: name
+            ))
+            return
+        }
+    }
+
+    // MARK: - New rule: sessionFinishedAfterLong
+
+    private func checkSessionFinishedAfterLong(_ sessions: [Session]) {
+        guard !newRuleCooldownActive(), let template = activeVoice.sessionFinishedAfterLong else { return }
+        let store = StatusStore.shared
+        let workingThreshold: TimeInterval = 10 * 60  // session must have been working at least this long to count
+
+        for session in sessions {
+            guard let prev = previousSessions[session.sessionId] else { continue }
+            // Transition: was working, now not working (and not forgotten).
+            guard prev.isWorking, !session.isWorking, !session.isForgotten else { continue }
+            guard prev.workingTimeInState >= workingThreshold else { continue }
+
+            let name = store.displayName(for: session)
+            emitNewRule(CompanionMessage(
+                text: template.filling([
+                    "name": name,
+                    "duration": formatDuration(prev.workingTimeInState)
+                ]),
+                ghostState: .happy,
+                ruleId: "sessionFinishedAfterLong",
+                subject: name
+            ))
+            return
+        }
+    }
+
+    // MARK: - New rule: sessionConfirmation
+
+    private func checkSessionConfirmation(_ sessions: [Session]) {
+        guard !newRuleCooldownActive(), let template = activeVoice.sessionConfirmation else { return }
+        let store = StatusStore.shared
+
+        for session in sessions {
+            let prev = previousSessions[session.sessionId]
+            // Transition into needsConfirmation.
+            guard session.needsConfirmation, prev?.needsConfirmation != true else { continue }
+
+            let name = store.displayName(for: session)
+            emitNewRule(CompanionMessage(
+                text: template.filling(["name": name]),
+                ghostState: .alert,
+                ruleId: "sessionConfirmation",
+                subject: name
+            ))
+            return
+        }
+    }
+
+    // MARK: - New rule: prOpened / prClosedWithoutMerge / prCIRecovered / prCIRegressed
+
+    private func checkPRTransitionRules(_ prs: [TrackedPR]) {
+        let v = activeVoice
+
+        for pr in prs {
+            guard let data = pr.data else { continue }
+            let id = pr.id
+            let prev = previousPRs[id]
+
+            // prOpened — new id we haven't seen this run, and we already had at
+            // least one prior tick (so launch-time backfill doesn't fire it).
+            if !seenPRIds.contains(id), !previousPRs.isEmpty,
+               let template = v.prOpened, !newRuleCooldownActive() {
+                emitNewRule(CompanionMessage(
+                    text: template.filling(["prTitle": data.title]),
+                    ghostState: .happy,
+                    ruleId: "prOpened",
+                    subject: data.title
+                ))
+                continue  // one PR transition per tick is enough
+            }
+
+            // prClosedWithoutMerge — state transition into CLOSED.
+            if data.isClosed, prev?.state != "CLOSED",
+               let template = v.prClosedWithoutMerge, !newRuleCooldownActive() {
+                emitNewRule(CompanionMessage(
+                    text: template.filling(["prTitle": data.title]),
+                    ghostState: .idle,
+                    ruleId: "prClosedWithoutMerge",
+                    subject: data.title
+                ))
+                continue
+            }
+
+            // CI flips — only if previous CI was known and different.
+            let currentCI = data.ciStatus.rawString
+            let prevCI = prev?.ci
+
+            if currentCI == "passing", prevCI == "failing",
+               let template = v.prCIRecovered, !newRuleCooldownActive() {
+                emitNewRule(CompanionMessage(
+                    text: template.filling(["prTitle": data.title]),
+                    ghostState: .happy,
+                    ruleId: "prCIRecovered",
+                    subject: data.title
+                ))
+                continue
+            }
+            if currentCI == "failing", prevCI == "passing",
+               let template = v.prCIRegressed, !newRuleCooldownActive() {
+                emitNewRule(CompanionMessage(
+                    text: template.filling(["prTitle": data.title]),
+                    ghostState: .alert,
+                    ruleId: "prCIRegressed",
+                    subject: data.title
+                ))
+                continue
+            }
+        }
+    }
+
+    // MARK: - New rule: sessionWorkingLong / sessionWorkingVeryLong
+
+    private func checkSessionWorkingLong(_ sessions: [Session]) {
+        checkWorkingDurationTier(
+            sessions: sessions,
+            template: activeVoice.sessionWorkingLong,
+            threshold: 30 * 60,
+            upperBound: 2 * 60 * 60,
+            ruleId: "sessionWorkingLong"
+        )
+    }
+
+    private func checkSessionWorkingVeryLong(_ sessions: [Session]) {
+        checkWorkingDurationTier(
+            sessions: sessions,
+            template: activeVoice.sessionWorkingVeryLong,
+            threshold: 2 * 60 * 60,
+            upperBound: .infinity,
+            ruleId: "sessionWorkingVeryLong"
+        )
+    }
+
+    private func checkWorkingDurationTier(
+        sessions: [Session],
+        template: String?,
+        threshold: TimeInterval,
+        upperBound: TimeInterval,
+        ruleId: String
+    ) {
+        guard let template, !newRuleCooldownActive() else { return }
+        let store = StatusStore.shared
+
+        for session in sessions {
+            guard session.isWorking,
+                  session.timeInState >= threshold,
+                  session.timeInState < upperBound else {
+                persistedState.firedRules.removeValue(forKey: "\(ruleId):\(session.sessionId)")
+                continue
+            }
+            let key = "\(ruleId):\(session.sessionId)"
+            guard persistedState.firedRules[key] == nil else { continue }
+
+            let name = store.displayName(for: session)
+            persistedState.firedRules[key] = ISO8601DateFormatter().string(from: Date())
+            saveState()
+            emitNewRule(CompanionMessage(
+                text: template.filling([
+                    "name": name,
+                    "duration": formatDuration(session.timeInState)
+                ]),
+                ghostState: .alert,
+                ruleId: ruleId,
+                subject: name
+            ))
+            return
+        }
+    }
+
+    // MARK: - New rule: sessionConfirmationStuck
+
+    private func checkSessionConfirmationStuck(_ sessions: [Session]) {
+        guard let template = activeVoice.sessionConfirmationStuck, !newRuleCooldownActive() else { return }
+        let store = StatusStore.shared
+        let threshold: TimeInterval = 5 * 60
+
+        for session in sessions {
+            guard session.needsConfirmation, session.timeInState >= threshold else {
+                persistedState.firedRules.removeValue(forKey: "sessionConfirmationStuck:\(session.sessionId)")
+                continue
+            }
+            let key = "sessionConfirmationStuck:\(session.sessionId)"
+            guard persistedState.firedRules[key] == nil else { continue }
+
+            let name = store.displayName(for: session)
+            persistedState.firedRules[key] = ISO8601DateFormatter().string(from: Date())
+            saveState()
+            emitNewRule(CompanionMessage(
+                text: template.filling([
+                    "name": name,
+                    "duration": formatDuration(session.timeInState)
+                ]),
+                ghostState: .alert,
+                ruleId: "sessionConfirmationStuck",
+                subject: name
+            ))
+            return
+        }
+    }
+
+    // MARK: - New rule: stretchReminder
+
+    private func checkStretchReminder(_ sessions: [Session]) {
+        guard let template = activeVoice.stretchReminder, !newRuleCooldownActive() else { return }
+        let active = sessions.filter { !$0.isForgotten }
+        guard !active.isEmpty else { return }
+
+        let latestStateSince = sessions.map(\.stateSince).max() ?? 0
+        let idle = Date().timeIntervalSince1970 - latestStateSince
+        guard idle >= Self.stretchIdleThreshold else {
+            persistedState.firedRules.removeValue(forKey: "stretchReminder")
+            return
+        }
+
+        let key = "stretchReminder"
+        if let last = persistedState.firedRules[key],
+           let lastDate = ISO8601DateFormatter().date(from: last),
+           Date().timeIntervalSince(lastDate) < Self.stretchIdleThreshold {
+            return
+        }
+        persistedState.firedRules[key] = ISO8601DateFormatter().string(from: Date())
+        saveState()
+        emitNewRule(CompanionMessage(
+            text: template.filling(["duration": formatDuration(idle)]),
+            ghostState: .idle,
+            ruleId: "stretchReminder"
+        ))
+    }
+
+    // MARK: - New rule: time-of-day
+
+    private func checkTimeOfDay() {
+        guard !newRuleCooldownActive() else { return }
+        let now = Date()
+        let hour = Calendar.current.component(.hour, from: now)
+        let today = Self.dateString(from: now)
+
+        for bucket in TimeBucket.allCases where bucket.hourRange.contains(hour) {
+            // Skip if we already fired this bucket today.
+            if persistedState.lastTimeOfDayDate[bucket.rawValue] == today { continue }
+
+            let template: String?
+            switch bucket {
+            case .morning:        template = activeVoice.morningGreeting
+            case .afternoonSlump: template = activeVoice.afternoonSlump
+            case .endOfDay:       template = activeVoice.endOfDay
+            case .lateNight:      template = activeVoice.lateNight
+            }
+            guard let text = template else { continue }
+
+            persistedState.lastTimeOfDayDate[bucket.rawValue] = today
+            saveState()
+            let ghost: GhostState = bucket == .lateNight ? .idle : .happy
+            emitNewRule(CompanionMessage(text: text, ghostState: ghost, ruleId: "timeOfDay.\(bucket.rawValue)"))
+            return
+        }
+    }
+
+    // MARK: - New rule: ambient (filler / bored / humor / observation)
+
+    private func checkAmbient(_ sessions: [Session]) {
+        guard !newRuleCooldownActive() else { return }
+        // Need a long quiet window since the previous *any* message before
+        // pulling the pet in from boredom.
+        if let last = lastAnyMessageAt,
+           Date().timeIntervalSince(last) < Self.ambientQuietWindow { return }
+
+        let v = activeVoice
+        var pool: [(text: String, subject: String?)] = []
+        v.ambientFiller?.forEach { pool.append(($0, nil)) }
+        v.ambientBored?.forEach { pool.append(($0, nil)) }
+        v.ambientHumor?.forEach { pool.append(($0, nil)) }
+
+        if let observations = v.ambientObservation {
+            let count = sessions.filter { !$0.isForgotten }.count
+            for line in observations {
+                pool.append((line.filling(["count": "\(count)"]), nil))
+            }
+        }
+
+        guard let pick = pool.randomElement() else { return }
+        emitNewRule(CompanionMessage(
+            text: pick.text,
+            ghostState: .idle,
+            ruleId: "ambient",
+            subject: pick.subject
         ))
     }
 
