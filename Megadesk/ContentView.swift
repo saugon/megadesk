@@ -29,52 +29,74 @@ struct ContentView: View {
     // Persisted locked height — non-zero when user has manually set a height.
     @AppStorage("megadesk.windowHeight") private var lockedHeightPref: Double = 0
 
+    // Live panel height, updated on every didResize (including during drag)
+    // so sectionBudget recalculates in real time while the user resizes.
+    @State private var metrics = WidgetWindowMetrics.shared
+
     // Estimated height of non-scrollable chrome: titlebar, footer, labels, alerts, PR controls.
+    // Numbers calibrated against actual rendering — they feed sectionBudget, so being
+    // ~1-2pt off is fine, but 20pt+ off creates visible gaps at the bottom.
     private var fixedOverhead: CGFloat {
-        var h: CGFloat = 56  // titlebar safe area (28) + footer (28)
-        h += 24              // "sessions" label + padding
+        var h: CGFloat = 66  // titlebar safe area (28) + footer (38)
+        h += 17              // "sessions" label (9pt font + 6pt padding)
         if !widgetAlerts.isEmpty {
-            h += 24          // "alerts" label + padding
-            h += CGFloat(widgetAlerts.count) * 60  // alert cards (~56pt + spacing)
+            h += 17          // "alerts" label
+            h += CGFloat(widgetAlerts.count) * 52  // alert cards (~52pt incl. spacing)
         }
         if prTrackingEnabled {
-            h += 60          // PR header + "Track PR" button
-            // PR cards are in their own scroll, accounted for in sessionsMaxHeight
+            h += 17          // "pull requests" label
+            h += 24          // "+ Track PR" row (11pt font + 12pt padding)
         }
-        h += 16              // outer padding
+        h += 16              // outer padding (8 top + 8 bottom)
         return h
     }
 
     // Budget available for the two scrollable sections combined.
-    // Uses screen-based limit in auto-height mode; switches to locked-height-based limit
-    // when the user has manually set a height, so sections scroll rather than overflow.
+    // Uses a screen-based cap in auto-height mode so the widget doesn't blow
+    // up to fit 20+ sessions vertically. In locked-height mode, the budget
+    // is derived from the user-set height so sections scroll instead of
+    // overflowing. During a live drag, `metrics.currentHeight` reflects the
+    // panel's actual height so sections reflow in real time.
     private var sectionBudget: CGFloat {
         let screenBudget = max(200, (NSScreen.main?.visibleFrame.height ?? 700) - 68 - 250)
-        if lockedHeightPref > 0 {
-            return min(max(100, CGFloat(lockedHeightPref) - fixedOverhead), screenBudget)
+        let effectiveHeight: CGFloat = metrics.currentHeight > 0
+            ? metrics.currentHeight
+            : CGFloat(lockedHeightPref)
+        if effectiveHeight > 0 {
+            return min(max(100, effectiveHeight - fixedOverhead), screenBudget)
         }
         return screenBudget
     }
 
-    // Dynamic allocation: PRs get their natural height (up to 35% of budget), sessions
-    // gets everything else. When both sections fit naturally, no scrolling occurs.
+    // Minimum vertical space reserved for the sessions section (about 2-3 cards).
+    private static let minSessionsSpace: CGFloat = 180
+
+    // Space PRs are allowed to take when the combined naturals overflow the
+    // budget: their own natural height, capped only to keep `minSessionsSpace`
+    // available for sessions. A 35% absolute floor prevents starving PRs on
+    // very small widgets where `budget - min` would be tiny.
+    private var prAllocWhenOverflowing: CGFloat {
+        let ceiling = max(sectionBudget - Self.minSessionsSpace, sectionBudget * 0.35)
+        return min(prContentHeight, ceiling)
+    }
+
+    // Dynamic allocation: PRs get their natural height unless it would starve
+    // sessions. When both sections fit naturally, no scrolling occurs.
     private var sessionsMaxHeight: CGFloat {
         guard prTrackingEnabled, prContentHeight > 0 else { return sectionBudget }
         let totalNatural = sessionsContentHeight + prContentHeight
         if totalNatural > 0 && totalNatural <= sectionBudget {
-            return sessionsContentHeight  // both fit: no caps needed
+            return sessionsContentHeight
         }
-        // PRs take their natural size (or 35% cap if unusually large).
-        // Sessions gets the rest — no wasted space below PRs.
-        let prAlloc = min(prContentHeight, sectionBudget * 0.35)
-        return max(80, sectionBudget - prAlloc)
+        return max(Self.minSessionsSpace, sectionBudget - prAllocWhenOverflowing)
     }
     private var prMaxHeight: CGFloat {
+        guard prContentHeight > 0 else { return sectionBudget * 0.35 }
         let totalNatural = sessionsContentHeight + prContentHeight
         if totalNatural > 0 && totalNatural <= sectionBudget {
-            return prContentHeight  // both fit: no caps needed
+            return prContentHeight
         }
-        return prContentHeight > 0 ? min(prContentHeight, sectionBudget * 0.35) : sectionBudget * 0.35
+        return prAllocWhenOverflowing
     }
 
     private var widgetAlerts: [MegadeskAlert] {
@@ -158,6 +180,14 @@ struct ContentView: View {
                 }
             }
 
+            // Companion ghost — docked mode, normal (non-compact) only
+            if !isCompact,
+               AppSettings.shared.companionEnabled,
+               AppSettings.shared.companionMode == .docked {
+                sectionLabel("companion")
+                CompanionView(inline: true)
+            }
+
         }
         .padding(8)
         .frame(minWidth: isCompact ? 78 : 220, maxWidth: isCompact ? 78 : 280)
@@ -176,9 +206,9 @@ struct ContentView: View {
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundColor(.white.opacity(0.2))
                 }
-                .padding(.top, 6)
-                .padding(.horizontal, 6)
-                .padding(.bottom, 8)
+                .padding(.top, 10)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 14)
                 .frame(minWidth: 220, maxWidth: 280)
             }
         }

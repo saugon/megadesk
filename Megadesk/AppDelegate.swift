@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sessionHotKeyRefs: [EventHotKeyRef?] = []
     private var updaterController: SPUStandardUpdaterController!
     private var contextSaveController: ContextSaveWindowController?
+    private var companionController: CompanionWindowController?
     private var alertBadgeObserver: Any?
     private var originalMenuBarIcon: NSImage?
 
@@ -60,17 +61,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AlertNotificationService.shared.setup()
         setupAlertBadge()
 
+        // Companion ghost
+        _ = CompanionEngine.shared  // bootstrap observation
+        companionController = CompanionWindowController(mainWidgetWindow: windowController?.window)
+        observeCompanionMode()
+
         NotificationCenter.default.addObserver(forName: .megadeskOpenContextSave, object: nil, queue: .main) { [weak self] _ in
             self?.openContextSave()
         }
         let storedVersion = UserDefaults.standard.integer(forKey: "megadesk.onboardingVersion")
         if storedVersion >= OnboardingView.currentOnboardingVersion {
             windowController?.show()
+            showCompanionIfFloating()
         } else {
             let isReturningUser = UserDefaults.standard.bool(forKey: "megadesk.onboardingComplete")
             onboardingController = OnboardingWindowController(isReturningUser: isReturningUser, previousVersion: storedVersion) {
                 self.onboardingController = nil
                 self.windowController?.show()
+                self.showCompanionIfFloating()
             }
             onboardingController?.showWindow(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -108,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.async {
                     let delegate = Unmanaged<AppDelegate>.fromOpaque(ptr).takeUnretainedValue()
                     if capturedID == 1 {
-                        delegate.windowController?.toggle()
+                        delegate.toggleWidget()
                     } else if capturedID >= 2 && capturedID <= 10 {
                         NotificationCenter.default.post(
                             name: .megadeskFocusSession,
@@ -124,6 +132,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         delegate.windowController?.showQuickAlert()
                     } else if capturedID == 14 {
                         delegate.openContextSave()
+                    } else if capturedID == 15 {
+                        CompanionEngine.shared.emitTestMessage()
+                    } else if capturedID == 16 {
+                        delegate.togglePet()
                     }
                 }
                 return noErr
@@ -184,6 +196,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         RegisterEventHotKey(UInt32(kVK_ANSI_C), UInt32(cmdKey | shiftKey),
                             contextHkID, GetApplicationEventTarget(), OptionBits(0), &csRef)
         sessionHotKeyRefs.append(csRef)
+
+        // ⌘⇧L — companion test message (hotkey ID 15)
+        var companionHkID = EventHotKeyID()
+        companionHkID.signature = 0x4d47444b
+        companionHkID.id = 15
+        var compRef: EventHotKeyRef?
+        RegisterEventHotKey(UInt32(kVK_ANSI_L), UInt32(cmdKey | shiftKey),
+                            companionHkID, GetApplicationEventTarget(), OptionBits(0), &compRef)
+        sessionHotKeyRefs.append(compRef)
+
+        // ⌘⇧. — toggle pet visibility (hotkey ID 16)
+        var petHkID = EventHotKeyID()
+        petHkID.signature = 0x4d47444b
+        petHkID.id = 16
+        var petRef: EventHotKeyRef?
+        RegisterEventHotKey(UInt32(kVK_ANSI_Period), UInt32(cmdKey | shiftKey),
+                            petHkID, GetApplicationEventTarget(), OptionBits(0), &petRef)
+        sessionHotKeyRefs.append(petRef)
     }
 
     // MARK: - Menu bar
@@ -235,6 +265,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func toggleWidget() {
         windowController?.toggle()
+        if windowController?.isWidgetVisible == true {
+            showCompanionIfFloating()
+        } else {
+            companionController?.hide()
+        }
+    }
+
+    private func showCompanionIfFloating() {
+        guard AppSettings.shared.companionMode == .floating else { return }
+        companionController?.show()
+    }
+
+    /// Observe changes to the companion mode so we hide the floating window
+    /// when the user switches to docked (and show it again when switching back).
+    private func observeCompanionMode() {
+        withObservationTracking {
+            _ = AppSettings.shared.companionMode
+        } onChange: {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if AppSettings.shared.companionMode == .floating,
+                   self.windowController?.isWidgetVisible == true,
+                   AppSettings.shared.companionEnabled {
+                    self.companionController?.show()
+                } else {
+                    self.companionController?.hide()
+                }
+                self.observeCompanionMode()
+            }
+        }
+    }
+
+    @objc func togglePet() {
+        let settings = AppSettings.shared
+        settings.companionEnabled.toggle()
+        settings.save()
+
+        if settings.companionEnabled {
+            showCompanionIfFloating()
+        } else {
+            companionController?.hide()
+        }
     }
 
     @objc private func toggleCompact() {
@@ -276,8 +348,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openAlerts() {
         showMain(section: .alerts)
-        StatusStore.shared.clearAlertBadge()
-        updateMenuBarBadge()
     }
 
     // MARK: - Alert badge
@@ -289,6 +359,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             forName: .megadeskAlertFired, object: nil, queue: .main
         ) { [weak self] _ in
             self?.updateMenuBarBadge()
+        }
+
+        // Also refresh whenever the underlying alerts state changes — covers
+        // dismiss, delete, snooze, and any other path that doesn't fire the
+        // notification above. Without this the badge would persist after
+        // every non-fire mutation.
+        observePendingAlerts()
+    }
+
+    private func observePendingAlerts() {
+        withObservationTracking {
+            _ = StatusStore.shared.pendingAlertCount
+        } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                self?.updateMenuBarBadge()
+                self?.observePendingAlerts()
+            }
         }
     }
 
@@ -369,6 +456,7 @@ extension AppDelegate {
 extension AppDelegate: NSWindowDelegate {
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         windowController?.hide()
+        companionController?.hide()
         return false
     }
 }

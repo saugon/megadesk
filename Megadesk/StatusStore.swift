@@ -19,9 +19,20 @@ final class StatusStore {
 
     // MARK: Alerts
     var alerts: [MegadeskAlert] = []
-    var pendingAlertCount: Int = 0
     private(set) var firedAlertIds: Set<UUID> = []
     private(set) var dismissedFiredAlertIds: Set<UUID> = []
+
+    /// Number of fired alerts that the user hasn't dismissed yet AND that are
+    /// configured to show a badge. Computed instead of stored so it can never
+    /// drift out of sync with the underlying sets (e.g. when an alert is
+    /// deleted while pending).
+    var pendingAlertCount: Int {
+        alerts.filter {
+            $0.effectiveShowBadge &&
+            firedAlertIds.contains($0.id) &&
+            !dismissedFiredAlertIds.contains($0.id)
+        }.count
+    }
 
     private let sessionsURL: URL = {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -937,10 +948,9 @@ final class StatusStore {
     }
 
     func dismissFiredAlert(id: UUID) {
-        // Guard against double-decrement from multiple dismiss paths
+        // Guard against re-inserting from multiple dismiss paths
         guard !dismissedFiredAlertIds.contains(id) else { return }
         dismissedFiredAlertIds.insert(id)
-        if pendingAlertCount > 0 { pendingAlertCount -= 1 }
 
         // Mark non-recurring alerts as completed
         if let i = alerts.firstIndex(where: { $0.id == id }),
@@ -948,10 +958,6 @@ final class StatusStore {
             alerts[i].isCompleted = true
             saveAlerts()
         }
-    }
-
-    func clearAlertBadge() {
-        pendingAlertCount = 0
     }
 
     // MARK: - Alert Evaluation
@@ -1010,7 +1016,6 @@ final class StatusStore {
         }
 
         if alert.effectiveShowBadge {
-            pendingAlertCount += 1
             NotificationCenter.default.post(name: .megadeskAlertFired, object: nil,
                                             userInfo: ["alert": alert])
         }
@@ -1030,7 +1035,6 @@ final class StatusStore {
             self.alerts[i].lastFiredAt = Date().addingTimeInterval(TimeInterval(minutes * 60))
             self.firedAlertIds.remove(alertId)
             self.dismissedFiredAlertIds.remove(alertId)
-            if self.pendingAlertCount > 0 { self.pendingAlertCount -= 1 }
             self.saveAlerts()
         }
 

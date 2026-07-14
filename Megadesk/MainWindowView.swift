@@ -1,23 +1,25 @@
 import SwiftUI
 
 enum MainSection: String, Hashable, CaseIterable, Identifiable {
-    case alerts, settings, help
+    case alerts, companion, settings, help
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .alerts:   return "Alerts"
-        case .settings: return "Settings"
-        case .help:     return "Help"
+        case .alerts:    return "Alerts"
+        case .companion: return "Companion"
+        case .settings:  return "Settings"
+        case .help:      return "Help"
         }
     }
 
     var icon: String {
         switch self {
-        case .alerts:   return "bell"
-        case .settings: return "gearshape"
-        case .help:     return "questionmark.circle"
+        case .alerts:    return "bell"
+        case .companion: return "pawprint"
+        case .settings:  return "gearshape"
+        case .help:      return "questionmark.circle"
         }
     }
 }
@@ -51,6 +53,8 @@ struct MainWindowView: View {
         switch state.selection {
         case .alerts:
             AlertsView()
+        case .companion:
+            CompanionSettingsView()
         case .settings:
             SettingsView()
         case .help:

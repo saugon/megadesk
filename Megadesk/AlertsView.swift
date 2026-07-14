@@ -75,26 +75,41 @@ struct AlertsView: View {
     }
 
     private func alertRow(_ alert: MegadeskAlert) -> some View {
-        HStack(spacing: 6) {
+        let pending = store.firedAlertIds.contains(alert.id)
+            && !store.dismissedFiredAlertIds.contains(alert.id)
+            && alert.isCompleted != true
+
+        return HStack(spacing: 6) {
             if alert.isCompleted == true {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.system(size: 10))
             } else {
                 Circle()
-                    .fill(alert.isEnabled ? Color.green : Color.gray)
+                    .fill(rowDotColor(alert, pending: pending))
                     .frame(width: 8, height: 8)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(alert.title)
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
-                Text(alert.isCompleted == true ? completedTimeString(alert) : nextFireSummary(alert))
+                Text(rowSubtitle(alert, pending: pending))
                     .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(pending ? AppSettings.shared.colorAlert : .secondary)
             }
         }
         .tag(alert.id)
+    }
+
+    private func rowDotColor(_ alert: MegadeskAlert, pending: Bool) -> Color {
+        if pending { return AppSettings.shared.colorAlert }
+        return alert.isEnabled ? .green : .gray
+    }
+
+    private func rowSubtitle(_ alert: MegadeskAlert, pending: Bool) -> String {
+        if alert.isCompleted == true { return completedTimeString(alert) }
+        if pending { return "Pending dismiss" }
+        return nextFireSummary(alert)
     }
 
     private func completedTimeString(_ alert: MegadeskAlert) -> String {

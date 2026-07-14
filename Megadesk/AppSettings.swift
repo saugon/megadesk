@@ -68,6 +68,35 @@ final class AppSettings {
     var toastPosition: ToastPosition
     var snoozeMinutes: Int
 
+    // MARK: - Companion
+    var companionEnabled: Bool
+    var companionMode: CompanionMode
+    var companionWaitingThresholdMinutes: Int
+    var companionStuckWorkingThresholdMinutes: Int
+    var companionIdleThresholdMinutes: Int
+    var hexCompanionSubject: String
+    var colorCompanionSubject: Color { Color(hex: hexCompanionSubject) ?? .orange }
+    var hexCompanionPet: String
+    var hexCompanionBackground: String
+    var colorCompanionPet: Color { Color(hex: hexCompanionPet) ?? .white }
+    var colorCompanionBackground: Color { Color(hex: hexCompanionBackground) ?? Color(white: 0.1) }
+    var companionFontSize: Double
+    var companionHorizontalPadding: Double
+    /// ID of the selected pet (matches a JSON in `Megadesk/Pets/`). The
+    /// pet's JSON also drives its display name — there's no separate name
+    /// override setting.
+    var companionPetId: String
+    var companionShowName: Bool
+    var companionNameFontSize: Double
+    var companionNameTopPadding: Double    // between ghost and name
+    var companionNameBottomPadding: Double // between name and container edge
+    /// Shows a live segmented bar summarizing how many sessions are in each
+    /// state at the bottom of the floating companion panel. Only rendered in
+    /// the standalone panel — inline in the widget it would duplicate the cards.
+    var companionShowStateSummary: Bool
+    var companionStateSummaryOrientation: CompanionSummaryOrientation
+    var companionStateSummarySide: CompanionSummarySide
+
     // MARK: - Context Save
     var contextNote: String?
 
@@ -110,6 +139,24 @@ final class AppSettings {
         alertPlaySound        = ud.object(forKey: "megadesk.alert.playSound") as? Bool ?? true
         toastPosition         = ToastPosition(rawValue: ud.string(forKey: "megadesk.alert.toastPosition") ?? "") ?? .center
         snoozeMinutes         = ud.object(forKey: "megadesk.alert.snoozeMinutes") as? Int ?? 5
+        companionEnabled      = ud.object(forKey: "megadesk.companion.enabled") as? Bool ?? true
+        companionMode         = CompanionMode(rawValue: ud.string(forKey: "megadesk.companion.mode") ?? "") ?? .floating
+        companionWaitingThresholdMinutes      = ud.object(forKey: "megadesk.companion.waitingThreshold") as? Int ?? 15
+        companionStuckWorkingThresholdMinutes = ud.object(forKey: "megadesk.companion.stuckWorkingThreshold") as? Int ?? 30
+        companionIdleThresholdMinutes         = ud.object(forKey: "megadesk.companion.idleThreshold") as? Int ?? 45
+        hexCompanionSubject                   = ud.string(forKey: "megadesk.companion.color.subject") ?? "#FF9500"
+        hexCompanionPet                       = ud.string(forKey: "megadesk.companion.color.pet") ?? "#FFFFFF"
+        hexCompanionBackground                = ud.string(forKey: "megadesk.companion.color.background") ?? "#1A1A1A"
+        companionFontSize                     = ud.object(forKey: "megadesk.companion.fontSize") as? Double ?? 16
+        companionHorizontalPadding            = ud.object(forKey: "megadesk.companion.horizontalPadding") as? Double ?? 45
+        companionPetId                        = ud.string(forKey: "megadesk.companion.pet") ?? CompanionPetRegistry.defaultId
+        companionShowName                     = ud.object(forKey: "megadesk.companion.showName") as? Bool ?? true
+        companionNameFontSize                 = ud.object(forKey: "megadesk.companion.nameFontSize") as? Double ?? 9
+        companionNameTopPadding               = ud.object(forKey: "megadesk.companion.nameTopPadding") as? Double ?? 2
+        companionNameBottomPadding            = ud.object(forKey: "megadesk.companion.nameBottomPadding") as? Double ?? 6
+        companionShowStateSummary             = ud.object(forKey: "megadesk.companion.showStateSummary") as? Bool ?? true
+        companionStateSummaryOrientation      = CompanionSummaryOrientation(rawValue: ud.string(forKey: "megadesk.companion.stateSummaryOrientation") ?? "") ?? .horizontal
+        companionStateSummarySide             = CompanionSummarySide(rawValue: ud.string(forKey: "megadesk.companion.stateSummarySide") ?? "") ?? .left
         contextNote           = ud.string(forKey: "megadesk.contextNote")
     }
 
@@ -138,6 +185,24 @@ final class AppSettings {
         ud.set(alertPlaySound,        forKey: "megadesk.alert.playSound")
         ud.set(toastPosition.rawValue, forKey: "megadesk.alert.toastPosition")
         ud.set(snoozeMinutes,         forKey: "megadesk.alert.snoozeMinutes")
+        ud.set(companionEnabled,      forKey: "megadesk.companion.enabled")
+        ud.set(companionMode.rawValue, forKey: "megadesk.companion.mode")
+        ud.set(companionWaitingThresholdMinutes,      forKey: "megadesk.companion.waitingThreshold")
+        ud.set(companionStuckWorkingThresholdMinutes, forKey: "megadesk.companion.stuckWorkingThreshold")
+        ud.set(companionIdleThresholdMinutes,         forKey: "megadesk.companion.idleThreshold")
+        ud.set(hexCompanionSubject,                   forKey: "megadesk.companion.color.subject")
+        ud.set(hexCompanionPet,                       forKey: "megadesk.companion.color.pet")
+        ud.set(hexCompanionBackground,                forKey: "megadesk.companion.color.background")
+        ud.set(companionFontSize,                     forKey: "megadesk.companion.fontSize")
+        ud.set(companionHorizontalPadding,            forKey: "megadesk.companion.horizontalPadding")
+        ud.set(companionPetId,                        forKey: "megadesk.companion.pet")
+        ud.set(companionShowName,                     forKey: "megadesk.companion.showName")
+        ud.set(companionNameFontSize,                 forKey: "megadesk.companion.nameFontSize")
+        ud.set(companionNameTopPadding,               forKey: "megadesk.companion.nameTopPadding")
+        ud.set(companionNameBottomPadding,            forKey: "megadesk.companion.nameBottomPadding")
+        ud.set(companionShowStateSummary,             forKey: "megadesk.companion.showStateSummary")
+        ud.set(companionStateSummaryOrientation.rawValue, forKey: "megadesk.companion.stateSummaryOrientation")
+        ud.set(companionStateSummarySide.rawValue,        forKey: "megadesk.companion.stateSummarySide")
         if let note = contextNote {
             ud.set(note, forKey: "megadesk.contextNote")
         } else {
@@ -169,6 +234,24 @@ final class AppSettings {
         alertPlaySound        = true
         toastPosition         = .center
         snoozeMinutes         = 5
+        companionEnabled      = true
+        companionMode         = .floating
+        companionWaitingThresholdMinutes      = 15
+        companionStuckWorkingThresholdMinutes = 30
+        companionIdleThresholdMinutes         = 45
+        hexCompanionSubject                   = "#FF9500"
+        hexCompanionPet                       = "#FFFFFF"
+        hexCompanionBackground                = "#1A1A1A"
+        companionFontSize                     = 16
+        companionHorizontalPadding            = 45
+        companionPetId                        = CompanionPetRegistry.defaultId
+        companionShowName                     = true
+        companionNameFontSize                 = 9
+        companionNameTopPadding               = 2
+        companionNameBottomPadding            = 6
+        companionShowStateSummary             = true
+        companionStateSummaryOrientation      = .horizontal
+        companionStateSummarySide             = .left
         contextNote           = nil
         save()
     }

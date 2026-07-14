@@ -1,0 +1,109 @@
+{
+  "id": "pixel",
+  "displayName": "Pixel",
+  "defaultDurationMs": 500,
+  "voice": {
+    "waitingTooLong":    "[alert] {name} idle for {duration}",
+    "multipleWaiting":   "[queue] {count} pending. next={oldest}",
+    "stuckWorking":      "[warn] {name} running {duration} — stuck?",
+    "prCIFailing":       "[ci] {prTitle} → FAIL",
+    "prConflicts":       "[git] {prTitle} has conflicts",
+    "userIdle":          "> standby. input?",
+    "allForgotten":      "> all channels idle.",
+    "firstSessionOfDay": "> boot ok. ready.",
+    "prMerged":          "[git] {prTitle} merged OK",
+    "sessionNew":               "[+] session attached: {name}",
+    "sessionFinishedAfterLong": "[done] {name} returned in {duration}",
+    "sessionConfirmation":      "[input] {name} awaiting confirm",
+    "prOpened":                 "[git] tracking {prTitle}",
+    "prClosedWithoutMerge":     "[git] {prTitle} closed (no merge)",
+    "prCIRecovered":            "[ci] {prTitle} → PASS",
+    "prCIRegressed":            "[ci] {prTitle} → FAIL again",
+    "sessionWorkingLong":       "[run] {name} active {duration}",
+    "sessionWorkingVeryLong":   "[run!] {name} active {duration} — long",
+    "sessionConfirmationStuck": "[input!] {name} blocked {duration}",
+    "ambientFiller":      ["> idle.", "> ok.", "> stable."],
+    "ambientBored":       ["> awaiting input…", "> nothing in queue."],
+    "ambientHumor":       ["> 0 != null. trust me.", "> rebooted my dreams.", "> printf(\"%s\\n\", \"hi\");"],
+    "ambientObservation": ["> sessions={count}", "> queue empty"],
+    "morningGreeting":    "> morning. boot complete.",
+    "afternoonSlump":     "> 14:00. low power mode?",
+    "endOfDay":           "> 18:00. shutdown soon?",
+    "lateNight":          "> late shift detected.",
+    "stretchReminder":    "> idle {duration}. stretch."
+  },
+  "frames": [
+    {
+      "key": "idle-a",
+      "durationMs": 700,
+      "lines": [
+        "",
+        "",
+        "  .------.",
+        "  | o  o |",
+        "  |  --  |",
+        "  '------'"
+      ]
+    },
+    {
+      "key": "idle-b",
+      "durationMs": 700,
+      "lines": [
+        "",
+        "    | |",
+        "  .------.",
+        "  | o  o |",
+        "  |  --  |",
+        "  '------'"
+      ]
+    },
+    {
+      "key": "alert-a",
+      "durationMs": 300,
+      "lines": [
+        "    ! !",
+        "    | |",
+        "  .------.",
+        "  | O  O |",
+        "  |  --  |",
+        "  '------'"
+      ]
+    },
+    {
+      "key": "alert-b",
+      "durationMs": 300,
+      "lines": [
+        "",
+        "    | |",
+        "  .------.",
+        "  | O  O |",
+        "  |  --  |",
+        "  '------'"
+      ]
+    },
+    {
+      "key": "happy-a",
+      "durationMs": 450,
+      "lines": [
+        "",
+        "    | |",
+        "  .------.",
+        "  | ^  ^ |",
+        "  |  \\/  |",
+        "  '------'"
+      ]
+    },
+    {
+      "key": "happy-b",
+      "durationMs": 450,
+      "lines": [
+        "   ~   ~",
+        "    | |",
+        "  .------.",
+        "  | ^  ^ |",
+        "  |  \\/  |",
+        "  '------'"
+      ]
+    }
+  ]
+}
