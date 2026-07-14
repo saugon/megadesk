@@ -139,7 +139,7 @@ final class AppSettings {
         alertPlaySound        = ud.object(forKey: "megadesk.alert.playSound") as? Bool ?? true
         toastPosition         = ToastPosition(rawValue: ud.string(forKey: "megadesk.alert.toastPosition") ?? "") ?? .center
         snoozeMinutes         = ud.object(forKey: "megadesk.alert.snoozeMinutes") as? Int ?? 5
-        companionEnabled      = ud.object(forKey: "megadesk.companion.enabled") as? Bool ?? true
+        companionEnabled      = ud.object(forKey: "megadesk.companion.enabled") as? Bool ?? false
         companionMode         = CompanionMode(rawValue: ud.string(forKey: "megadesk.companion.mode") ?? "") ?? .floating
         companionWaitingThresholdMinutes      = ud.object(forKey: "megadesk.companion.waitingThreshold") as? Int ?? 15
         companionStuckWorkingThresholdMinutes = ud.object(forKey: "megadesk.companion.stuckWorkingThreshold") as? Int ?? 30
@@ -234,7 +234,7 @@ final class AppSettings {
         alertPlaySound        = true
         toastPosition         = .center
         snoozeMinutes         = 5
-        companionEnabled      = true
+        companionEnabled      = false
         companionMode         = .floating
         companionWaitingThresholdMinutes      = 15
         companionStuckWorkingThresholdMinutes = 30
