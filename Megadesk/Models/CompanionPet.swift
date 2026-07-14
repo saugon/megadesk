@@ -62,6 +62,103 @@ struct CompanionPetDefinition: Codable, Identifiable {
         let key: String
         let durationMs: Int?
         let lines: [String]
+
+        /// Lines with common leading whitespace stripped and right-padded to a
+        /// rectangular bounding box, so the art stays centered when rendered
+        /// in a monospace text view. Use this when displaying a frame from
+        /// outside the animator.
+        var normalizedLines: [String] {
+            guard !lines.isEmpty else { return [] }
+
+            let nonEmpty = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            let minLeading = nonEmpty.map { line in
+                line.prefix(while: { $0 == " " }).count
+            }.min() ?? 0
+
+            let stripped = lines.map { line -> String in
+                if line.trimmingCharacters(in: .whitespaces).isEmpty { return "" }
+                guard line.count >= minLeading else { return line }
+                return String(line.dropFirst(minLeading))
+            }
+
+            let maxWidth = stripped.map { $0.count }.max() ?? 0
+            return stripped.map { line -> String in
+                let diff = maxWidth - line.count
+                return diff > 0 ? line + String(repeating: " ", count: diff) : line
+            }
+        }
+
+        var normalized: String { normalizedLines.joined(separator: "\n") }
+    }
+
+    /// First idle frame, used for static previews (e.g. the picker grid).
+    /// Falls back to the very first frame if no `idle-*` frame exists.
+    var previewFrame: Frame? {
+        frames.first { $0.key.hasPrefix("idle-") } ?? frames.first
+    }
+
+    /// Description of one optional voice key — what triggers it and which
+    /// placeholders are available — used by both the README/prompt docs and
+    /// the in-app "update existing pet" flow.
+    struct OptionalVoiceKey {
+        let key: String
+        let trigger: String
+        let placeholders: String   // human-readable, e.g. "{name}, {duration}" or "(none)"
+        let isArray: Bool
+    }
+
+    /// Catalogue of every optional voice key known to the engine. Stays in
+    /// sync with `VoiceTemplates` and the rule implementations.
+    static let optionalVoiceCatalog: [OptionalVoiceKey] = [
+        .init(key: "sessionNew",               trigger: "a new session appears in the widget",                       placeholders: "{name}",            isArray: false),
+        .init(key: "sessionFinishedAfterLong", trigger: "a session that was Working for a while moves out of working", placeholders: "{name}, {duration}", isArray: false),
+        .init(key: "sessionConfirmation",      trigger: "a session enters \"Needs Confirmation\"",                    placeholders: "{name}",            isArray: false),
+        .init(key: "prOpened",                 trigger: "a PR appears in the tracked list",                            placeholders: "{prTitle}",          isArray: false),
+        .init(key: "prClosedWithoutMerge",     trigger: "a PR transitions to CLOSED (not merged)",                     placeholders: "{prTitle}",          isArray: false),
+        .init(key: "prCIRecovered",            trigger: "CI flips from failing to passing",                            placeholders: "{prTitle}",          isArray: false),
+        .init(key: "prCIRegressed",            trigger: "CI flips from passing to failing",                            placeholders: "{prTitle}",          isArray: false),
+        .init(key: "sessionWorkingLong",       trigger: "a session has been working > 30 min",                         placeholders: "{name}, {duration}", isArray: false),
+        .init(key: "sessionWorkingVeryLong",   trigger: "a session has been working > 2 h",                            placeholders: "{name}, {duration}", isArray: false),
+        .init(key: "sessionConfirmationStuck", trigger: "a confirmation request has been waiting > 5 min",             placeholders: "{name}, {duration}", isArray: false),
+        .init(key: "ambientFiller",            trigger: "quiet pad — generic chatter when nothing is happening",       placeholders: "(none)",             isArray: true),
+        .init(key: "ambientBored",             trigger: "quiet pad — the pet complains about boredom",                 placeholders: "(none)",             isArray: true),
+        .init(key: "ambientHumor",             trigger: "quiet pad — programming jokes / one-liners",                  placeholders: "(none)",             isArray: true),
+        .init(key: "ambientObservation",       trigger: "quiet pad — comments on widget state",                        placeholders: "{count}",            isArray: true),
+        .init(key: "morningGreeting",          trigger: "first idle tick after 8am",                                    placeholders: "(none)",             isArray: false),
+        .init(key: "afternoonSlump",           trigger: "first idle tick after 14h",                                    placeholders: "(none)",             isArray: false),
+        .init(key: "endOfDay",                 trigger: "first idle tick after 18h",                                    placeholders: "(none)",             isArray: false),
+        .init(key: "lateNight",                trigger: "first idle tick after 22h",                                    placeholders: "(none)",             isArray: false),
+        .init(key: "stretchReminder",          trigger: "user has been continuously idle > 90 min",                    placeholders: "{duration}",         isArray: false),
+    ]
+
+    /// Returns the optional voice keys that this pet is currently missing.
+    /// Empty arrays for `[String]?` keys also count as missing so the user
+    /// can opt-in by deleting the field instead of leaving an empty array.
+    var missingOptionalVoiceKeys: [OptionalVoiceKey] {
+        Self.optionalVoiceCatalog.filter { entry in
+            switch entry.key {
+            case "sessionNew":               return voice.sessionNew == nil
+            case "sessionFinishedAfterLong": return voice.sessionFinishedAfterLong == nil
+            case "sessionConfirmation":      return voice.sessionConfirmation == nil
+            case "prOpened":                 return voice.prOpened == nil
+            case "prClosedWithoutMerge":     return voice.prClosedWithoutMerge == nil
+            case "prCIRecovered":            return voice.prCIRecovered == nil
+            case "prCIRegressed":            return voice.prCIRegressed == nil
+            case "sessionWorkingLong":       return voice.sessionWorkingLong == nil
+            case "sessionWorkingVeryLong":   return voice.sessionWorkingVeryLong == nil
+            case "sessionConfirmationStuck": return voice.sessionConfirmationStuck == nil
+            case "ambientFiller":            return (voice.ambientFiller ?? []).isEmpty
+            case "ambientBored":             return (voice.ambientBored ?? []).isEmpty
+            case "ambientHumor":             return (voice.ambientHumor ?? []).isEmpty
+            case "ambientObservation":       return (voice.ambientObservation ?? []).isEmpty
+            case "morningGreeting":          return voice.morningGreeting == nil
+            case "afternoonSlump":           return voice.afternoonSlump == nil
+            case "endOfDay":                 return voice.endOfDay == nil
+            case "lateNight":                return voice.lateNight == nil
+            case "stretchReminder":          return voice.stretchReminder == nil
+            default:                         return false
+            }
+        }
     }
 }
 
@@ -86,7 +183,7 @@ final class CompanionPetRegistry {
     static let defaultId: String = "brume"
 
     /// Pets shipped with the app, in the order they should appear in the picker.
-    private static let bundledIds: [String] = ["brume", "pixel", "mochi"]
+    private static let bundledIds: [String] = ["brume", "pixel", "mochi", "dwight"]
 
     /// Directory where users can drop their own pet JSONs.
     let userPetsURL: URL = {
@@ -182,6 +279,83 @@ final class CompanionPetRegistry {
     /// public computed property so the Settings UI can copy it to the
     /// clipboard with one click.
     static var llmPrompt: String { llmPromptContents }
+
+    /// Builds an LLM prompt that asks for ONLY the missing optional voice
+    /// keys for the given pet, written in the same voice as its existing
+    /// templates. Returns nil if the pet is already complete.
+    static func voiceUpdatePrompt(for pet: CompanionPetDefinition) -> String? {
+        let missing = pet.missingOptionalVoiceKeys
+        guard !missing.isEmpty else { return nil }
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let petJSON = (try? encoder.encode(pet))
+            .flatMap { String(data: $0, encoding: .utf8) }
+            ?? "(failed to encode existing pet)"
+
+        let table = missing.map { entry in
+            let kind = entry.isArray ? " (array of strings)" : ""
+            return "- \(entry.key)\(kind) — \(entry.trigger). Placeholders: \(entry.placeholders)."
+        }.joined(separator: "\n")
+
+        let exampleObject = missing.map { entry -> String in
+            if entry.isArray {
+                return "  \"\(entry.key)\": [\"…\", \"…\"]"
+            }
+            return "  \"\(entry.key)\": \"…\""
+        }.joined(separator: ",\n")
+
+        return """
+        You are extending an existing Megadesk companion pet by adding new
+        voice templates while preserving everything else exactly as it is.
+
+        ## Output
+
+        Return the COMPLETE updated pet JSON — a single JSON object that the
+        user can drop in to replace the existing file. No prose, no
+        commentary, no code fences. Escape backslashes as \\\\ and
+        double-quotes as \\\" inside strings.
+
+        Rules — strict:
+        1. Copy the existing pet verbatim: keep `id`, `displayName`,
+           `defaultDurationMs`, every existing `voice` template, and every
+           entry in `frames` byte-for-byte (including whitespace inside
+           lines).
+        2. Inside the existing `voice` object, ADD the new keys listed
+           below. Do not remove any existing voice key.
+        3. Do not invent new keys outside the list below. Do not add fields
+           outside the schema.
+
+        Write the new templates in the same tone, cadence, language, and
+        style as the existing voice. Short is better.
+
+        ## Existing pet
+
+        \(petJSON)
+
+        ## Voice keys to add (currently missing)
+
+        \(table)
+
+        Each placeholder shown in braces (e.g. `{name}`, `{duration}`,
+        `{prTitle}`, `{count}`) is substituted at runtime. Use only the
+        placeholders listed for each key; do not invent new ones.
+
+        Array-typed keys are pools — return 2-4 short variants per array.
+
+        ## Skeleton of the new keys
+
+        These will live INSIDE the `voice` object alongside the existing
+        templates. Replace the `…` with text in the pet's voice; do not
+        change key names.
+
+        {
+        \(exampleObject)
+        }
+
+        Output the full updated pet JSON now.
+        """
+    }
 
     // MARK: - README template
 
@@ -292,7 +466,7 @@ final class CompanionPetRegistry {
 
     ## Overriding built-in pets
 
-    If you set `id` to one of the built-in ids (brume, pixel, mochi), your
+    If you set `id` to one of the built-in ids (brume, pixel, mochi, dwight), your
     file takes precedence over the bundled version.
 
     ## Generating a pet with an LLM

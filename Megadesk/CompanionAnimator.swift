@@ -74,8 +74,7 @@ final class CompanionAnimator {
     private func updateFrame() {
         let frames = currentPetFrames(for: ghostState)
         guard !frames.isEmpty else { currentFrame = ""; return }
-        let lines = frames[frameIndex % frames.count].lines
-        currentFrame = Self.normalize(lines: lines).joined(separator: "\n")
+        currentFrame = frames[frameIndex % frames.count].normalized
     }
 
     // MARK: - Frame lookup
@@ -99,31 +98,4 @@ final class CompanionAnimator {
         return pet.defaultDurationMs ?? Self.fallbackDurationMs
     }
 
-    // MARK: - Line normalization
-    //
-    // Strips the common leading whitespace across non-empty lines and right-pads
-    // everything to a rectangular bounding box. This counters editors that
-    // strip trailing whitespace from JSON string values and keeps the art
-    // centered within the bubble's monospace Text view.
-
-    private static func normalize(lines: [String]) -> [String] {
-        guard !lines.isEmpty else { return [] }
-
-        let nonEmpty = lines.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        let minLeading = nonEmpty.map { line in
-            line.prefix(while: { $0 == " " }).count
-        }.min() ?? 0
-
-        let stripped = lines.map { line -> String in
-            if line.trimmingCharacters(in: .whitespaces).isEmpty { return "" }
-            guard line.count >= minLeading else { return line }
-            return String(line.dropFirst(minLeading))
-        }
-
-        let maxWidth = stripped.map { $0.count }.max() ?? 0
-        return stripped.map { line -> String in
-            let diff = maxWidth - line.count
-            return diff > 0 ? line + String(repeating: " ", count: diff) : line
-        }
-    }
 }

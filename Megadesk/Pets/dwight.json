@@ -1,0 +1,123 @@
+{
+  "defaultDurationMs": 500,
+  "displayName": "Dwight",
+  "frames": [
+    {
+      "durationMs": 2500,
+      "key": "idle-a",
+      "lines": [
+        "  .--.--.",
+        " (_(   )_)",
+        "┌-[º]-[º]-┐",
+        " |  ---  |",
+        " `~ `~´ ~´"
+      ]
+    },
+    {
+      "durationMs": 150,
+      "key": "idle-b",
+      "lines": [
+        "  .--.--.",
+        " (_(   )_)",
+        "┌-[-]-[-]-┐",
+        " |  ---  |",
+        " `~ `~´ ~´"
+      ]
+    },
+    {
+      "durationMs": 500,
+      "key": "alert-a",
+      "lines": [
+        "  .--.--.",
+        " (_(   )_)",
+        "┌-[O]-[O]-┐",
+        " |  ---  |",
+        " `~ `~´ ~´"
+      ]
+    },
+    {
+      "durationMs": 400,
+      "key": "alert-b",
+      "lines": [
+        "  .--.--.",
+        " (_(   )_)",
+        "┌-[O]-[O]-┐",
+        " |  ===  |",
+        " `~ `~´ ~´"
+      ]
+    },
+    {
+      "durationMs": 500,
+      "key": "happy-a",
+      "lines": [
+        "  .--.--.",
+        " (_(   )_)",
+        "┌-[^]-[^]-┐",
+        " | \\___\/ |",
+        " `~ `~´ ~´"
+      ]
+    },
+    {
+      "durationMs": 500,
+      "key": "happy-b",
+      "lines": [
+        "  .--.--.",
+        " (_(   )_)",
+        "┌-[^]-[^]-┐",
+        " | \\___\/ |",
+        " `~ `~´ ~´"
+      ]
+    }
+  ],
+  "id": "dwight",
+  "voice": {
+    "allForgotten": "All sessions forgotten. The workspace is clean. Just as I prefer it.",
+    "firstSessionOfDay": "First session of the day. Begin immediately. There is no time for nonsense.",
+    "multipleWaiting": "{count} sessions waiting. I once managed 60 tasks simultaneously. {oldest} is the priority.",
+    "prCIFailing": "{prTitle} is failing. Identity theft is not a joke, and neither is broken CI.",
+    "prConflicts": "{prTitle} has conflicts. Merge them. NOW. That is an order.",
+    "prMerged": "{prTitle} merged. Excellent. I expect nothing less.",
+    "stuckWorking": "{name} has worked {duration} without stopping. As a volunteer sheriff, I am concerned.",
+    "userIdle": "You have been idle. Bears can smell weakness. Do not be weak.",
+    "waitingTooLong": "FACT: {name} has been waiting {duration}. This is unacceptable.",
+    "sessionNew": "New session: {name}. Acknowledged. I will keep an eye on it.",
+    "sessionFinishedAfterLong": "{name} finished after {duration}. That is a solid effort. Well done.",
+    "sessionConfirmation": "{name} needs confirmation. Your attention is required.",
+    "prOpened": "{prTitle} is now open. I have logged it. Proceed with care.",
+    "prClosedWithoutMerge": "{prTitle} closed without merging. Not every battle is won. Move on.",
+    "prCIRecovered": "{prTitle} CI is green again. Good. That is how it should be.",
+    "prCIRegressed": "{prTitle} CI just broke. This needs to be addressed promptly.",
+    "sessionWorkingLong": "{name} has been working for {duration}. Respectable. Keep the pace sustainable.",
+    "sessionWorkingVeryLong": "{name} has been at it for {duration}. Admirable discipline. Do not forget to breathe.",
+    "sessionConfirmationStuck": "{name} has been waiting {duration} for confirmation. It deserves a response.",
+    "ambientFiller": [
+      "Everything appears stable. Good work keeping it that way.",
+      "No issues detected. This is what a well-run operation looks like.",
+      "All quiet. I appreciate the discipline this implies.",
+      "Conditions are nominal. Continue as you were."
+    ],
+    "ambientBored": [
+      "Nothing to report. I am using the time to reflect on management strategy.",
+      "It is quiet. I respect quiet. I am also mildly suspicious of it.",
+      "No activity. I have reviewed the session history twice. Still nothing.",
+      "Inactivity detected. I am patient, but I notice everything."
+    ],
+    "ambientHumor": [
+      "A programmer's best tool is sleep. I read that. I do not fully believe it.",
+      "There are only 10 types of people. I respect both of them.",
+      "Debugging: the art of being the detective and the suspect simultaneously.",
+      "The best code is no code. The second best is code I can read without squinting."
+    ],
+    "ambientObservation": [
+      "{count} sessions visible. All noted.",
+      "Monitoring {count} sessions. This is well within acceptable parameters.",
+      "{count} active sessions. I have assessed each one briefly.",
+      "Current count: {count}. The workspace is populated. Good."
+    ],
+    "morningGreeting": "Morning. The day starts now. Let us make it count.",
+    "afternoonSlump": "Mid-afternoon. Maintain focus. You have come too far to drift now.",
+    "endOfDay": "The day is winding down. Finish what matters. The rest can wait.",
+    "lateNight": "It is late. That either means dedication or a deadline. Either way, I respect it.",
+    "stretchReminder": "You have been still for {duration}. Stand up. A clear head is worth more than saved time."
+  }
+}
