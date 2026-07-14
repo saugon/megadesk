@@ -17,6 +17,29 @@ struct CompanionSettingsView: View {
                 Toggle("Show name", isOn: $settings.companionShowName)
                     .onChange(of: settings.companionShowName) { _, _ in settings.save() }
                     .disabled(!settings.companionEnabled)
+                Toggle("Show session summary", isOn: $settings.companionShowStateSummary)
+                    .onChange(of: settings.companionShowStateSummary) { _, _ in settings.save() }
+                    .disabled(!settings.companionEnabled)
+                LabeledContent("Summary orientation") {
+                    Picker("", selection: $settings.companionStateSummaryOrientation) {
+                        ForEach(CompanionSummaryOrientation.allCases, id: \.self) {
+                            Text($0.label).tag($0)
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: settings.companionStateSummaryOrientation) { _, _ in settings.save() }
+                }
+                .disabled(!settings.companionEnabled || !settings.companionShowStateSummary)
+                LabeledContent("Summary side") {
+                    Picker("", selection: $settings.companionStateSummarySide) {
+                        ForEach(CompanionSummarySide.allCases, id: \.self) {
+                            Text($0.label).tag($0)
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: settings.companionStateSummarySide) { _, _ in settings.save() }
+                }
+                .disabled(!settings.companionEnabled || !settings.companionShowStateSummary || settings.companionStateSummaryOrientation != .vertical)
                 LabeledContent("Name size") {
                     HStack(spacing: 8) {
                         Slider(value: $settings.companionNameFontSize, in: 7...18, step: 1)

@@ -90,6 +90,12 @@ final class AppSettings {
     var companionNameFontSize: Double
     var companionNameTopPadding: Double    // between ghost and name
     var companionNameBottomPadding: Double // between name and container edge
+    /// Shows a live segmented bar summarizing how many sessions are in each
+    /// state at the bottom of the floating companion panel. Only rendered in
+    /// the standalone panel — inline in the widget it would duplicate the cards.
+    var companionShowStateSummary: Bool
+    var companionStateSummaryOrientation: CompanionSummaryOrientation
+    var companionStateSummarySide: CompanionSummarySide
 
     // MARK: - Context Save
     var contextNote: String?
@@ -148,6 +154,9 @@ final class AppSettings {
         companionNameFontSize                 = ud.object(forKey: "megadesk.companion.nameFontSize") as? Double ?? 9
         companionNameTopPadding               = ud.object(forKey: "megadesk.companion.nameTopPadding") as? Double ?? 2
         companionNameBottomPadding            = ud.object(forKey: "megadesk.companion.nameBottomPadding") as? Double ?? 6
+        companionShowStateSummary             = ud.object(forKey: "megadesk.companion.showStateSummary") as? Bool ?? true
+        companionStateSummaryOrientation      = CompanionSummaryOrientation(rawValue: ud.string(forKey: "megadesk.companion.stateSummaryOrientation") ?? "") ?? .horizontal
+        companionStateSummarySide             = CompanionSummarySide(rawValue: ud.string(forKey: "megadesk.companion.stateSummarySide") ?? "") ?? .left
         contextNote           = ud.string(forKey: "megadesk.contextNote")
     }
 
@@ -191,6 +200,9 @@ final class AppSettings {
         ud.set(companionNameFontSize,                 forKey: "megadesk.companion.nameFontSize")
         ud.set(companionNameTopPadding,               forKey: "megadesk.companion.nameTopPadding")
         ud.set(companionNameBottomPadding,            forKey: "megadesk.companion.nameBottomPadding")
+        ud.set(companionShowStateSummary,             forKey: "megadesk.companion.showStateSummary")
+        ud.set(companionStateSummaryOrientation.rawValue, forKey: "megadesk.companion.stateSummaryOrientation")
+        ud.set(companionStateSummarySide.rawValue,        forKey: "megadesk.companion.stateSummarySide")
         if let note = contextNote {
             ud.set(note, forKey: "megadesk.contextNote")
         } else {
@@ -237,6 +249,9 @@ final class AppSettings {
         companionNameFontSize                 = 9
         companionNameTopPadding               = 2
         companionNameBottomPadding            = 6
+        companionShowStateSummary             = true
+        companionStateSummaryOrientation      = .horizontal
+        companionStateSummarySide             = .left
         contextNote           = nil
         save()
     }

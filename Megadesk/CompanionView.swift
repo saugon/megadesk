@@ -46,6 +46,7 @@ private struct RightClickCatcher: NSViewRepresentable {
 struct CompanionView: View {
     @State private var engine = CompanionEngine.shared
     @State private var animator = CompanionAnimator()
+    @State private var store = StatusStore.shared
     @State private var lastGhostWidth: CGFloat = 0
     @State private var historyOpen = false
     @State private var isPanelHovered = false
@@ -157,6 +158,16 @@ struct CompanionView: View {
                     speechBubble(message)
                 }
                 ghostAndName
+                    .overlay(alignment: verticalBarAlignment) {
+                        if !inline, settings.companionShowStateSummary,
+                           settings.companionStateSummaryOrientation == .vertical {
+                            verticalSummaryBar
+                        }
+                    }
+                if !inline, settings.companionShowStateSummary,
+                   settings.companionStateSummaryOrientation == .horizontal {
+                    horizontalSummaryBar
+                }
             }
             .fixedSize(horizontal: false, vertical: true)
             .background(
@@ -216,6 +227,86 @@ struct CompanionView: View {
         .help("Double-click to repeat the last comment")
         .padding(.horizontal, ghostHorizontalPadding)
         .padding(.vertical, 1)
+    }
+
+    // MARK: - State summary bar
+    //
+    // A live segmented bar summarizing how many sessions sit in each state.
+    // Only shown in the floating panel — inline in the widget the cards above
+    // already convey this. State/color mapping mirrors SessionCardView.
+
+    private struct StateSegment: Identifiable {
+        let id: String
+        let color: Color
+        let count: Int
+    }
+
+    private var stateSegments: [StateSegment] {
+        let sessions = store.sessions
+        let confirmation = sessions.filter { $0.needsConfirmation }.count
+        let working = sessions.filter { $0.isWorking && !$0.needsConfirmation }.count
+        let forgotten = sessions.filter { !$0.isWorking && $0.isForgotten }.count
+        let waiting = sessions.filter { !$0.isWorking && !$0.isForgotten }.count
+        return [
+            StateSegment(id: "working",      color: settings.colorWorking,      count: working),
+            StateSegment(id: "confirmation", color: settings.colorConfirmation, count: confirmation),
+            StateSegment(id: "waiting",      color: settings.colorWaiting,      count: waiting),
+            StateSegment(id: "forgotten",    color: settings.colorForgotten,    count: forgotten),
+        ]
+    }
+
+    /// One slot per session, grouped by state (working → confirmation →
+    /// waiting → forgotten), so the count of each color is directly countable.
+    private var stateSlots: [Color] {
+        stateSegments.flatMap { seg in
+            Array(repeating: seg.color, count: seg.count)
+        }
+    }
+
+    /// Thin bar docked at the bottom of the panel, slots spread along the width.
+    private var horizontalSummaryBar: some View {
+        let slots = stateSlots
+        return Group {
+            if !slots.isEmpty {
+                HStack(spacing: 2) {
+                    ForEach(Array(slots.enumerated()), id: \.offset) { _, color in
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(color)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(height: 6)
+                .padding(.horizontal, 12)
+                .padding(.top, 3)
+                .padding(.bottom, 6)
+            }
+        }
+    }
+
+    private var verticalBarAlignment: Alignment {
+        settings.companionStateSummarySide == .right ? .trailing : .leading
+    }
+
+    /// The same bar rotated 90° — a thin vertical strip pinned to one side of
+    /// the pet, slots spread along the pet's height (so it doesn't grow with
+    /// the speech bubble).
+    private var verticalSummaryBar: some View {
+        let slots = stateSlots
+        let side = settings.companionStateSummarySide
+        return Group {
+            if !slots.isEmpty {
+                VStack(spacing: 2) {
+                    ForEach(Array(slots.enumerated()), id: \.offset) { _, color in
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(color)
+                            .frame(width: 6)
+                            .frame(maxHeight: .infinity)
+                    }
+                }
+                .padding(.vertical, 6)
+                .padding(side == .right ? .trailing : .leading, 8)
+            }
+        }
     }
 
     private func postResize(height: CGFloat? = nil, ghostWidth: CGFloat? = nil) {

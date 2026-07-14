@@ -16,6 +16,32 @@ enum CompanionMode: String, CaseIterable {
     }
 }
 
+/// Orientation of the live session-summary bar in the floating companion panel.
+enum CompanionSummaryOrientation: String, CaseIterable {
+    case horizontal
+    case vertical
+
+    var label: String {
+        switch self {
+        case .horizontal: return "Horizontal"
+        case .vertical:   return "Vertical"
+        }
+    }
+}
+
+/// Which side the vertical session-summary bar docks to.
+enum CompanionSummarySide: String, CaseIterable {
+    case left
+    case right
+
+    var label: String {
+        switch self {
+        case .left:  return "Left"
+        case .right: return "Right"
+        }
+    }
+}
+
 struct CompanionMessage: Identifiable {
     let id = UUID()
     let text: String
