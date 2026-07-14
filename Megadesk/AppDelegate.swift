@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainController: MainWindowController?
     private var hotKeyRef: EventHotKeyRef?
     private var sessionHotKeyRefs: [EventHotKeyRef?] = []
+    private var peekHotKeyRef: EventHotKeyRef?
     private var updaterController: SPUStandardUpdaterController!
     private var contextSaveController: ContextSaveWindowController?
     private var companionController: CompanionWindowController?
@@ -133,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     } else if capturedID == 14 {
                         delegate.openContextSave()
                     } else if capturedID == 15 {
-                        CompanionEngine.shared.emitTestMessage()
+                        delegate.windowController?.togglePeek()
                     } else if capturedID == 16 {
                         delegate.togglePet()
                     }
@@ -197,14 +198,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             contextHkID, GetApplicationEventTarget(), OptionBits(0), &csRef)
         sessionHotKeyRefs.append(csRef)
 
-        // ⌘⇧L — companion test message (hotkey ID 15)
-        var companionHkID = EventHotKeyID()
-        companionHkID.signature = 0x4d47444b
-        companionHkID.id = 15
-        var compRef: EventHotKeyRef?
-        RegisterEventHotKey(UInt32(kVK_ANSI_L), UInt32(cmdKey | shiftKey),
-                            companionHkID, GetApplicationEventTarget(), OptionBits(0), &compRef)
-        sessionHotKeyRefs.append(compRef)
+        // ⌘⇧L — collapse/expand the widget to an edge tab (peek) (hotkey ID 15).
+        // Registered separately (updatePeekHotKey) so it can be toggled at runtime.
 
         // ⌘⇧. — toggle pet visibility (hotkey ID 16)
         var petHkID = EventHotKeyID()
@@ -214,6 +209,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         RegisterEventHotKey(UInt32(kVK_ANSI_Period), UInt32(cmdKey | shiftKey),
                             petHkID, GetApplicationEventTarget(), OptionBits(0), &petRef)
         sessionHotKeyRefs.append(petRef)
+
+        updatePeekHotKey()
+        observePeekShortcut()
+    }
+
+    /// Registers or unregisters the ⌘⇧L peek shortcut (hotkey ID 15) to match
+    /// the `peekShortcutEnabled` setting, so turning it off frees the combo.
+    private func updatePeekHotKey() {
+        if let ref = peekHotKeyRef {
+            UnregisterEventHotKey(ref)
+            peekHotKeyRef = nil
+        }
+        guard AppSettings.shared.peekShortcutEnabled else { return }
+        var hkID = EventHotKeyID()
+        hkID.signature = 0x4d47444b
+        hkID.id = 15
+        RegisterEventHotKey(UInt32(kVK_ANSI_L), UInt32(cmdKey | shiftKey),
+                            hkID, GetApplicationEventTarget(), OptionBits(0), &peekHotKeyRef)
+    }
+
+    private func observePeekShortcut() {
+        withObservationTracking {
+            _ = AppSettings.shared.peekShortcutEnabled
+        } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                self?.updatePeekHotKey()
+                self?.observePeekShortcut()
+            }
+        }
     }
 
     // MARK: - Menu bar
@@ -230,6 +254,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.delegate = self
         let toggleItem = menu.addItem(withTitle: "Hide Widget", action: #selector(toggleWidget), keyEquivalent: "M")
         toggleItem.target = self
+        let peekItem = NSMenuItem(title: "Collapse to Edge Tab", action: #selector(togglePeekAction), keyEquivalent: "")
+        peekItem.target = self
+        menu.addItem(peekItem)
         let compactItem = NSMenuItem(title: "Compact Mode", action: #selector(toggleCompact), keyEquivalent: "")
         compactItem.target = self
         menu.addItem(compactItem)
@@ -270,6 +297,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             companionController?.hide()
         }
+    }
+
+    @objc private func togglePeekAction() {
+        windowController?.togglePeek()
     }
 
     private func showCompanionIfFloating() {

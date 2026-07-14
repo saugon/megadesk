@@ -49,6 +49,7 @@ struct HelpView: View {
 
             Section("Hotkeys") {
                 FeatureRow(icon: "keyboard", text: "⌘⇧M — toggle widget visibility from anywhere")
+                FeatureRow(icon: "keyboard", text: "⌘⇧L — collapse the widget to an edge tab (or expand it back)")
                 FeatureRow(icon: "keyboard", text: "⌘⇧A — quick alert popover for fast reminders")
                 FeatureRow(icon: "keyboard", text: "⌘⇧C — save a context note before stepping away")
                 FeatureRow(icon: "keyboard", text: "⇧⌥↑ / ⇧⌥↓ — cycle through sessions up or down")

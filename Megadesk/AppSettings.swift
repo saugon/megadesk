@@ -42,6 +42,9 @@ final class AppSettings {
     var cardFontSize: Double  // session card name size; status text is cardFontSize - 2
     var showSpinnerVerb: Bool
     var spinnerVerbAnimatedColor: Bool
+    /// Whether the ⌘⇧L global shortcut that collapses the widget to an edge
+    /// tab is active. When off, the combo is released for other apps.
+    var peekShortcutEnabled: Bool
 
     // MARK: - Session state colors (stored as hex strings)
     var hexWorking:      String
@@ -122,6 +125,7 @@ final class AppSettings {
         cardFontSize = ud.object(forKey: "megadesk.cardFontSize") as? Double ?? 13
         showSpinnerVerb = ud.object(forKey: "megadesk.showSpinnerVerb") as? Bool ?? false
         spinnerVerbAnimatedColor = ud.object(forKey: "megadesk.spinnerVerbAnimatedColor") as? Bool ?? false
+        peekShortcutEnabled = ud.object(forKey: "megadesk.peekShortcutEnabled") as? Bool ?? true
         hexWorking       = ud.string(forKey: "megadesk.color.working")      ?? "#34C759"
         hexConfirmation  = ud.string(forKey: "megadesk.color.confirmation") ?? "#5AC8FA"
         hexWaiting       = ud.string(forKey: "megadesk.color.waiting")      ?? "#FF9500"
@@ -168,6 +172,7 @@ final class AppSettings {
         ud.set(cardFontSize,        forKey: "megadesk.cardFontSize")
         ud.set(showSpinnerVerb,     forKey: "megadesk.showSpinnerVerb")
         ud.set(spinnerVerbAnimatedColor, forKey: "megadesk.spinnerVerbAnimatedColor")
+        ud.set(peekShortcutEnabled, forKey: "megadesk.peekShortcutEnabled")
         ud.set(hexWorking,          forKey: "megadesk.color.working")
         ud.set(hexConfirmation,     forKey: "megadesk.color.confirmation")
         ud.set(hexWaiting,          forKey: "megadesk.color.waiting")
@@ -217,6 +222,7 @@ final class AppSettings {
         cardFontSize     = 13
         showSpinnerVerb  = false
         spinnerVerbAnimatedColor = false
+        peekShortcutEnabled = true
         hexWorking       = "#34C759"
         hexConfirmation  = "#5AC8FA"
         hexWaiting       = "#FF9500"

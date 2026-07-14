@@ -138,6 +138,18 @@ final class FloatingWindowController: NSWindowController {
     // system-triggered or programmatic resizes as user input.
     private var heightAtLiveResizeStart: CGFloat?
 
+    // MARK: - Peek tab state
+    //
+    // A separate lightweight action from hide(): instead of removing the widget
+    // entirely (⌘⇧M), collapse it to a tab flush against the screen edge (⌘⇧L)
+    // that always stays visible — so it can't be forgotten. Clicking the tab
+    // (or pressing ⌘⇧L again) restores the widget.
+    private enum DisplayState { case expanded, peeked, hidden }
+    private var displayState: DisplayState = .expanded
+    private var peekPanel: NSPanel?
+    private let peekTabWidth: CGFloat = 24
+    private let peekTabHeight: CGFloat = 104
+
     convenience init(contentView: some View, footerView: some View) {
         let initialCompact = UserDefaults.standard.bool(forKey: "megadesk.compact")
         let savedWidth = UserDefaults.standard.double(forKey: "megadesk.windowWidth")
@@ -304,9 +316,21 @@ final class FloatingWindowController: NSWindowController {
         titlebarView.addSubview(label)
         titleLabel = label
 
-        // Green reset button — traffic-light position to the right of the red close button
-        let resetFrame = NSRect(
+        // Yellow peek button — collapse the widget to the edge tab (⌘⇧L)
+        let peekFrame = NSRect(
             x: sysClose.frame.midX - size / 2 + 20,
+            y: sysClose.frame.midY - size / 2,
+            width: size, height: size
+        )
+        let peekBtn = TitlebarPeekButton(frame: peekFrame)
+        peekBtn.target = self
+        peekBtn.action = #selector(peekButtonPressed)
+        peekBtn.toolTip = "Collapse to edge tab"
+        titlebarView.addSubview(peekBtn)
+
+        // Green reset button — traffic-light position to the right of the yellow button
+        let resetFrame = NSRect(
+            x: sysClose.frame.midX - size / 2 + 40,
             y: sysClose.frame.midY - size / 2,
             width: size, height: size
         )
@@ -397,6 +421,10 @@ final class FloatingWindowController: NSWindowController {
 
     @objc private func customClosePressed() {
         hide()
+    }
+
+    @objc private func peekButtonPressed() {
+        togglePeek()
     }
 
     @objc private func resetToAutoHeightAction() {
@@ -580,6 +608,8 @@ final class FloatingWindowController: NSWindowController {
 
     func show() {
         guard let window = window else { return }
+        dismissPeekPanel()
+        displayState = .expanded
         if !window.isVisible {
             let topLeft: NSPoint
             if let saved = savedTopLeft(for: window) {
@@ -610,6 +640,8 @@ final class FloatingWindowController: NSWindowController {
 
     func hide() {
         guard let window = window else { return }
+        dismissPeekPanel()
+        displayState = .hidden
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.09
             ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.4, 0, 1, 1)
@@ -622,6 +654,84 @@ final class FloatingWindowController: NSWindowController {
 
     func toggle() {
         isWidgetVisible ? hide() : show()
+    }
+
+    // MARK: - Peek tab
+
+    /// ⌘⇧L: collapse the widget to an edge tab, or expand it back.
+    func togglePeek() {
+        switch displayState {
+        case .peeked:
+            show()   // dismisses the peek tab and restores the widget
+        case .expanded, .hidden:
+            collapseToPeek()
+        }
+    }
+
+    private func collapseToPeek() {
+        guard let panel = window else { return }
+        let screen = panel.screen ?? NSScreen.main
+        let topY = panel.frame.maxY
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.12
+            panel.animator().alphaValue = 0.0
+        }, completionHandler: {
+            panel.orderOut(nil)
+            panel.alphaValue = AppSettings.shared.idleOpacity
+        })
+        showPeekPanel(topY: topY, screen: screen)
+        displayState = .peeked
+    }
+
+    private func showPeekPanel(topY: CGFloat, screen: NSScreen?) {
+        let s = screen ?? NSScreen.main
+        // Flush against the right screen edge (no gap).
+        let x = (s?.visibleFrame.maxX ?? peekTabWidth) - peekTabWidth
+        let y = topY - peekTabHeight
+        let panel = ensurePeekPanel()
+        panel.setFrame(NSRect(x: x, y: y, width: peekTabWidth, height: peekTabHeight), display: true)
+        panel.alphaValue = 0
+        panel.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.12
+            panel.animator().alphaValue = 1.0
+        }
+    }
+
+    private func dismissPeekPanel() {
+        guard let p = peekPanel, p.isVisible else { return }
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.10
+            p.animator().alphaValue = 0.0
+        }, completionHandler: {
+            p.orderOut(nil)
+            p.alphaValue = 1.0
+        })
+    }
+
+    private func ensurePeekPanel() -> NSPanel {
+        if let p = peekPanel { return p }
+        let p = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: peekTabWidth, height: peekTabHeight),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        p.level = .floating
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hasShadow = true
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+
+        let tab = PeekTabNSView(frame: NSRect(x: 0, y: 0, width: peekTabWidth, height: peekTabHeight))
+        tab.onClick = { [weak self] in self?.show() }
+        let hosting = NSHostingView(rootView: PeekTabView())
+        hosting.frame = tab.bounds
+        hosting.autoresizingMask = [.width, .height]
+        tab.addSubview(hosting)
+        p.contentView = tab
+        peekPanel = p
+        return p
     }
 }
 
@@ -839,6 +949,133 @@ private final class TitlebarCloseButton: NSButton {
             path.lineWidth = 1.5
             path.lineCapStyle = .round
             path.stroke()
+        }
+    }
+}
+
+/// An NSButton that always draws as a yellow circle, with a › chevron on hover
+/// (collapse the widget to the edge tab).
+private final class TitlebarPeekButton: NSButton {
+
+    private var trackingArea: NSTrackingArea?
+    private var isHovered = false {
+        didSet { needsDisplay = true }
+    }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        isBordered = false
+        bezelStyle = .circular
+        title = ""
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let old = trackingArea { removeTrackingArea(old) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovered = true }
+    override func mouseExited(with event: NSEvent)  { isHovered = false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor(red: 0.98, green: 0.74, blue: 0.15, alpha: 1).setFill()
+        NSBezierPath(ovalIn: bounds).fill()
+
+        if isHovered {
+            NSColor.black.withAlphaComponent(0.55).setStroke()
+            let path = NSBezierPath()
+            let midY = bounds.midY
+            let x0 = bounds.width * 0.40
+            let x1 = bounds.width * 0.62
+            let dy = bounds.height * 0.16
+            path.move(to: NSPoint(x: x0, y: midY + dy))
+            path.line(to: NSPoint(x: x1, y: midY))
+            path.line(to: NSPoint(x: x0, y: midY - dy))
+            path.lineWidth = 1.5
+            path.lineCapStyle = .round
+            path.lineJoinStyle = .round
+            path.stroke()
+        }
+    }
+}
+
+// MARK: - Peek tab
+
+/// The edge tab shown while the widget is collapsed (⌘⇧L). Forwards clicks to
+/// the controller; hosts the SwiftUI content.
+private final class PeekTabNSView: NSView {
+    var onClick: (() -> Void)?
+    override func mouseDown(with event: NSEvent) { onClick?() }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+/// Content of the collapsed edge tab: a stub flush against the screen edge
+/// (only the inner corners are rounded) holding a vertical bar with one slot
+/// per session, colored by state — mirroring the session-summary bar. A faint
+/// dot is shown when there are no sessions.
+private struct PeekTabView: View {
+    @State private var store = StatusStore.shared
+
+    /// One color per session, grouped by state (working → confirmation →
+    /// waiting → forgotten), matching the session-summary bar's mapping.
+    private var slotColors: [Color] {
+        let s = store.sessions
+        let set = AppSettings.shared
+        let working      = s.filter { $0.isWorking && !$0.needsConfirmation }
+        let confirmation = s.filter { $0.needsConfirmation }
+        let waiting      = s.filter { !$0.isWorking && !$0.isForgotten }
+        let forgotten    = s.filter { !$0.isWorking && $0.isForgotten }
+        return working.map { _ in set.colorWorking }
+            + confirmation.map { _ in set.colorConfirmation }
+            + waiting.map { _ in set.colorWaiting }
+            + forgotten.map { _ in set.colorForgotten }
+    }
+
+    var body: some View {
+        let colors = slotColors
+        UnevenRoundedRectangle(
+            topLeadingRadius: 10,
+            bottomLeadingRadius: 10,
+            bottomTrailingRadius: 0,
+            topTrailingRadius: 0
+        )
+        .fill(Color(white: 0.12).opacity(0.98))
+        .overlay {
+            VStack(spacing: 5) {
+                Text("md")
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.45))
+                Group {
+                    if colors.isEmpty {
+                        Circle()
+                            .fill(Color.white.opacity(0.22))
+                            .frame(width: 6, height: 6)
+                    } else {
+                        VStack(spacing: 3) {
+                            ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(color)
+                                    .frame(maxHeight: .infinity)
+                            }
+                        }
+                        .frame(width: 12)
+                    }
+                }
+                .frame(maxHeight: .infinity)
+            }
+            .padding(.top, 7)
+            .padding(.bottom, 9)
         }
     }
 }

@@ -58,6 +58,8 @@ struct SettingsView: View {
                     .labelsHidden()
                     .onChange(of: settings.sortOrder) { _, _ in settings.save() }
                 }
+                Toggle("Collapse shortcut (⌘⇧L)", isOn: $settings.peekShortcutEnabled)
+                    .onChange(of: settings.peekShortcutEnabled) { _, _ in settings.save() }
             }
 
             Section("Alert Defaults") {
