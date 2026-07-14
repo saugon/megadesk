@@ -12,8 +12,83 @@ struct TerminalFocuser {
         case .ghostty:
             return focusGhostty(terminalId: session.ghosttyTerminalId, cwd: session.cwd)
         case .unknown:
-            return false
+            return focusByCwd(cwd: session.cwd)
         }
+    }
+
+    /// Best-effort focus for sessions whose terminal the hook never resolved
+    /// (terminal == .unknown — e.g. Claude ran as a daemon with no
+    /// ITERM_SESSION_ID/TTY, so no tab id was captured). Matches an open
+    /// terminal tab by its working directory instead.
+    @discardableResult
+    static func focusByCwd(cwd: String) -> Bool {
+        guard !cwd.isEmpty else { return false }
+        if isRunning("com.googlecode.iterm2"), focusiTerm2ByCwd(cwd: cwd) { return true }
+        if isRunning("com.mitchellh.ghostty"), focusGhostty(terminalId: "", cwd: cwd) { return true }
+        return false
+    }
+
+    private static func isRunning(_ bundleId: String) -> Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).isEmpty
+    }
+
+    private static func focusiTerm2ByCwd(cwd: String) -> Bool {
+        let escapedCwd = cwd.replacingOccurrences(of: "\\", with: "\\\\")
+                            .replacingOccurrences(of: "\"", with: "\\\"")
+
+        // A single cwd can back several sessions (the agent, extra shells,
+        // `make`, …). Prefer the one running the agent (jobName "node"); fall
+        // back to the first tab that matches the directory.
+        let script = """
+        tell application "iTerm2"
+            set fbW to missing value
+            set fbT to missing value
+            set fbS to missing value
+            repeat with w in windows
+                repeat with t in tabs of w
+                    repeat with s in sessions of t
+                        set p to ""
+                        try
+                            set p to (variable s named "path")
+                        end try
+                        if p is "\(escapedCwd)" then
+                            set jn to ""
+                            try
+                                set jn to (variable s named "jobName")
+                            end try
+                            if jn is "node" then
+                                tell t to select
+                                tell s to select
+                                tell w to select
+                                activate
+                                return true
+                            else if fbS is missing value then
+                                set fbW to w
+                                set fbT to t
+                                set fbS to s
+                            end if
+                        end if
+                    end repeat
+                end repeat
+            end repeat
+            if fbS is not missing value then
+                tell fbT to select
+                tell fbS to select
+                tell fbW to select
+                activate
+                return true
+            end if
+            return false
+        end tell
+        """
+
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+
+        return runAppleScript(script, permissionTerminal: "iTerm2")
     }
 
     private static func focusiTerm2(sessionId: String) -> Bool {

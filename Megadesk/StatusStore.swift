@@ -108,10 +108,14 @@ final class StatusStore {
 
     @discardableResult
     func focusTerminal(session: Session) -> Bool {
-        // Unknown terminals without a real session ID can't be focused
-        if session.terminalSessionId == session.sessionId && session.terminal == .unknown {
+        // Unknown terminals: the hook never resolved the tab (e.g. Claude ran as
+        // a daemon with no ITERM_SESSION_ID/TTY). Recover by matching an open
+        // tab by working directory; if that fails, still mark it active so the
+        // click is reflected in the UI.
+        if session.terminal == .unknown {
+            let found = TerminalFocuser.focusByCwd(cwd: session.cwd)
             activeSessionId = session.sessionId
-            return true
+            return found
         }
 
         let found = TerminalFocuser.focus(session: session)
@@ -212,7 +216,27 @@ final class StatusStore {
         }
         let deduped = Array(seen.values)
 
-        sessions = sorted(deduped)
+        // Second pass: collapse sessions that share the same Claude PID. A PID
+        // identifies a single process, so two sessions reporting the same
+        // claude_pid are an artifact of Claude 2.1.x dispatching hook events
+        // through a shared daemon (see the terminal=unknown gotcha): the hook
+        // records the daemon pid for several logical sessions, leaving stale
+        // duplicates that never reap (the daemon stays alive). Keep only the
+        // most recently updated session per pid; sessions without a pid are
+        // left untouched.
+        var byPid: [Int32: Session] = [:]
+        var pidless: [Session] = []
+        for s in deduped {
+            guard let pid = s.claudePid else { pidless.append(s); continue }
+            if let existing = byPid[pid] {
+                if s.lastUpdated > existing.lastUpdated { byPid[pid] = s }
+            } else {
+                byPid[pid] = s
+            }
+        }
+        let collapsed = pidless + Array(byPid.values)
+
+        sessions = sorted(collapsed)
         updateProcessWatchers()
         syncJSONLWatchers()
     }
