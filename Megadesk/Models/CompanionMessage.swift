@@ -22,11 +22,13 @@ struct CompanionMessage: Identifiable {
     let subject: String?   // Session/PR name to highlight in the text
     let ghostState: GhostState
     let ruleId: String
+    let timestamp: Date
 
-    init(text: String, ghostState: GhostState, ruleId: String, subject: String? = nil) {
+    init(text: String, ghostState: GhostState, ruleId: String, subject: String? = nil, timestamp: Date = Date()) {
         self.text = text
         self.ghostState = ghostState
         self.ruleId = ruleId
         self.subject = subject
+        self.timestamp = timestamp
     }
 }

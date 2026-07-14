@@ -134,7 +134,7 @@ final class AppSettings {
         toastPosition         = ToastPosition(rawValue: ud.string(forKey: "megadesk.alert.toastPosition") ?? "") ?? .center
         snoozeMinutes         = ud.object(forKey: "megadesk.alert.snoozeMinutes") as? Int ?? 5
         companionEnabled      = ud.object(forKey: "megadesk.companion.enabled") as? Bool ?? true
-        companionMode         = CompanionMode(rawValue: ud.string(forKey: "megadesk.companion.mode") ?? "") ?? .docked
+        companionMode         = CompanionMode(rawValue: ud.string(forKey: "megadesk.companion.mode") ?? "") ?? .floating
         companionWaitingThresholdMinutes      = ud.object(forKey: "megadesk.companion.waitingThreshold") as? Int ?? 15
         companionStuckWorkingThresholdMinutes = ud.object(forKey: "megadesk.companion.stuckWorkingThreshold") as? Int ?? 30
         companionIdleThresholdMinutes         = ud.object(forKey: "megadesk.companion.idleThreshold") as? Int ?? 45
@@ -223,7 +223,7 @@ final class AppSettings {
         toastPosition         = .center
         snoozeMinutes         = 5
         companionEnabled      = true
-        companionMode         = .docked
+        companionMode         = .floating
         companionWaitingThresholdMinutes      = 15
         companionStuckWorkingThresholdMinutes = 30
         companionIdleThresholdMinutes         = 45

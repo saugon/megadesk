@@ -10,6 +10,12 @@ final class CompanionEngine {
     /// repeated on demand (double-clicking the pet).
     private(set) var lastMessage: CompanionMessage?
 
+    /// Rolling buffer of the most-recently-emitted messages, newest first.
+    /// Used by the in-app history view and the popover on the pet panel.
+    /// In-memory only — clears on app restart.
+    private(set) var recentMessages: [CompanionMessage] = []
+    private static let recentMessagesLimit = 10
+
     var ghostState: GhostState {
         currentMessage?.ghostState ?? .idle
     }
@@ -192,14 +198,22 @@ final class CompanionEngine {
 
     // MARK: - Emit
 
-    private func emit(_ message: CompanionMessage) {
+    private func emit(_ message: CompanionMessage, recordInHistory: Bool = true) {
         currentMessage = message
         lastMessage = message
         lastAnyMessageAt = Date()
+        if recordInHistory { recordRecent(message) }
         dismissTimer?.invalidate()
         dismissTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: false) { [weak self] _ in
             self?.currentMessage = nil
             self?.dismissTimer = nil
+        }
+    }
+
+    private func recordRecent(_ message: CompanionMessage) {
+        recentMessages.insert(message, at: 0)
+        if recentMessages.count > Self.recentMessagesLimit {
+            recentMessages.removeLast(recentMessages.count - Self.recentMessagesLimit)
         }
     }
 
@@ -226,8 +240,9 @@ final class CompanionEngine {
             text: last.text,
             ghostState: last.ghostState,
             ruleId: last.ruleId,
-            subject: last.subject
-        ))
+            subject: last.subject,
+            timestamp: last.timestamp
+        ), recordInHistory: false)
     }
 
     // MARK: - State-change rules
@@ -714,7 +729,15 @@ final class CompanionEngine {
         let threshold: TimeInterval = 5 * 60
 
         for session in sessions {
-            guard session.needsConfirmation, session.timeInState >= threshold else {
+            // `timeInState` tracks how long the session has been in its
+            // underlying state (e.g. "working"), but `needsConfirmation` is a
+            // derived signal that flips on after a PreToolUse hook stalls —
+            // the underlying state never changed, so `timeInState` would
+            // pre-date the confirmation. `lastUpdated` is the timestamp of
+            // that PreToolUse event and stays put until the user answers,
+            // making `now - lastUpdated` the actual time waiting on input.
+            let timeWaiting = Date().timeIntervalSince1970 - session.lastUpdated
+            guard session.needsConfirmation, timeWaiting >= threshold else {
                 persistedState.firedRules.removeValue(forKey: "sessionConfirmationStuck:\(session.sessionId)")
                 continue
             }
@@ -727,7 +750,7 @@ final class CompanionEngine {
             emitNewRule(CompanionMessage(
                 text: template.filling([
                     "name": name,
-                    "duration": formatDuration(session.timeInState)
+                    "duration": formatDuration(timeWaiting)
                 ]),
                 ghostState: .alert,
                 ruleId: "sessionConfirmationStuck",

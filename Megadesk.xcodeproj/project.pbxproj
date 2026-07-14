@@ -49,6 +49,9 @@
 		AA000044 /* brume.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000043 /* brume.json */; };
 		AA000045 /* pixel.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000044 /* pixel.json */; };
 		AA000046 /* mochi.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000045 /* mochi.json */; };
+		AA000047 /* CompanionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000046 /* CompanionSettingsView.swift */; };
+		AA000048 /* CompanionHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000047 /* CompanionHistoryView.swift */; };
+		AA000049 /* dwight.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000048 /* dwight.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -95,6 +98,9 @@
 		AB000043 /* brume.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = brume.json; sourceTree = "<group>"; };
 		AB000044 /* pixel.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = pixel.json; sourceTree = "<group>"; };
 		AB000045 /* mochi.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = mochi.json; sourceTree = "<group>"; };
+		AB000046 /* CompanionSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionSettingsView.swift; sourceTree = "<group>"; };
+		AB000047 /* CompanionHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionHistoryView.swift; sourceTree = "<group>"; };
+		AB000048 /* dwight.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = dwight.json; sourceTree = "<group>"; };
 
 /* End PBXFileReference section */
 
@@ -142,6 +148,8 @@
 				AB000038 /* CompanionAnimator.swift */,
 				AB000039 /* CompanionView.swift */,
 				AB000040 /* CompanionWindowController.swift */,
+				AB000046 /* CompanionSettingsView.swift */,
+				AB000047 /* CompanionHistoryView.swift */,
 				AD000006 /* Pets */,
 				AD000002 /* Models */,
 				AD000003 /* Services */,
@@ -169,6 +177,7 @@
 				AB000043 /* brume.json */,
 				AB000044 /* pixel.json */,
 				AB000045 /* mochi.json */,
+				AB000048 /* dwight.json */,
 			);
 			path = Pets;
 			sourceTree = "<group>";
@@ -270,6 +279,7 @@
 				AA000044 /* brume.json in Resources */,
 				AA000045 /* pixel.json in Resources */,
 				AA000046 /* mochi.json in Resources */,
+				AA000049 /* dwight.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -332,6 +342,8 @@
 				AA000040 /* CompanionView.swift in Sources */,
 				AA000041 /* CompanionWindowController.swift in Sources */,
 				AA000043 /* CompanionPet.swift in Sources */,
+				AA000047 /* CompanionSettingsView.swift in Sources */,
+				AA000048 /* CompanionHistoryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

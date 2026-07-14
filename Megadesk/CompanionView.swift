@@ -47,6 +47,8 @@ struct CompanionView: View {
     @State private var engine = CompanionEngine.shared
     @State private var animator = CompanionAnimator()
     @State private var lastGhostWidth: CGFloat = 0
+    @State private var historyOpen = false
+    @State private var isPanelHovered = false
     @Bindable private var settings = AppSettings.shared
 
     /// When true, renders inline inside the widget (fills available width).
@@ -71,6 +73,12 @@ struct CompanionView: View {
             }
         }
         .background(settings.colorCompanionBackground.opacity(inline ? 1.0 : 0.92))
+        .overlay(alignment: .topTrailing) {
+            // While a bubble is on screen we hide the history button so the
+            // active message has the panel's attention to itself.
+            if engine.currentMessage == nil { historyButton }
+        }
+        .onHover { isPanelHovered = $0 }
         .transaction { $0.animation = nil }
         .onChange(of: engine.ghostState) { _, newState in
             animator.ghostState = newState
@@ -85,6 +93,31 @@ struct CompanionView: View {
         }
         .onDisappear {
             animator.isVisible = false
+        }
+    }
+
+    // MARK: - History button (top-right corner)
+    //
+    // Toggles a popover with the recent message log. The button is mostly
+    // transparent and only fades in on hover so it doesn't compete with the
+    // pet visually.
+
+    private var historyButton: some View {
+        Button {
+            historyOpen.toggle()
+        } label: {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(isPanelHovered || historyOpen ? 0.6 : 0.0))
+                .padding(4)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(4)
+        .help("Show recent messages")
+        .popover(isPresented: $historyOpen, arrowEdge: .leading) {
+            CompanionHistoryView()
+                .frame(width: 280, height: 260)
         }
     }
 
