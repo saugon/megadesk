@@ -3,6 +3,11 @@ import AppKit
 
 struct TerminalFocuser {
 
+    /// Serial queue for the cwd-based focus lookup. Enumerating every iTerm
+    /// session's variables is slow, so it must run off the main thread or it
+    /// freezes the whole UI while iTerm responds.
+    private static let cwdFocusQueue = DispatchQueue(label: "com.megadesk.terminalfocuser")
+
     /// Focuses the correct terminal tab/pane based on the session's terminal type.
     @discardableResult
     static func focus(session: Session) -> Bool {
@@ -12,38 +17,84 @@ struct TerminalFocuser {
         case .ghostty:
             return focusGhostty(terminalId: session.ghosttyTerminalId, cwd: session.cwd)
         case .unknown:
-            return focusByCwd(cwd: session.cwd)
+            focusByCwd(cwd: session.cwd)
+            return true   // work happens asynchronously; assume success
         }
     }
 
     /// Best-effort focus for sessions whose terminal the hook never resolved
     /// (terminal == .unknown — e.g. Claude ran as a daemon with no
     /// ITERM_SESSION_ID/TTY, so no tab id was captured). Matches an open
-    /// terminal tab by its working directory instead.
-    @discardableResult
-    static func focusByCwd(cwd: String) -> Bool {
-        guard !cwd.isEmpty else { return false }
-        if isRunning("com.googlecode.iterm2"), focusiTerm2ByCwd(cwd: cwd) { return true }
-        if isRunning("com.mitchellh.ghostty"), focusGhostty(terminalId: "", cwd: cwd) { return true }
-        return false
+    /// terminal tab by its working directory. Runs off the main thread because
+    /// enumerating every iTerm session is slow and would freeze the UI.
+    static func focusByCwd(cwd: String) {
+        guard !cwd.isEmpty else { return }
+        cwdFocusQueue.async {
+            activateApp()
+            if isRunning("com.googlecode.iterm2"), focusiTerm2ByCwd(cwd: cwd) { return }
+            if isRunning("com.mitchellh.ghostty") {
+                DispatchQueue.main.async { _ = focusGhostty(terminalId: "", cwd: cwd) }
+            }
+        }
+    }
+
+    private static func activateApp() {
+        DispatchQueue.main.async {
+            if #available(macOS 14.0, *) {
+                NSApp.activate()
+            } else {
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
     }
 
     private static func isRunning(_ bundleId: String) -> Bool {
         !NSRunningApplication.runningApplications(withBundleIdentifier: bundleId).isEmpty
     }
 
-    private static func focusiTerm2ByCwd(cwd: String) -> Bool {
-        let escapedCwd = cwd.replacingOccurrences(of: "\\", with: "\\\\")
-                            .replacingOccurrences(of: "\"", with: "\\\"")
+    private struct ItermPane {
+        let tty: String
+        let job: String
+        let path: String
+    }
 
-        // A single cwd can back several sessions (the agent, extra shells,
-        // `make`, …). Prefer the one running the agent (jobName "node"); fall
-        // back to the first tab that matches the directory.
+    private static func focusiTerm2ByCwd(cwd: String) -> Bool {
+        // Collect every iTerm session's tty, foreground job and cwd, then pick
+        // the best match in Swift — the hook's cwd (e.g. …/vertex_t2/backend)
+        // often differs from the shell's reported cwd (…/vertex_t2), so an
+        // exact match isn't enough; fall back to the closest ancestor path and
+        // prefer the agent's `node` pane.
+        guard let panes = listItermPanes(), !panes.isEmpty else { return false }
+        guard let target = bestPane(for: cwd, among: panes) else { return false }
+
+        let escapedTty = target.tty.replacingOccurrences(of: "\"", with: "\\\"")
+        let focusScript = """
+        tell application "iTerm2"
+            repeat with w in windows
+                repeat with t in tabs of w
+                    repeat with s in sessions of t
+                        if (tty of s) is "\(escapedTty)" then
+                            tell t to select
+                            tell s to select
+                            tell w to select
+                            activate
+                            return true
+                        end if
+                    end repeat
+                end repeat
+            end repeat
+            return false
+        end tell
+        """
+
+        return runAppleScript(focusScript, permissionTerminal: "iTerm2")
+    }
+
+    private static func listItermPanes() -> [ItermPane]? {
         let script = """
         tell application "iTerm2"
-            set fbW to missing value
-            set fbT to missing value
-            set fbS to missing value
+            set d to (character id 9)
+            set out to ""
             repeat with w in windows
                 repeat with t in tabs of w
                     repeat with s in sessions of t
@@ -51,44 +102,62 @@ struct TerminalFocuser {
                         try
                             set p to (variable s named "path")
                         end try
-                        if p is "\(escapedCwd)" then
-                            set jn to ""
-                            try
-                                set jn to (variable s named "jobName")
-                            end try
-                            if jn is "node" then
-                                tell t to select
-                                tell s to select
-                                tell w to select
-                                activate
-                                return true
-                            else if fbS is missing value then
-                                set fbW to w
-                                set fbT to t
-                                set fbS to s
-                            end if
-                        end if
+                        set jn to ""
+                        try
+                            set jn to (variable s named "jobName")
+                        end try
+                        set out to out & (tty of s) & d & jn & d & p & linefeed
                     end repeat
                 end repeat
             end repeat
-            if fbS is not missing value then
-                tell fbT to select
-                tell fbS to select
-                tell fbW to select
-                activate
-                return true
-            end if
-            return false
+            return out
         end tell
         """
-
-        if #available(macOS 14.0, *) {
-            NSApp.activate()
-        } else {
-            NSApp.activate(ignoringOtherApps: true)
+        var error: NSDictionary?
+        guard let appleScript = NSAppleScript(source: script) else { return nil }
+        let result = appleScript.executeAndReturnError(&error)
+        if let error = error {
+            // Only surface the automation-permission alert for real permission
+            // errors, not transient scripting failures.
+            let num = error[NSAppleScript.errorNumber] as? Int ?? 0
+            if num == -1743 || num == -600 { showPermissionAlert(terminal: "iTerm2") }
+            return nil
         }
+        guard let raw = result.stringValue else { return nil }
+        return raw
+            .split(whereSeparator: { $0 == "\n" || $0 == "\r" })
+            .compactMap { line -> ItermPane? in
+                let cols = line.components(separatedBy: "\t")
+                guard cols.count >= 3, !cols[0].isEmpty else { return nil }
+                return ItermPane(
+                    tty: cols[0],
+                    job: cols[1].trimmingCharacters(in: .whitespaces),
+                    path: cols[2]
+                )
+            }
+    }
 
-        return runAppleScript(script, permissionTerminal: "iTerm2")
+    /// Ranks panes against a target cwd: exact path wins, then the deepest
+    /// ancestor path, then a descendant path; the agent's `node` job breaks ties.
+    private static func bestPane(for cwd: String, among panes: [ItermPane]) -> ItermPane? {
+        func score(_ p: ItermPane) -> (rank: Int, node: Int, depth: Int)? {
+            guard !p.path.isEmpty else { return nil }
+            let node = (p.job == "node") ? 1 : 0
+            if p.path == cwd { return (3, node, p.path.count) }
+            if cwd.hasPrefix(p.path + "/") { return (2, node, p.path.count) }   // pane is an ancestor of the session
+            if p.path.hasPrefix(cwd + "/") { return (1, node, -p.path.count) }  // session is an ancestor of the pane
+            return nil
+        }
+        return panes
+            .compactMap { pane -> (ItermPane, (Int, Int, Int))? in
+                score(pane).map { (pane, ($0.rank, $0.node, $0.depth)) }
+            }
+            .max { lhs, rhs in
+                if lhs.1.0 != rhs.1.0 { return lhs.1.0 < rhs.1.0 }
+                if lhs.1.1 != rhs.1.1 { return lhs.1.1 < rhs.1.1 }
+                return lhs.1.2 < rhs.1.2
+            }?
+            .0
     }
 
     private static func focusiTerm2(sessionId: String) -> Bool {

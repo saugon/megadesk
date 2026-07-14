@@ -124,9 +124,9 @@ final class StatusStore {
         // tab by working directory; if that fails, still mark it active so the
         // click is reflected in the UI.
         if session.terminal == .unknown {
-            let found = TerminalFocuser.focusByCwd(cwd: session.cwd)
+            TerminalFocuser.focusByCwd(cwd: session.cwd)
             activeSessionId = session.sessionId
-            return found
+            return true
         }
 
         let found = TerminalFocuser.focus(session: session)
