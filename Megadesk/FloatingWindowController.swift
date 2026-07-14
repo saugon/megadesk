@@ -148,7 +148,7 @@ final class FloatingWindowController: NSWindowController {
     private var displayState: DisplayState = .expanded
     private var peekPanel: NSPanel?
     private let peekTabWidth: CGFloat = 24
-    private let peekTabHeight: CGFloat = 104
+    private let peekTabHeight: CGFloat = 116
 
     convenience init(contentView: some View, footerView: some View) {
         let initialCompact = UserDefaults.standard.bool(forKey: "megadesk.compact")
@@ -1027,9 +1027,12 @@ private final class PeekTabNSView: NSView {
 private struct PeekTabView: View {
     @State private var store = StatusStore.shared
 
-    /// One color per session, grouped by state (working → confirmation →
-    /// waiting → forgotten), matching the session-summary bar's mapping.
-    private var slotColors: [Color] {
+    // One color slot per widget item, in the widget's top-to-bottom order:
+    // alerts, then sessions, then pull requests — each group split by a rule.
+
+    /// Sessions grouped by state (working → confirmation → waiting → forgotten),
+    /// matching the session-summary bar's color mapping.
+    private var sessionColors: [Color] {
         let s = store.sessions
         let set = AppSettings.shared
         let working      = s.filter { $0.isWorking && !$0.needsConfirmation }
@@ -1042,8 +1045,48 @@ private struct PeekTabView: View {
             + forgotten.map { _ in set.colorForgotten }
     }
 
+    /// Fired, not-yet-dismissed alerts that show in the widget.
+    private var alertColors: [Color] {
+        let set = AppSettings.shared
+        return store.alerts
+            .filter { $0.effectiveShowWidget
+                && store.firedAlertIds.contains($0.id)
+                && !store.dismissedFiredAlertIds.contains($0.id) }
+            .map { _ in set.colorAlert }
+    }
+
+    /// Tracked PRs, colored by CI/merge state (mirrors PRCardView).
+    private var prColors: [Color] {
+        store.trackedPRs.map(prColor)
+    }
+
+    private func prColor(_ tracked: TrackedPR) -> Color {
+        let set = AppSettings.shared
+        guard let pr = tracked.data else { return set.colorPRClosed }
+        if pr.isMerged { return set.colorPRMerged }
+        if pr.isClosed { return set.colorPRClosed }
+        switch pr.ciStatus {
+        case .failing: return set.colorPRFailing
+        case .pending: return set.colorPRPending
+        case .passing: return set.colorPRPassing
+        case .none:    return set.colorPRClosed
+        }
+    }
+
+    /// Flattened slots with a separator between each non-empty group, so every
+    /// slot shares the available height equally regardless of its group.
+    private var entries: [(isSeparator: Bool, color: Color)] {
+        let groups = [alertColors, sessionColors, prColors].filter { !$0.isEmpty }
+        var result: [(Bool, Color)] = []
+        for (i, group) in groups.enumerated() {
+            if i > 0 { result.append((true, .clear)) }
+            result.append(contentsOf: group.map { (false, $0) })
+        }
+        return result.map { (isSeparator: $0.0, color: $0.1) }
+    }
+
     var body: some View {
-        let colors = slotColors
+        let items = entries
         UnevenRoundedRectangle(
             topLeadingRadius: 10,
             bottomLeadingRadius: 10,
@@ -1052,27 +1095,33 @@ private struct PeekTabView: View {
         )
         .fill(Color(white: 0.12).opacity(0.98))
         .overlay {
-            VStack(spacing: 5) {
+            VStack(spacing: 4) {
                 Text("md")
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.45))
-                Group {
-                    if colors.isEmpty {
-                        Circle()
-                            .fill(Color.white.opacity(0.22))
-                            .frame(width: 6, height: 6)
-                    } else {
-                        VStack(spacing: 3) {
-                            ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
+                if items.isEmpty {
+                    Spacer(minLength: 0)
+                    Circle()
+                        .fill(Color.white.opacity(0.22))
+                        .frame(width: 6, height: 6)
+                    Spacer(minLength: 0)
+                } else {
+                    VStack(spacing: 3) {
+                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                            if item.isSeparator {
+                                Rectangle()
+                                    .fill(Color.white.opacity(0.18))
+                                    .frame(width: 14, height: 1)
+                            } else {
                                 RoundedRectangle(cornerRadius: 2)
-                                    .fill(color)
+                                    .fill(item.color)
+                                    .frame(width: 12)
                                     .frame(maxHeight: .infinity)
                             }
                         }
-                        .frame(width: 12)
                     }
+                    .frame(maxHeight: .infinity)
                 }
-                .frame(maxHeight: .infinity)
             }
             .padding(.top, 7)
             .padding(.bottom, 9)
