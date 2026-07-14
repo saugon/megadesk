@@ -348,8 +348,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openAlerts() {
         showMain(section: .alerts)
-        StatusStore.shared.clearAlertBadge()
-        updateMenuBarBadge()
     }
 
     // MARK: - Alert badge
@@ -361,6 +359,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             forName: .megadeskAlertFired, object: nil, queue: .main
         ) { [weak self] _ in
             self?.updateMenuBarBadge()
+        }
+
+        // Also refresh whenever the underlying alerts state changes — covers
+        // dismiss, delete, snooze, and any other path that doesn't fire the
+        // notification above. Without this the badge would persist after
+        // every non-fire mutation.
+        observePendingAlerts()
+    }
+
+    private func observePendingAlerts() {
+        withObservationTracking {
+            _ = StatusStore.shared.pendingAlertCount
+        } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                self?.updateMenuBarBadge()
+                self?.observePendingAlerts()
+            }
         }
     }
 
