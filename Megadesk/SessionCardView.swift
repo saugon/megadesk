@@ -129,27 +129,51 @@ struct SessionCardView: View {
         "✳", "✶", "✢", "✻", "·", "✽"
     ]
 
+    /// SF Symbol + color for the session's Claude Code permission mode, shown
+    /// under the provider icon. nil until a mode is known (or for Codex).
+    private var permissionModeBadge: (symbol: String, color: Color)? {
+        guard AppSettings.shared.showPermissionMode, session.provider == .claude else { return nil }
+        switch session.permissionMode {
+        case "default":                   return ("pause.fill",   Color(white: 0.55)) // manual
+        case "acceptEdits":               return ("forward.fill", .purple)            // accept
+        case "plan":                      return ("pause.fill",   .green)             // plan
+        case "auto", "bypassPermissions": return ("forward.fill", .orange)            // auto
+        default:                          return nil
+        }
+    }
+
     @ViewBuilder private var cardContent: some View {
         HStack(alignment: .top, spacing: 8) {
-            if session.provider == .codex {
-                ProviderBadge(letter: "X",
-                              color: dotColor, pulse: shouldPulse,
-                              dimmed: session.isForgotten)
-                    .padding(.top, 4)
-            } else if activeSpinner != nil && session.isWorking {
-                // Derive frame from tick (1 Hz) — no per-card timer needed
-                Text(Self.spinnerFrames[spinnerTick % Self.spinnerFrames.count])
-                    .font(.system(size: 15, design: .monospaced))
-                    .foregroundColor(spinnerIconColor)
-                    .frame(width: 16, height: 16)
-                    .padding(.top, 4)
-            } else {
-                Text("\u{2733}")
-                    .font(.system(size: 16, design: .monospaced))
-                    .foregroundColor(session.isForgotten ? Color(white: 0.75) : dotColor)
-                    .frame(width: 16, height: 16)
-                    .padding(.top, 4)
+            VStack(spacing: 1) {
+                if session.provider == .codex {
+                    ProviderBadge(letter: "X",
+                                  color: dotColor, pulse: shouldPulse,
+                                  dimmed: session.isForgotten)
+                } else if activeSpinner != nil && session.isWorking {
+                    // Derive frame from tick (1 Hz) — no per-card timer needed
+                    Text(Self.spinnerFrames[spinnerTick % Self.spinnerFrames.count])
+                        .font(.system(size: 15, design: .monospaced))
+                        .foregroundColor(spinnerIconColor)
+                        .frame(width: 16, height: 16)
+                } else {
+                    Text("\u{2733}")
+                        .font(.system(size: 16, design: .monospaced))
+                        .foregroundColor(session.isForgotten ? Color(white: 0.75) : dotColor)
+                        .frame(width: 16, height: 14)
+                }
+                if let mode = permissionModeBadge {
+                    Image(systemName: mode.symbol)
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(mode.color.opacity(session.isForgotten ? 0.5 : 1))
+                        .padding(.horizontal, 3)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.black.opacity(session.isForgotten ? 0.2 : 0.35))
+                        )
+                }
             }
+            .frame(maxHeight: .infinity)
 
             // Left column: name/TextField + status
             VStack(alignment: .leading, spacing: 2) {
@@ -193,6 +217,7 @@ struct SessionCardView: View {
                         .truncationMode(.tail)
                 }
             }
+            .frame(maxHeight: .infinity, alignment: .leading)
 
             Spacer()
 

@@ -88,6 +88,7 @@ def main():
 
     cwd = data.get("cwd", os.getcwd())
     tool_name = data.get("tool_name") or data.get("tool", "") or ""
+    permission_mode = data.get("permission_mode")  # present on tool/loop events only
     term_program = os.environ.get("TERM_PROGRAM", "").lower()
 
     # iTerm2 session ID: "w0t0p0:UUID" → extract UUID
@@ -126,6 +127,10 @@ def main():
                 state_since = existing.get("state_since", now)
             created_at = existing.get("created_at", now)
             ghostty_terminal_id = existing.get("ghostty_terminal_id", "")
+            # permission_mode isn't sent on every event (e.g. SessionStart) —
+            # keep the last known value so the UI doesn't lose it.
+            if permission_mode is None:
+                permission_mode = existing.get("permission_mode")
         except (json.JSONDecodeError, OSError):
             pass
 
@@ -147,6 +152,7 @@ def main():
         "claude_pid": _find_claude_pid(),
         "provider": "claude",
         "ghostty_terminal_id": ghostty_terminal_id,
+        "permission_mode": permission_mode,
     }
 
     # On SessionStart, remove stale files from the same terminal tab

@@ -60,6 +60,8 @@ struct SettingsView: View {
                 }
                 Toggle("Collapse shortcut (⌘⇧L)", isOn: $settings.peekShortcutEnabled)
                     .onChange(of: settings.peekShortcutEnabled) { _, _ in settings.save() }
+                Toggle("Show permission mode", isOn: $settings.showPermissionMode)
+                    .onChange(of: settings.showPermissionMode) { _, _ in settings.save() }
             }
 
             Section("Alert Defaults") {

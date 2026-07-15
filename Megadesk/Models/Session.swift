@@ -21,6 +21,9 @@ struct Session: Identifiable, Codable {
     let claudePid: Int32?
     let provider: Provider
     let ghosttyTerminalId: String
+    /// Claude Code permission mode: "default" | "acceptEdits" | "plan" |
+    /// "bypassPermissions". nil until an event that carries it arrives.
+    let permissionMode: String?
 
     var id: String { sessionId }
 
@@ -104,6 +107,7 @@ struct Session: Identifiable, Codable {
         case claudePid = "claude_pid"
         case provider
         case ghosttyTerminalId = "ghostty_terminal_id"
+        case permissionMode = "permission_mode"
     }
 
     init(from decoder: Decoder) throws {
@@ -120,6 +124,7 @@ struct Session: Identifiable, Codable {
         claudePid   = try c.decodeIfPresent(Int32.self, forKey: .claudePid)
         provider    = try c.decodeIfPresent(Provider.self, forKey: .provider) ?? .claude
         ghosttyTerminalId = try c.decodeIfPresent(String.self, forKey: .ghosttyTerminalId) ?? ""
+        permissionMode = try c.decodeIfPresent(String.self, forKey: .permissionMode)
 
         // Accept both "terminal_session_id" (new) and "iterm_session_id" (legacy)
         if let tid = try c.decodeIfPresent(String.self, forKey: .terminalSessionId) {
@@ -144,5 +149,6 @@ struct Session: Identifiable, Codable {
         try c.encodeIfPresent(claudePid, forKey: .claudePid)
         try c.encode(provider,           forKey: .provider)
         try c.encode(ghosttyTerminalId,  forKey: .ghosttyTerminalId)
+        try c.encodeIfPresent(permissionMode, forKey: .permissionMode)
     }
 }
