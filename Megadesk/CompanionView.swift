@@ -269,11 +269,13 @@ struct CompanionView: View {
         return Group {
             if !slots.isEmpty {
                 HStack(spacing: 2) {
+                    Spacer(minLength: 0)
                     ForEach(Array(slots.enumerated()), id: \.offset) { _, color in
                         RoundedRectangle(cornerRadius: 1.5)
                             .fill(color)
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: 20)
                     }
+                    Spacer(minLength: 0)
                 }
                 .frame(height: 6)
                 .padding(.horizontal, 12)
