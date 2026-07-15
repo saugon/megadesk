@@ -179,7 +179,10 @@ final class FloatingWindowController: NSWindowController {
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden   // we draw our own title label
         panel.isMovableByWindowBackground = true
-        panel.backgroundColor = NSColor(white: 0.1, alpha: 0.92)
+        // Opaque background — overall translucency is controlled by the
+        // window's alphaValue (the "Widget opacity" setting), so at 100% the
+        // widget is fully opaque and only becomes see-through below 100%.
+        panel.backgroundColor = NSColor(white: 0.1, alpha: 1.0)
         panel.isOpaque = false
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
