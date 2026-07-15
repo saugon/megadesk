@@ -111,6 +111,7 @@ extension Notification.Name {
     static let megadeskFocusSession  = Notification.Name("megadesk.focusSession")
     static let megadeskCycleSession  = Notification.Name("megadesk.cycleSession")
     static let megadeskOpenContextSave = Notification.Name("megadesk.openContextSave")
+    static let megadeskShowAlerts = Notification.Name("megadesk.showAlerts")
     static let megadeskCompanionBubbleChanged = Notification.Name("megadesk.companion.bubbleChanged")
     static let megadeskCompanionContentResized = Notification.Name("megadesk.companion.contentResized")
 }
@@ -149,6 +150,13 @@ final class FloatingWindowController: NSWindowController {
     private var peekPanel: NSPanel?
     private let peekTabWidth: CGFloat = 24
     private let peekTabHeight: CGFloat = 116
+    private let peekTabInteractiveWidth: CGFloat = 34
+    /// The style the cached peek panel was built for; rebuilt when it changes.
+    private var peekPanelStyle: PeekTabStyle?
+    /// Borderless panel that shows a session/PR/alert card as the hover tooltip
+    /// for the interactive peek tab (own opaque background + corner, unlike a
+    /// system popover).
+    private var peekTooltipPanel: NSPanel?
 
     convenience init(contentView: some View, footerView: some View) {
         let initialCompact = UserDefaults.standard.bool(forKey: "megadesk.compact")
@@ -681,15 +689,47 @@ final class FloatingWindowController: NSWindowController {
         })
         showPeekPanel(topY: topY, screen: screen)
         displayState = .peeked
+        observePeekSize()
+    }
+
+    private var peekPanelWidth: CGFloat {
+        AppSettings.shared.peekTabStyle == .interactive ? peekTabInteractiveWidth : peekTabWidth
+    }
+
+    /// Interactive tab height: header chevron + one fixed slot per session/PR/
+    /// alert + separators between groups. Compact stays a fixed size.
+    private func peekPanelHeight() -> CGFloat {
+        guard AppSettings.shared.peekTabStyle == .interactive else { return peekTabHeight }
+        let store = StatusStore.shared
+        let sessions = store.sessions.count
+        let prs = store.trackedPRs.count
+        let alerts = store.alerts.filter {
+            $0.effectiveShowWidget && store.firedAlertIds.contains($0.id)
+                && !store.dismissedFiredAlertIds.contains($0.id)
+        }.count
+        let items = sessions + prs + alerts
+        let groups = [alerts, sessions, prs].filter { $0 > 0 }.count
+        let separators = max(0, groups - 1)
+        let slotH = CGFloat(AppSettings.shared.peekSlotHeight)
+        let sepH: CGFloat = 1, chevronH: CGFloat = 16, mdH: CGFloat = 15
+        let gap: CGFloat = 3, padV: CGFloat = 9
+        // VStack elements: md label + chevron + items + separators.
+        let gaps = max(0, (2 + items + separators) - 1)
+        let content = mdH + chevronH
+            + CGFloat(items) * slotH
+            + CGFloat(separators) * sepH
+            + CGFloat(gaps) * gap
+        return max(56, padV * 2 + content)
     }
 
     private func showPeekPanel(topY: CGFloat, screen: NSScreen?) {
         let s = screen ?? NSScreen.main
+        let w = peekPanelWidth
+        let h = peekPanelHeight()
         // Flush against the right screen edge (no gap).
-        let x = (s?.visibleFrame.maxX ?? peekTabWidth) - peekTabWidth
-        let y = topY - peekTabHeight
+        let x = (s?.visibleFrame.maxX ?? w) - w
         let panel = ensurePeekPanel()
-        panel.setFrame(NSRect(x: x, y: y, width: peekTabWidth, height: peekTabHeight), display: true)
+        panel.setFrame(NSRect(x: x, y: topY - h, width: w, height: h), display: true)
         panel.alphaValue = 0
         panel.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { ctx in
@@ -698,7 +738,77 @@ final class FloatingWindowController: NSWindowController {
         }
     }
 
+    /// Re-applies the interactive tab's height when its item count changes,
+    /// keeping the top edge anchored.
+    private func resizePeekPanel() {
+        guard let p = peekPanel, p.isVisible,
+              AppSettings.shared.peekTabStyle == .interactive else { return }
+        let topY = p.frame.maxY
+        let h = peekPanelHeight()
+        guard abs(h - p.frame.height) > 0.5 else { return }
+        p.setFrame(NSRect(x: p.frame.origin.x, y: topY - h, width: p.frame.width, height: h), display: true)
+    }
+
+    private func observePeekSize() {
+        guard displayState == .peeked, AppSettings.shared.peekTabStyle == .interactive else { return }
+        withObservationTracking {
+            let store = StatusStore.shared
+            _ = store.sessions.count
+            _ = store.trackedPRs.count
+            _ = store.alerts.count
+            _ = store.firedAlertIds.count
+            _ = store.dismissedFiredAlertIds.count
+            _ = AppSettings.shared.peekSlotHeight
+        } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                guard let self, self.displayState == .peeked else { return }
+                self.resizePeekPanel()
+                self.observePeekSize()
+            }
+        }
+    }
+
+    /// Shows the hover card for the interactive peek tab, positioned to the
+    /// left of the hovered slot. `slotWindowRect` is the slot's frame in the
+    /// peek panel's window coordinates (top-left origin).
+    func showPeekTooltip(_ view: AnyView, slotWindowRect: CGRect) {
+        guard let peek = peekPanel, peek.isVisible else { return }
+        let panel = peekTooltipPanel ?? {
+            let p = NSPanel(
+                contentRect: .zero,
+                styleMask: [.borderless, .nonactivatingPanel],
+                backing: .buffered,
+                defer: false
+            )
+            p.level = .floating
+            p.isOpaque = false
+            p.backgroundColor = .clear
+            p.hasShadow = true
+            p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            peekTooltipPanel = p
+            return p
+        }()
+        let hosting = NSHostingView(rootView: view)
+        let size = hosting.fittingSize
+        hosting.frame = NSRect(origin: .zero, size: size)
+        panel.contentView = hosting
+
+        // Convert the slot's window rect (top-left origin) to screen coords.
+        let slotScreenX = peek.frame.minX + slotWindowRect.minX
+        let slotBottom = peek.frame.maxY - slotWindowRect.maxY
+        let slotMidY = slotBottom + slotWindowRect.height / 2
+        let x = slotScreenX - size.width - 8
+        let y = slotMidY - size.height / 2
+        panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
+        panel.orderFront(nil)   // instant — no popover fade
+    }
+
+    func hidePeekTooltip() {
+        peekTooltipPanel?.orderOut(nil)
+    }
+
     private func dismissPeekPanel() {
+        hidePeekTooltip()
         guard let p = peekPanel, p.isVisible else { return }
         NSAnimationContext.runAnimationGroup({ ctx in
             ctx.duration = 0.10
@@ -710,9 +820,11 @@ final class FloatingWindowController: NSWindowController {
     }
 
     private func ensurePeekPanel() -> NSPanel {
-        if let p = peekPanel { return p }
-        let p = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: peekTabWidth, height: peekTabHeight),
+        let style = AppSettings.shared.peekTabStyle
+        if let p = peekPanel, peekPanelStyle == style { return p }
+
+        let p = peekPanel ?? NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: peekPanelWidth, height: peekTabHeight),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -723,14 +835,28 @@ final class FloatingWindowController: NSWindowController {
         p.hasShadow = true
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
-        let tab = PeekTabNSView(frame: NSRect(x: 0, y: 0, width: peekTabWidth, height: peekTabHeight))
-        tab.onClick = { [weak self] in self?.show() }
-        let hosting = NSHostingView(rootView: PeekTabView())
-        hosting.frame = tab.bounds
-        hosting.autoresizingMask = [.width, .height]
-        tab.addSubview(hosting)
-        p.contentView = tab
+        let content: NSView
+        switch style {
+        case .compact:
+            let tab = PeekTabNSView(frame: .zero)
+            tab.onClick = { [weak self] in self?.show() }
+            let hosting = NSHostingView(rootView: PeekTabView())
+            hosting.autoresizingMask = [.width, .height]
+            hosting.frame = p.contentLayoutRect
+            tab.addSubview(hosting)
+            content = tab
+        case .interactive:
+            content = FirstMouseHostingView(rootView:
+                PeekTabInteractiveView(
+                    onExpand: { [weak self] in self?.show() },
+                    showTooltip: { [weak self] view, rect in self?.showPeekTooltip(view, slotWindowRect: rect) },
+                    hideTooltip: { [weak self] in self?.hidePeekTooltip() }
+                )
+            )
+        }
+        p.contentView = content
         peekPanel = p
+        peekPanelStyle = style
         return p
     }
 }
@@ -1018,6 +1144,255 @@ private final class PeekTabNSView: NSView {
     var onClick: (() -> Void)?
     override func mouseDown(with event: NSEvent) { onClick?() }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+/// Collects each interactive slot's frame (window coords) so the controller
+/// can anchor the hover tooltip panel to it.
+private struct SlotRectKey: PreferenceKey {
+    static let defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { _, new in new }
+    }
+}
+
+/// Interactive collapsed tab: a chevron button that expands the widget, then
+/// one fixed-height clickable slot per widget item (alerts, sessions, PRs).
+/// Clicking a slot performs its action (focus tab / open PR / open alerts);
+/// hovering shows the item's card as a tooltip.
+private struct PeekTabInteractiveView: View {
+    @State private var store = StatusStore.shared
+    @State private var hoverScaleID: String?        // drives the instant hover scale
+    @State private var chevronHover = false
+    @State private var hoverWork: DispatchWorkItem?
+    @State private var slotRects: [String: CGRect] = [:]
+    let onExpand: () -> Void
+    let showTooltip: (AnyView, CGRect) -> Void
+    let hideTooltip: () -> Void
+
+    /// The real card for a slot, shown as the hover tooltip.
+    @ViewBuilder private func cardView(for slot: Slot) -> some View {
+        switch slot {
+        case .session(let s):
+            SessionCardView(
+                session: s,
+                tick: store.tick,
+                spinnerTick: store.spinnerTick,
+                displayName: store.displayName(for: s),
+                hasCustomName: store.hasCustomName(for: s),
+                isFlashing: false,
+                toolDetail: store.toolDetail(for: s),
+                spinnerInfo: store.spinnerInfo(for: s),
+                onFocus: { store.focusTerminal(session: s) },
+                onRename: { _ in },
+                onEditStart: {},
+                onEditEnd: {}
+            )
+            .frame(width: 250)
+        case .pr(let t):
+            PRCardView(trackedPR: t, onRefresh: {}, onRemove: {})
+                .frame(width: 250)
+        case .alert(let a):
+            AlertCardView(alert: a, isCompact: false)
+                .frame(width: 250)
+        case .separator:
+            EmptyView()
+        }
+    }
+
+    /// The card wrapped with an opaque backing + a moderate corner, so it
+    /// isn't translucent and isn't as rounded as a system popover.
+    private func tooltipContent(for slot: Slot) -> some View {
+        cardView(for: slot)
+            .background(Color(white: 0.10))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func scheduleHover(_ slot: Slot) {
+        hoverWork?.cancel()
+        let item = DispatchWorkItem {
+            guard let rect = slotRects[slot.id] else { return }
+            showTooltip(AnyView(tooltipContent(for: slot)), rect)
+        }
+        hoverWork = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: item)
+    }
+
+    private func endHover(_ slot: Slot) {
+        hoverWork?.cancel()
+        hideTooltip()
+    }
+
+    private enum Slot: Identifiable {
+        case session(Session)
+        case pr(TrackedPR)
+        case alert(MegadeskAlert)
+        case separator(Int)
+
+        var id: String {
+            switch self {
+            case .session(let s):   return "s-\(s.id)"
+            case .pr(let p):        return "p-\(p.id)"
+            case .alert(let a):     return "a-\(a.id)"
+            case .separator(let i): return "sep-\(i)"
+            }
+        }
+    }
+
+    private var slots: [Slot] {
+        let s = store.sessions
+        let working      = s.filter { $0.isWorking && !$0.needsConfirmation }
+        let confirmation = s.filter { $0.needsConfirmation }
+        let waiting      = s.filter { !$0.isWorking && !$0.isForgotten }
+        let forgotten    = s.filter { !$0.isWorking && $0.isForgotten }
+        let sessionSlots = (working + confirmation + waiting + forgotten).map(Slot.session)
+        let alertSlots = store.alerts.filter {
+            $0.effectiveShowWidget && store.firedAlertIds.contains($0.id)
+                && !store.dismissedFiredAlertIds.contains($0.id)
+        }.map(Slot.alert)
+        let prSlots = store.trackedPRs.map(Slot.pr)
+
+        let groups = [alertSlots, sessionSlots, prSlots].filter { !$0.isEmpty }
+        var result: [Slot] = []
+        for (i, group) in groups.enumerated() {
+            if i > 0 { result.append(.separator(i)) }
+            result.append(contentsOf: group)
+        }
+        return result
+    }
+
+    private func color(for slot: Slot) -> Color {
+        let set = AppSettings.shared
+        switch slot {
+        case .session(let s):
+            if s.needsConfirmation { return set.colorConfirmation }
+            if s.isWorking         { return set.colorWorking }
+            if s.isForgotten       { return set.colorForgotten }
+            return set.colorWaiting
+        case .pr(let t):
+            guard let pr = t.data else { return set.colorPRClosed }
+            if pr.isMerged { return set.colorPRMerged }
+            if pr.isClosed { return set.colorPRClosed }
+            switch pr.ciStatus {
+            case .failing: return set.colorPRFailing
+            case .pending: return set.colorPRPending
+            case .passing: return set.colorPRPassing
+            case .none:    return set.colorPRClosed
+            }
+        case .alert:     return set.colorAlert
+        case .separator: return .clear
+        }
+    }
+
+    /// Horizontal gradient of the slot color — softer / less flat than a solid fill.
+    private func gradient(for slot: Slot) -> LinearGradient {
+        let c = color(for: slot)
+        return LinearGradient(
+            colors: [c.opacity(0.95), c.opacity(0.55)],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+
+    /// True for the slot of the currently selected/focused session.
+    private func isSelected(_ slot: Slot) -> Bool {
+        if case .session(let s) = slot { return store.activeSessionId == s.sessionId }
+        return false
+    }
+
+    private func tooltip(for slot: Slot) -> String {
+        switch slot {
+        case .session(let s): return store.displayName(for: s)
+        case .pr(let t):      return t.data?.title ?? t.id
+        case .alert(let a):   return a.title
+        case .separator:      return ""
+        }
+    }
+
+    private func activate(_ slot: Slot) {
+        switch slot {
+        case .session(let s):
+            store.focusTerminal(session: s)
+        case .pr(let t):
+            if let raw = t.data?.url, let url = URL(string: raw) { NSWorkspace.shared.open(url) }
+        case .alert:
+            NotificationCenter.default.post(name: .megadeskShowAlerts, object: nil)
+        case .separator:
+            break
+        }
+    }
+
+    var body: some View {
+        UnevenRoundedRectangle(
+            topLeadingRadius: 10,
+            bottomLeadingRadius: 10,
+            bottomTrailingRadius: 0,
+            topTrailingRadius: 0
+        )
+        .fill(Color(white: 0.12).opacity(0.98))
+        .overlay {
+            VStack(spacing: 3) {
+                Text("md")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.5))
+                Button(action: onExpand) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white.opacity(chevronHover ? 0.9 : 0.55))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 16)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .scaleEffect(chevronHover ? 1.2 : 1.0)
+                .animation(.easeOut(duration: 0.1), value: chevronHover)
+                .onHover { chevronHover = $0 }
+                .help("Expand widget")
+
+                ForEach(slots) { slot in
+                    if case .separator = slot {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.18))
+                            .frame(height: 1)
+                            .padding(.horizontal, 3)
+                    } else {
+                        Button(action: { activate(slot) }) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(gradient(for: slot))
+                                .frame(height: CGFloat(AppSettings.shared.peekSlotHeight))
+                                .overlay {
+                                    if isSelected(slot) {
+                                        RoundedRectangle(cornerRadius: 2)
+                                            .strokeBorder(Color.white.opacity(0.9), lineWidth: 1.5)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .background(GeometryReader { geo in
+                            Color.clear.preference(
+                                key: SlotRectKey.self,
+                                value: [slot.id: geo.frame(in: .global)]
+                            )
+                        })
+                        .scaleEffect(hoverScaleID == slot.id ? 1.14 : 1.0)
+                        .animation(.easeOut(duration: 0.1), value: hoverScaleID)
+                        .onHover { hovering in
+                            if hovering {
+                                hoverScaleID = slot.id
+                                scheduleHover(slot)
+                            } else {
+                                if hoverScaleID == slot.id { hoverScaleID = nil }
+                                endHover(slot)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 5)
+            .padding(.vertical, 9)
+            .onPreferenceChange(SlotRectKey.self) { slotRects = $0 }
+        }
+    }
 }
 
 /// Content of the collapsed edge tab: a stub flush against the screen edge

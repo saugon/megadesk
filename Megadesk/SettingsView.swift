@@ -60,6 +60,27 @@ struct SettingsView: View {
                 }
                 Toggle("Collapse shortcut (⌘⇧L)", isOn: $settings.peekShortcutEnabled)
                     .onChange(of: settings.peekShortcutEnabled) { _, _ in settings.save() }
+                LabeledContent("Collapsed tab style") {
+                    Picker("", selection: $settings.peekTabStyle) {
+                        ForEach(PeekTabStyle.allCases, id: \.self) {
+                            Text($0.label).tag($0)
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: settings.peekTabStyle) { _, _ in settings.save() }
+                }
+                .disabled(!settings.peekShortcutEnabled)
+                LabeledContent("Slot size") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.peekSlotHeight, in: 8...32, step: 1)
+                            .frame(width: 160)
+                            .onChange(of: settings.peekSlotHeight) { _, _ in settings.save() }
+                        Text("\(Int(settings.peekSlotHeight))pt")
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!settings.peekShortcutEnabled || settings.peekTabStyle != .interactive)
                 Toggle("Show permission mode", isOn: $settings.showPermissionMode)
                     .onChange(of: settings.showPermissionMode) { _, _ in settings.save() }
             }

@@ -62,6 +62,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AlertNotificationService.shared.setup()
         setupAlertBadge()
 
+        // Open the Alerts panel when requested (e.g. from the interactive peek tab).
+        NotificationCenter.default.addObserver(forName: .megadeskShowAlerts, object: nil, queue: .main) { [weak self] _ in
+            self?.showMain(section: .alerts)
+        }
+
         // Companion ghost
         _ = CompanionEngine.shared  // bootstrap observation
         companionController = CompanionWindowController(mainWidgetWindow: windowController?.window)

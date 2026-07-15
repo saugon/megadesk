@@ -30,6 +30,19 @@ enum ToastPosition: String, CaseIterable {
     }
 }
 
+/// Style of the collapsed widget edge tab (⌘⇧L).
+enum PeekTabStyle: String, CaseIterable {
+    case compact      // thin bar; a click anywhere restores the widget
+    case interactive  // taller; clickable per-session/PR/alert slots + expand button
+
+    var label: String {
+        switch self {
+        case .compact:     return "Compact"
+        case .interactive: return "Interactive"
+        }
+    }
+}
+
 /// Global app settings — colors and behavior. Observable so views react to changes.
 @Observable
 final class AppSettings {
@@ -48,6 +61,10 @@ final class AppSettings {
     /// Whether session cards show the Claude Code permission-mode badge under
     /// the provider icon.
     var showPermissionMode: Bool
+    /// Style of the collapsed widget edge tab (⌘⇧L).
+    var peekTabStyle: PeekTabStyle
+    /// Height (pt) of each slot in the interactive collapsed tab.
+    var peekSlotHeight: Double
 
     // MARK: - Session state colors (stored as hex strings)
     var hexWorking:      String
@@ -130,6 +147,8 @@ final class AppSettings {
         spinnerVerbAnimatedColor = ud.object(forKey: "megadesk.spinnerVerbAnimatedColor") as? Bool ?? false
         peekShortcutEnabled = ud.object(forKey: "megadesk.peekShortcutEnabled") as? Bool ?? true
         showPermissionMode = ud.object(forKey: "megadesk.showPermissionMode") as? Bool ?? true
+        peekTabStyle = PeekTabStyle(rawValue: ud.string(forKey: "megadesk.peekTabStyle") ?? "") ?? .compact
+        peekSlotHeight = ud.object(forKey: "megadesk.peekSlotHeight") as? Double ?? 16
         hexWorking       = ud.string(forKey: "megadesk.color.working")      ?? "#34C759"
         hexConfirmation  = ud.string(forKey: "megadesk.color.confirmation") ?? "#5AC8FA"
         hexWaiting       = ud.string(forKey: "megadesk.color.waiting")      ?? "#FF9500"
@@ -178,6 +197,8 @@ final class AppSettings {
         ud.set(spinnerVerbAnimatedColor, forKey: "megadesk.spinnerVerbAnimatedColor")
         ud.set(peekShortcutEnabled, forKey: "megadesk.peekShortcutEnabled")
         ud.set(showPermissionMode, forKey: "megadesk.showPermissionMode")
+        ud.set(peekTabStyle.rawValue, forKey: "megadesk.peekTabStyle")
+        ud.set(peekSlotHeight, forKey: "megadesk.peekSlotHeight")
         ud.set(hexWorking,          forKey: "megadesk.color.working")
         ud.set(hexConfirmation,     forKey: "megadesk.color.confirmation")
         ud.set(hexWaiting,          forKey: "megadesk.color.waiting")
@@ -229,6 +250,8 @@ final class AppSettings {
         spinnerVerbAnimatedColor = false
         peekShortcutEnabled = true
         showPermissionMode = true
+        peekTabStyle = .compact
+        peekSlotHeight = 16
         hexWorking       = "#34C759"
         hexConfirmation  = "#5AC8FA"
         hexWaiting       = "#FF9500"
