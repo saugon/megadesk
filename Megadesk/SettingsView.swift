@@ -58,9 +58,14 @@ struct SettingsView: View {
                     .labelsHidden()
                     .onChange(of: settings.sortOrder) { _, _ in settings.save() }
                 }
+                Toggle("Show permission mode", isOn: $settings.showPermissionMode)
+                    .onChange(of: settings.showPermissionMode) { _, _ in settings.save() }
+            }
+
+            Section("Collapsed Tab") {
                 Toggle("Collapse shortcut (⌘⇧L)", isOn: $settings.peekShortcutEnabled)
                     .onChange(of: settings.peekShortcutEnabled) { _, _ in settings.save() }
-                LabeledContent("Collapsed tab style") {
+                LabeledContent("Style") {
                     Picker("", selection: $settings.peekTabStyle) {
                         ForEach(PeekTabStyle.allCases, id: \.self) {
                             Text($0.label).tag($0)
@@ -81,8 +86,6 @@ struct SettingsView: View {
                     }
                 }
                 .disabled(!settings.peekShortcutEnabled || settings.peekTabStyle != .interactive)
-                Toggle("Show permission mode", isOn: $settings.showPermissionMode)
-                    .onChange(of: settings.showPermissionMode) { _, _ in settings.save() }
             }
 
             Section("Alert Defaults") {

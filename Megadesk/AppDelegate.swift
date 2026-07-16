@@ -259,7 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.delegate = self
         let toggleItem = menu.addItem(withTitle: "Hide Widget", action: #selector(toggleWidget), keyEquivalent: "M")
         toggleItem.target = self
-        let peekItem = NSMenuItem(title: "Collapse to Edge Tab", action: #selector(togglePeekAction), keyEquivalent: "")
+        let peekItem = NSMenuItem(title: "Collapse to Edge Tab", action: #selector(togglePeekAction), keyEquivalent: "L")
         peekItem.target = self
         menu.addItem(peekItem)
         let compactItem = NSMenuItem(title: "Compact Mode", action: #selector(toggleCompact), keyEquivalent: "")
