@@ -17,12 +17,28 @@ enum HookInstaller {
     private static let codexHookCommand   = "python3 ~/.codex/megadesk-codex-hook.py"
     private static let codexConfigURL     = home.appendingPathComponent(".codex/config.toml")
 
+    // MARK: - Kimi Code CLI
+
+    /// Kimi Code CLI keeps its config in ~/.kimi-code (current builds) or
+    /// ~/.kimi. Prefer whichever already exists, defaulting to ~/.kimi-code.
+    private static var kimiHome: URL {
+        let fm = FileManager.default
+        let kimiCode = home.appendingPathComponent(".kimi-code")
+        let kimi = home.appendingPathComponent(".kimi")
+        if fm.fileExists(atPath: kimiCode.path) { return kimiCode }
+        if fm.fileExists(atPath: kimi.path) { return kimi }
+        return kimiCode
+    }
+    private static var kimiHookDest: URL { kimiHome.appendingPathComponent("megadesk-kimi-hook.py") }
+    private static var kimiConfigURL: URL { kimiHome.appendingPathComponent("config.toml") }
+
     // MARK: - Public API
 
     static func isInstalled(provider: Provider) -> Bool {
         switch provider {
         case .claude: return isClaudeInstalled()
         case .codex:  return isCodexInstalled()
+        case .kimi:   return isKimiInstalled()
         }
     }
 
@@ -31,6 +47,7 @@ enum HookInstaller {
         switch provider {
         case .claude: try installClaude()
         case .codex:  try installCodex()
+        case .kimi:   try installKimi()
         }
     }
 
@@ -170,6 +187,54 @@ enum HookInstaller {
         let tmp = codexConfigURL.appendingPathExtension("tmp")
         try output.write(to: tmp, atomically: true, encoding: .utf8)
         _ = try fm.replaceItemAt(codexConfigURL, withItemAt: tmp)
+    }
+
+    // MARK: - Kimi
+
+    private static func isKimiInstalled() -> Bool {
+        guard let content = try? String(contentsOf: kimiConfigURL, encoding: .utf8) else { return false }
+        return content.contains("megadesk-kimi-hook.py")
+    }
+
+    private static func installKimi() throws {
+        let fm = FileManager.default
+        let kimiDir = kimiHookDest.deletingLastPathComponent()
+        try fm.createDirectory(at: kimiDir, withIntermediateDirectories: true)
+
+        guard let bundledHook = Bundle.main.url(forResource: "megadesk-kimi-hook", withExtension: "py") else {
+            throw InstallError.hookScriptNotFound(provider: .kimi)
+        }
+        if fm.fileExists(atPath: kimiHookDest.path) {
+            try fm.removeItem(at: kimiHookDest)
+        }
+        try fm.copyItem(at: bundledHook, to: kimiHookDest)
+
+        if !isKimiInstalled() { try patchKimiConfig() }
+    }
+
+    /// Appends `[[hooks]]` blocks to ~/.kimi/config.toml for the lifecycle
+    /// events Megadesk tracks. Text based, to avoid a TOML dependency.
+    private static func patchKimiConfig() throws {
+        let fm = FileManager.default
+        var content = ""
+        if fm.fileExists(atPath: kimiConfigURL.path),
+           let existing = try? String(contentsOf: kimiConfigURL, encoding: .utf8) {
+            content = existing
+        }
+
+        let hookPath = kimiHookDest.path
+        let events = ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"]
+        var blocks = ""
+        for event in events {
+            blocks += "\n[[hooks]]\nevent = \"\(event)\"\ncommand = \"python3 '\(hookPath)'\"\ntimeout = 3\n"
+        }
+
+        if !content.isEmpty && !content.hasSuffix("\n") { content += "\n" }
+        content += blocks
+
+        let tmp = kimiConfigURL.appendingPathExtension("tmp")
+        try content.write(to: tmp, atomically: true, encoding: .utf8)
+        _ = try fm.replaceItemAt(kimiConfigURL, withItemAt: tmp)
     }
 }
 

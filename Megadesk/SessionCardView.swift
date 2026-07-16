@@ -149,6 +149,10 @@ struct SessionCardView: View {
                     ProviderBadge(letter: "X",
                                   color: dotColor, pulse: shouldPulse,
                                   dimmed: session.isForgotten)
+                } else if session.provider == .kimi {
+                    ProviderBadge(letter: "K",
+                                  color: dotColor, pulse: shouldPulse,
+                                  dimmed: session.isForgotten)
                 } else if activeSpinner != nil && session.isWorking {
                     // Derive frame from tick (1 Hz) — no per-card timer needed
                     Text(Self.spinnerFrames[spinnerTick % Self.spinnerFrames.count])

@@ -38,6 +38,7 @@
 		AA000031 /* QuickAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000032 /* QuickAlertView.swift */; };
 		AA000033 /* Provider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000033 /* Provider.swift */; };
 		AA000034 /* megadesk-codex-hook.py in Resources */ = {isa = PBXBuildFile; fileRef = AB000031 /* megadesk-codex-hook.py */; };
+		AA000050 /* megadesk-kimi-hook.py in Resources */ = {isa = PBXBuildFile; fileRef = AB000049 /* megadesk-kimi-hook.py */; };
 		AA000035 /* ContextSaveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000034 /* ContextSaveView.swift */; };
 		AA000036 /* ContextSaveWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000035 /* ContextSaveWindowController.swift */; };
 		AA000037 /* CompanionMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000036 /* CompanionMessage.swift */; };
@@ -86,6 +87,7 @@
 		AB000028 /* AlertsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertsView.swift; sourceTree = "<group>"; };
 		AB000030 /* AlertCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertCardView.swift; sourceTree = "<group>"; };
 		AB000031 /* megadesk-codex-hook.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "megadesk-codex-hook.py"; sourceTree = "<group>"; };
+		AB000049 /* megadesk-kimi-hook.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "megadesk-kimi-hook.py"; sourceTree = "<group>"; };
 		AB000032 /* QuickAlertView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAlertView.swift; sourceTree = "<group>"; };
 		AB000034 /* ContextSaveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextSaveView.swift; sourceTree = "<group>"; };
 		AB000035 /* ContextSaveWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextSaveWindowController.swift; sourceTree = "<group>"; };
@@ -131,6 +133,7 @@
 				AB000012 /* HookInstaller.swift */,
 				AB000013 /* megadesk-hook.py */,
 				AB000031 /* megadesk-codex-hook.py */,
+				AB000049 /* megadesk-kimi-hook.py */,
 				AB000015 /* OnboardingView.swift */,
 				AB000016 /* OnboardingWindowController.swift */,
 				AB000019 /* HelpView.swift */,
@@ -276,6 +279,7 @@
 				AA000009 /* Assets.xcassets in Resources */,
 				AA000011 /* megadesk-hook.py in Resources */,
 				AA000034 /* megadesk-codex-hook.py in Resources */,
+				AA000050 /* megadesk-kimi-hook.py in Resources */,
 				AA000044 /* brume.json in Resources */,
 				AA000045 /* pixel.json in Resources */,
 				AA000046 /* mochi.json in Resources */,

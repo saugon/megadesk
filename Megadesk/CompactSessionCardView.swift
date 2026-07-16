@@ -11,7 +11,7 @@ struct CompactSessionCardView: View {
     var body: some View {
         Button(action: handleFocus) {
             VStack(spacing: 3) {
-                ProviderBadge(letter: session.provider == .codex ? "X" : "C",
+                ProviderBadge(letter: providerLetter,
                               color: dotColor, pulse: shouldPulse,
                               dimmed: session.isForgotten)
                 Text(displayName.prefix(4))
@@ -41,6 +41,14 @@ struct CompactSessionCardView: View {
     }
 
     // MARK: - Derived appearance (mirrors SessionCardView)
+
+    private var providerLetter: String {
+        switch session.provider {
+        case .codex: return "X"
+        case .kimi:  return "K"
+        case .claude: return "C"
+        }
+    }
 
     private var dotColor: Color {
         if session.needsConfirmation { return .cyan }
