@@ -280,6 +280,15 @@ final class CompanionPetRegistry {
     /// clipboard with one click.
     static var llmPrompt: String { llmPromptContents }
 
+    /// Raw JSON of a bundled pet, offered as a copy-paste starting example so
+    /// users can see the real file format.
+    static var exampleJSON: String? {
+        guard let id = bundledIds.first,
+              let url = Bundle.main.url(forResource: id, withExtension: "json"),
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        return text
+    }
+
     /// Builds an LLM prompt that asks for ONLY the missing optional voice
     /// keys for the given pet, written in the same voice as its existing
     /// templates. Returns nil if the pet is already complete.

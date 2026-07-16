@@ -147,6 +147,33 @@ final class CompanionEngine {
         emit(CompanionMessage(text: pick.0, ghostState: pick.1, ruleId: "test", subject: pick.2))
     }
 
+    /// Emits a sample message in a specific ghost state, using the active pet's
+    /// voice — used by the "test state" buttons in Companion settings.
+    func emitTest(_ state: GhostState) {
+        let store = StatusStore.shared
+        let sessions = store.sessions
+        let name  = sessions.randomElement().map { store.displayName(for: $0) } ?? "session"
+        let v = activeVoice
+
+        let byState: [GhostState: [(String, String?)]] = [
+            .alert: [
+                (v.waitingTooLong.filling(["name": name, "duration": "23 min"]), name),
+                (v.stuckWorking.filling(["name": name, "duration": "45 min"]),   name),
+                (v.prCIFailing.filling(["prTitle": name]),                       name),
+            ],
+            .happy: [
+                (v.firstSessionOfDay,                          nil),
+                (v.prMerged.filling(["prTitle": name]),        name),
+            ],
+            .idle: [
+                (v.userIdle,      nil),
+                (v.allForgotten,  nil),
+            ],
+        ]
+        guard let pick = byState[state]?.randomElement() else { return }
+        emit(CompanionMessage(text: pick.0, ghostState: state, ruleId: "test", subject: pick.1))
+    }
+
     // MARK: - Observation
 
     private func observeEnabledSetting() {

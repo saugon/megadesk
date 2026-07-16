@@ -8,6 +8,10 @@ struct CompanionSettingsView: View {
     var body: some View {
         Form {
             Section("Companion") {
+                Text("An optional desktop pet that lives in the widget and reacts to your sessions and PRs, surfacing what needs attention with short, glanceable status messages.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Toggle("Enabled", isOn: $settings.companionEnabled)
                     .onChange(of: settings.companionEnabled) { _, _ in settings.save() }
                 petGrid
@@ -187,50 +191,76 @@ struct CompanionSettingsView: View {
 
     @ViewBuilder
     private var customPetsRow: some View {
-        LabeledContent {
-            VStack(alignment: .trailing, spacing: 6) {
-                HStack(spacing: 8) {
-                    Button {
-                        NSWorkspace.shared.open(petRegistry.userPetsURL)
-                    } label: {
-                        Label("Open folder", systemImage: "folder")
-                    }
-                    Button {
-                        petRegistry.reload()
-                    } label: {
-                        Label("Reload", systemImage: "arrow.clockwise")
-                    }
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Add a custom pet")
+                    .font(.callout)
+                    .fontWeight(.semibold)
+                Text("Bring your own companion. A pet is just a JSON file:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            VStack(spacing: 0) {
+            stepRow(1, "Generate the JSON with the prompt, or start from an existing example") {
+                CopyToClipboardButton(title: "Copy prompt") {
+                    CompanionPetRegistry.llmPrompt
                 }
-                HStack(spacing: 8) {
-                    CopyToClipboardButton(title: "Copy new-pet prompt") {
-                        CompanionPetRegistry.llmPrompt
-                    }
-                    CopyToClipboardButton(
-                        title: "Copy voice-update prompt",
-                        isEnabled: missingKeyCount > 0
-                    ) {
+                CopyToClipboardButton(title: "Copy example") {
+                    CompanionPetRegistry.exampleJSON
+                }
+                if missingKeyCount > 0 {
+                    CopyToClipboardButton(title: "Copy voice-update") {
                         CompanionPetRegistry.voiceUpdatePrompt(for: selectedPet)
                     }
                 }
-            }
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Custom pets")
-                Text("Drop JSONs in the folder, then Reload. Use “new-pet prompt” to generate a fresh pet via an LLM, or “voice-update prompt” to extend the selected pet with new dialogue keys while keeping its voice.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if missingKeyCount > 0 {
-                    Text("“\(selectedPet.displayName)” is missing \(missingKeyCount) optional voice template\(missingKeyCount == 1 ? "" : "s").")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                } else {
-                    Text("“\(selectedPet.displayName)” has every voice template defined.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Button {
+                    NSWorkspace.shared.open(petRegistry.userPetsURL)
+                } label: {
+                    Label("Folder", systemImage: "folder")
                 }
             }
+            Divider()
+            stepRow(2, "Drop the .json file in that folder") { EmptyView() }
+            Divider()
+            stepRow(3, "Reload, and repeat whenever you edit the file") {
+                Button {
+                    petRegistry.reload()
+                } label: {
+                    Label("Reload", systemImage: "arrow.clockwise")
+                }
+            }
+            Divider()
+            stepRow(4, "Try it in different states") {
+                Button("Happy") { CompanionEngine.shared.emitTest(.happy) }
+                Button("Idle")  { CompanionEngine.shared.emitTest(.idle) }
+                Button("Alert") { CompanionEngine.shared.emitTest(.alert) }
+            }
+            .disabled(!settings.companionEnabled)
+            }
         }
+    }
+
+    /// One numbered step: a blue circle with its number, a description, and
+    /// optional trailing action buttons.
+    @ViewBuilder
+    private func stepRow<Buttons: View>(
+        _ number: Int,
+        _ text: String,
+        @ViewBuilder buttons: () -> Buttons
+    ) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            Text("\(number)")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(Color.accentColor))
+            Text(text)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            HStack(spacing: 8) { buttons() }
+        }
+        .padding(.vertical, 8)
     }
 
     @ViewBuilder
@@ -285,7 +315,7 @@ private struct CopyToClipboardButton: View {
             )
             // Fixed minimum width so the button doesn't shrink between the
             // longer normal label and the shorter "Copied" state.
-            .frame(minWidth: 160)
+            .frame(minWidth: 120)
         }
         .disabled(!isEnabled)
     }
