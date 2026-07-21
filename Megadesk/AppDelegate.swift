@@ -287,6 +287,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let helpItem = NSMenuItem(title: "Help", action: #selector(openHelp), keyEquivalent: "")
         helpItem.target = self
         menu.addItem(helpItem)
+        let whatsNewItem = NSMenuItem(title: "What's New", action: #selector(showWhatsNewAction), keyEquivalent: "")
+        whatsNewItem.target = self
+        menu.addItem(whatsNewItem)
         menu.addItem(.separator())
         let updateItem = NSMenuItem(
             title: "Check for Updates...",
@@ -322,8 +325,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             WhatsNew.markCurrentAsSeen()
             return
         }
+        presentWhatsNew(version: WhatsNew.currentVersion, release: release)
+    }
+
+    /// Re-triggered manually from the menu: shows the current version's panel,
+    /// falling back to the most recent release entry if this version has none.
+    @objc private func showWhatsNewAction() {
+        let current = WhatsNew.currentVersion
+        if let release = WhatsNew.release(for: current) {
+            presentWhatsNew(version: current, release: release)
+        } else if let latest = WhatsNew.latest {
+            presentWhatsNew(version: latest.version, release: latest.release)
+        }
+    }
+
+    private func presentWhatsNew(version: String, release: WhatsNew.Release) {
         whatsNewController = WhatsNewWindowController(
-            version: WhatsNew.currentVersion,
+            version: version,
             release: release
         ) { [weak self] in
             self?.whatsNewController = nil

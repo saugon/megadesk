@@ -64,10 +64,21 @@ enum WhatsNew {
 
     static func release(for version: String) -> Release? { releases[version] }
 
+    /// The most recent release entry by version string, used as a fallback for
+    /// the manual "What's New" menu action when the running version has no entry.
+    static var latest: (version: String, release: Release)? {
+        releases
+            .max { $0.key.compare($1.key, options: .numeric) == .orderedAscending }
+            .map { ($0.key, $0.value) }
+    }
+
     /// True when the current version differs from the last one the user saw and
-    /// has a release entry. False on first install (no last-seen version).
+    /// has a release entry. Only reached for returning users (fresh installs get
+    /// onboarding instead and never call into here), so a missing last-seen
+    /// value means "updated from a version that predates this feature" and
+    /// should still show the panel.
     static var shouldShow: Bool {
-        guard let lastSeen = UserDefaults.standard.string(forKey: lastSeenKey) else { return false }
+        let lastSeen = UserDefaults.standard.string(forKey: lastSeenKey)
         return lastSeen != currentVersion && release(for: currentVersion) != nil
     }
 
