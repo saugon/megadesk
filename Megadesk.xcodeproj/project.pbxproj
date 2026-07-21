@@ -50,6 +50,7 @@
 		AA000045 /* pixel.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000044 /* pixel.json */; };
 		AA000046 /* mochi.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000045 /* mochi.json */; };
 		AA000047 /* CompanionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000046 /* CompanionSettingsView.swift */; };
+		AA000051 /* WhatsNew.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000051 /* WhatsNew.swift */; };
 		AA000048 /* CompanionHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000047 /* CompanionHistoryView.swift */; };
 		AA000049 /* dwight.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000048 /* dwight.json */; };
 /* End PBXBuildFile section */
@@ -99,6 +100,7 @@
 		AB000044 /* pixel.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = pixel.json; sourceTree = "<group>"; };
 		AB000045 /* mochi.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = mochi.json; sourceTree = "<group>"; };
 		AB000046 /* CompanionSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionSettingsView.swift; sourceTree = "<group>"; };
+		AB000051 /* WhatsNew.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNew.swift; sourceTree = "<group>"; };
 		AB000047 /* CompanionHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionHistoryView.swift; sourceTree = "<group>"; };
 		AB000048 /* dwight.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = dwight.json; sourceTree = "<group>"; };
 
@@ -149,6 +151,7 @@
 				AB000039 /* CompanionView.swift */,
 				AB000040 /* CompanionWindowController.swift */,
 				AB000046 /* CompanionSettingsView.swift */,
+				AB000051 /* WhatsNew.swift */,
 				AB000047 /* CompanionHistoryView.swift */,
 				AD000006 /* Pets */,
 				AD000002 /* Models */,
@@ -343,6 +346,7 @@
 				AA000041 /* CompanionWindowController.swift in Sources */,
 				AA000043 /* CompanionPet.swift in Sources */,
 				AA000047 /* CompanionSettingsView.swift in Sources */,
+				AA000051 /* WhatsNew.swift in Sources */,
 				AA000048 /* CompanionHistoryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
