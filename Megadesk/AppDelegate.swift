@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: FloatingWindowController?
     private var statusItem: NSStatusItem?
     private var onboardingController: OnboardingWindowController?
+    private var whatsNewController: WhatsNewWindowController?
     private var mainController: MainWindowController?
     private var hotKeyRef: EventHotKeyRef?
     private var sessionHotKeyRefs: [EventHotKeyRef?] = []
@@ -79,12 +80,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if storedVersion >= OnboardingView.currentOnboardingVersion {
             windowController?.show()
             showCompanionIfFloating()
+            maybeShowWhatsNew()
         } else {
             let isReturningUser = UserDefaults.standard.bool(forKey: "megadesk.onboardingComplete")
             onboardingController = OnboardingWindowController(isReturningUser: isReturningUser, previousVersion: storedVersion) {
                 self.onboardingController = nil
                 self.windowController?.show()
                 self.showCompanionIfFloating()
+                // Onboarding already communicated the changes; don't also pop
+                // the What's New panel for this version.
+                WhatsNew.markCurrentAsSeen()
             }
             onboardingController?.showWindow(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -306,6 +311,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func togglePeekAction() {
         windowController?.togglePeek()
+    }
+
+    /// Shows the What's New panel once after updating to a version with
+    /// highlights. On first install (or versions without highlights) it just
+    /// records the current version so the panel doesn't pop up later.
+    private func maybeShowWhatsNew() {
+        guard WhatsNew.shouldShow,
+              let release = WhatsNew.release(for: WhatsNew.currentVersion) else {
+            WhatsNew.markCurrentAsSeen()
+            return
+        }
+        whatsNewController = WhatsNewWindowController(
+            version: WhatsNew.currentVersion,
+            release: release
+        ) { [weak self] in
+            self?.whatsNewController = nil
+            WhatsNew.markCurrentAsSeen()
+        }
+        whatsNewController?.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func showCompanionIfFloating() {
