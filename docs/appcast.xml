@@ -9,7 +9,7 @@
         <item>
             <title>Version 0.9.0</title>
             <pubDate>Tue, 21 Jul 2026 20:11:59 +0000</pubDate>
-            <sparkle:version>180</sparkle:version>
+            <sparkle:version>214</sparkle:version>
             <sparkle:shortVersionString>0.9.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:releaseNotesLink>https://github.com/saugon/megadesk/releases/tag/v0.9.0</sparkle:releaseNotesLink>
