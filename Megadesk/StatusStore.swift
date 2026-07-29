@@ -518,9 +518,16 @@ final class StatusStore {
                 queue: .main
             )
             source.setEventHandler { [weak self] in
-                print("[Megadesk] kqueue: PID \(pid) exited for \(terminalId) — removing session")
+                // The watched PID exited, but some CLIs recycle the process the
+                // hook recorded while the session and its terminal tab live on
+                // (Kimi during long auto-mode runs, and Claude's 2.1.x daemon).
+                // Deleting blindly makes the card vanish mid-session and reappear
+                // on the next hook event. Delegate to reapDeadSessions, which only
+                // removes when the terminal tab is actually gone.
+                print("[Megadesk] kqueue: PID \(pid) exited for \(terminalId) — re-evaluating with tab check")
+                self?.processSources[terminalId]?.cancel()
                 self?.processSources.removeValue(forKey: terminalId)
-                self?.removeSessionFiles(withTerminalId: terminalId)
+                self?.reapDeadSessions()
             }
             source.resume()
             processSources[terminalId] = source
