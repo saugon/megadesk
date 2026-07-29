@@ -7,6 +7,20 @@
         <language>en</language>
 
         <item>
+            <title>Version 0.9.1</title>
+            <pubDate>Wed, 29 Jul 2026 18:02:35 +0000</pubDate>
+            <sparkle:version>221</sparkle:version>
+            <sparkle:shortVersionString>0.9.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://github.com/saugon/megadesk/releases/tag/v0.9.1</sparkle:releaseNotesLink>
+            <enclosure
+                url="https://github.com/saugon/megadesk/releases/download/v0.9.1/megadesk-0.9.1.dmg"
+                sparkle:edSignature="mBo/k2vPYo+upyV5z8zdjuILX5CmpfD/iDybf/uLckAX3BCGvUXHf6HuXlUSN2X99xi6aFhT6LYpsTpJB8FqBw=="
+                length="2567618"
+                type="application/octet-stream" />
+        </item>
+
+        <item>
             <title>Version 0.9.0</title>
             <pubDate>Tue, 21 Jul 2026 20:55:28 +0000</pubDate>
             <sparkle:version>217</sparkle:version>
