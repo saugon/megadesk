@@ -12,6 +12,7 @@ enum WhatsNew {
         let icon: String   // SF Symbol name
         let title: String
         let detail: String
+        var usesPetArt = false   // hero only: show the companion pet art instead of the icon
     }
 
     struct Release {
@@ -24,11 +25,25 @@ enum WhatsNew {
     }
 
     static let releases: [String: Release] = [
+        "0.9.1": Release(
+            hero: Highlight(
+                icon: "arrow.right.to.line",
+                title: "The widget gets out of your way",
+                detail: "Turn on 'Move out of the way' and the widget (and the floating companion) slide to the nearest edge when your cursor comes near, then slide back when it leaves."
+            ),
+            features: [],
+            more: [
+                "Hover the tucked edge to peek at more without bringing it back.",
+                "Pick the modifier key, and whether holding it pins the panels or is what makes them dodge.",
+                "Tune how much peeks out in Settings, under 'Move Out of the Way'.",
+            ]
+        ),
         "0.9.0": Release(
             hero: Highlight(
                 icon: "pawprint.fill",
                 title: "Meet your Companion",
-                detail: "A little desktop pet that lives in the widget and reacts to your sessions and PRs, cheering you on and nudging you when something needs attention."
+                detail: "A little desktop pet that lives in the widget and reacts to your sessions and PRs, cheering you on and nudging you when something needs attention.",
+                usesPetArt: true
             ),
             features: [
                 Highlight(
@@ -143,7 +158,7 @@ struct WhatsNewView: View {
 
     private var heroCard: some View {
         VStack(spacing: 12) {
-            if let art = petArt {
+            if release.hero.usesPetArt, let art = petArt {
                 Text(art)
                     .font(.system(size: 13, design: .monospaced))
                     .foregroundStyle(.primary)
