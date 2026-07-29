@@ -88,6 +88,90 @@ struct SettingsView: View {
                 .disabled(!settings.peekShortcutEnabled || settings.peekTabStyle != .interactive)
             }
 
+            Section("Move Out of the Way") {
+                LabeledContent {
+                    Toggle("", isOn: $settings.edgeDodgeEnabled)
+                        .labelsHidden()
+                        .onChange(of: settings.edgeDodgeEnabled) { _, _ in settings.save() }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Dodge the mouse")
+                        Text("The widget and floating companion slide to the nearest edge when the cursor gets close, and return when it leaves")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                LabeledContent("Modifier key") {
+                    Picker("", selection: $settings.edgeDodgeBypassModifier) {
+                        ForEach(DodgeModifier.allCases, id: \.self) {
+                            Text($0.label).tag($0)
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: settings.edgeDodgeBypassModifier) { _, _ in settings.save() }
+                }
+                .disabled(!settings.edgeDodgeEnabled)
+                LabeledContent("Holding it") {
+                    Picker("", selection: $settings.edgeDodgeTriggerMode) {
+                        ForEach(DodgeTriggerMode.allCases, id: \.self) {
+                            Text($0.label).tag($0)
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: settings.edgeDodgeTriggerMode) { _, _ in settings.save() }
+                }
+                .disabled(!settings.edgeDodgeEnabled)
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.edgeDodgeReveal, in: 4...80, step: 1)
+                            .frame(width: 160)
+                            .onChange(of: settings.edgeDodgeReveal) { _, _ in settings.save() }
+                        Text("\(Int(settings.edgeDodgeReveal))pt")
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Peek width")
+                        Text("How much of the panel stays visible at the edge while it's hidden")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!settings.edgeDodgeEnabled)
+                LabeledContent {
+                    Toggle("", isOn: $settings.edgeDodgeHoverPeekEnabled)
+                        .labelsHidden()
+                        .onChange(of: settings.edgeDodgeHoverPeekEnabled) { _, _ in settings.save() }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Grow on hover")
+                        Text("Enlarge the peek while the cursor is over it, to see more without bringing the panel back")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!settings.edgeDodgeEnabled)
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.edgeDodgeHoverReveal, in: 8...160, step: 1)
+                            .frame(width: 160)
+                            .onChange(of: settings.edgeDodgeHoverReveal) { _, _ in settings.save() }
+                        Text("\(Int(settings.edgeDodgeHoverReveal))pt")
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Grown width")
+                        Text("How much shows while the cursor hovers the peek")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!settings.edgeDodgeEnabled || !settings.edgeDodgeHoverPeekEnabled)
+            }
+
             Section("Alert Defaults") {
                 LabeledContent("Notify via") {
                     Picker("", selection: Binding(

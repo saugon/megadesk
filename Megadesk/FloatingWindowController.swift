@@ -121,6 +121,7 @@ final class FloatingWindowController: NSWindowController {
     private var titleLabel: NSTextField?
     private var suppressPositionSave = false
     private var isHovered = false
+    private var edgeDodger: EdgeDodger?
     private var heightReporter = HeightReporter()
     private var userSetHeight: CGFloat? = nil  // nil = auto-height; non-nil = user-locked
     private var lastKnownHeight: CGFloat = 120 // tracks last applied height to detect real user changes
@@ -289,6 +290,31 @@ final class FloatingWindowController: NSWindowController {
             }
             self.heightAtLiveResizeStart = nil
             self.lastKnownHeight = panel.frame.height
+        }
+    }
+
+    // MARK: - Edge dodge (move out of the mouse's way)
+
+    /// Creates the dodger on first use and starts/stops it to match the setting.
+    /// Called at launch and whenever `edgeDodgeEnabled` changes. Only dodges
+    /// while the widget is expanded and visible (not collapsed to the peek tab).
+    func updateEdgeDodge() {
+        if edgeDodger == nil {
+            let dodger = EdgeDodger(window: window)
+            dodger.shouldApply = { [weak self] in
+                guard let self, let window = self.window else { return false }
+                return AppSettings.shared.edgeDodgeEnabled
+                    && self.displayState == .expanded
+                    && window.isVisible
+            }
+            dodger.bypassFlags = { AppSettings.shared.edgeDodgeBypassModifier.flag }
+            dodger.setSuppressSave = { [weak self] in self?.suppressPositionSave = $0 }
+            edgeDodger = dodger
+        }
+        if AppSettings.shared.edgeDodgeEnabled {
+            edgeDodger?.start()
+        } else {
+            edgeDodger?.stop()
         }
     }
 

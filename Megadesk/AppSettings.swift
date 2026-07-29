@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum SessionSortOrder: String, CaseIterable {
@@ -43,6 +44,46 @@ enum PeekTabStyle: String, CaseIterable {
     }
 }
 
+/// Modifier that, while held, suspends the widget/companion "dodge the mouse"
+/// behavior so the panel can be reached and clicked.
+enum DodgeModifier: String, CaseIterable {
+    case command, option, control, shift, function
+
+    var label: String {
+        switch self {
+        case .command:  return "Command (⌘)"
+        case .option:   return "Option (⌥)"
+        case .control:  return "Control (⌃)"
+        case .shift:    return "Shift (⇧)"
+        case .function: return "Function (fn)"
+        }
+    }
+
+    var flag: NSEvent.ModifierFlags {
+        switch self {
+        case .command:  return .command
+        case .option:   return .option
+        case .control:  return .control
+        case .shift:    return .shift
+        case .function: return .function
+        }
+    }
+}
+
+/// Whether the dodge modifier suspends dodging while held, or is what enables
+/// it in the first place.
+enum DodgeTriggerMode: String, CaseIterable {
+    case dodgeUnlessHeld    // dodge by default; hold the key to keep it in place
+    case dodgeOnlyWhenHeld  // stay put by default; only dodge while the key is held
+
+    var label: String {
+        switch self {
+        case .dodgeUnlessHeld:   return "Keeps it in place"
+        case .dodgeOnlyWhenHeld: return "Makes it dodge"
+        }
+    }
+}
+
 /// Global app settings — colors and behavior. Observable so views react to changes.
 @Observable
 final class AppSettings {
@@ -65,6 +106,21 @@ final class AppSettings {
     var peekTabStyle: PeekTabStyle
     /// Height (pt) of each slot in the interactive collapsed tab.
     var peekSlotHeight: Double
+    /// When on, the widget and floating companion slide to the nearest screen
+    /// edge (leaving a sliver) when the mouse approaches, and return once it
+    /// leaves. Holding `edgeDodgeBypassModifier` suspends it.
+    var edgeDodgeEnabled: Bool
+    /// Modifier used to control dodging (role set by `edgeDodgeTriggerMode`).
+    var edgeDodgeBypassModifier: DodgeModifier
+    /// Whether holding the modifier keeps the panels in place, or is what makes
+    /// them dodge in the first place.
+    var edgeDodgeTriggerMode: DodgeTriggerMode
+    /// Sliver (pt) of the panel left visible when it tucks against the edge.
+    var edgeDodgeReveal: Double
+    /// When on, hovering the tucked sliver enlarges it to `edgeDodgeHoverReveal`.
+    var edgeDodgeHoverPeekEnabled: Bool
+    /// Sliver (pt) shown while the cursor hovers the tucked panel.
+    var edgeDodgeHoverReveal: Double
 
     // MARK: - Session state colors (stored as hex strings)
     var hexWorking:      String
@@ -149,6 +205,12 @@ final class AppSettings {
         showPermissionMode = ud.object(forKey: "megadesk.showPermissionMode") as? Bool ?? true
         peekTabStyle = PeekTabStyle(rawValue: ud.string(forKey: "megadesk.peekTabStyle") ?? "") ?? .compact
         peekSlotHeight = ud.object(forKey: "megadesk.peekSlotHeight") as? Double ?? 16
+        edgeDodgeEnabled = ud.object(forKey: "megadesk.edgeDodgeEnabled") as? Bool ?? false
+        edgeDodgeBypassModifier = DodgeModifier(rawValue: ud.string(forKey: "megadesk.edgeDodgeBypassModifier") ?? "") ?? .command
+        edgeDodgeTriggerMode = DodgeTriggerMode(rawValue: ud.string(forKey: "megadesk.edgeDodgeTriggerMode") ?? "") ?? .dodgeUnlessHeld
+        edgeDodgeReveal = ud.object(forKey: "megadesk.edgeDodgeReveal") as? Double ?? 26
+        edgeDodgeHoverPeekEnabled = ud.object(forKey: "megadesk.edgeDodgeHoverPeekEnabled") as? Bool ?? true
+        edgeDodgeHoverReveal = ud.object(forKey: "megadesk.edgeDodgeHoverReveal") as? Double ?? 70
         hexWorking       = ud.string(forKey: "megadesk.color.working")      ?? "#34C759"
         hexConfirmation  = ud.string(forKey: "megadesk.color.confirmation") ?? "#5AC8FA"
         hexWaiting       = ud.string(forKey: "megadesk.color.waiting")      ?? "#FF9500"
@@ -199,6 +261,12 @@ final class AppSettings {
         ud.set(showPermissionMode, forKey: "megadesk.showPermissionMode")
         ud.set(peekTabStyle.rawValue, forKey: "megadesk.peekTabStyle")
         ud.set(peekSlotHeight, forKey: "megadesk.peekSlotHeight")
+        ud.set(edgeDodgeEnabled, forKey: "megadesk.edgeDodgeEnabled")
+        ud.set(edgeDodgeBypassModifier.rawValue, forKey: "megadesk.edgeDodgeBypassModifier")
+        ud.set(edgeDodgeTriggerMode.rawValue, forKey: "megadesk.edgeDodgeTriggerMode")
+        ud.set(edgeDodgeReveal, forKey: "megadesk.edgeDodgeReveal")
+        ud.set(edgeDodgeHoverPeekEnabled, forKey: "megadesk.edgeDodgeHoverPeekEnabled")
+        ud.set(edgeDodgeHoverReveal, forKey: "megadesk.edgeDodgeHoverReveal")
         ud.set(hexWorking,          forKey: "megadesk.color.working")
         ud.set(hexConfirmation,     forKey: "megadesk.color.confirmation")
         ud.set(hexWaiting,          forKey: "megadesk.color.waiting")
@@ -252,6 +320,12 @@ final class AppSettings {
         showPermissionMode = true
         peekTabStyle = .compact
         peekSlotHeight = 16
+        edgeDodgeEnabled = false
+        edgeDodgeBypassModifier = .command
+        edgeDodgeTriggerMode = .dodgeUnlessHeld
+        edgeDodgeReveal = 26
+        edgeDodgeHoverPeekEnabled = true
+        edgeDodgeHoverReveal = 70
         hexWorking       = "#34C759"
         hexConfirmation  = "#5AC8FA"
         hexWaiting       = "#FF9500"

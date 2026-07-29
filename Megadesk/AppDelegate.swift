@@ -73,6 +73,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         companionController = CompanionWindowController(mainWidgetWindow: windowController?.window)
         observeCompanionMode()
 
+        windowController?.updateEdgeDodge()
+        companionController?.updateEdgeDodge()
+        observeEdgeDodge()
+
         NotificationCenter.default.addObserver(forName: .megadeskOpenContextSave, object: nil, queue: .main) { [weak self] _ in
             self?.openContextSave()
         }
@@ -371,7 +375,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 } else {
                     self.companionController?.hide()
                 }
+                self.companionController?.updateEdgeDodge()
                 self.observeCompanionMode()
+            }
+        }
+    }
+
+    /// Starts/stops the "dodge the mouse" behavior on both panels when the
+    /// setting is toggled.
+    private func observeEdgeDodge() {
+        withObservationTracking {
+            _ = AppSettings.shared.edgeDodgeEnabled
+        } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                self?.windowController?.updateEdgeDodge()
+                self?.companionController?.updateEdgeDodge()
+                self?.observeEdgeDodge()
             }
         }
     }

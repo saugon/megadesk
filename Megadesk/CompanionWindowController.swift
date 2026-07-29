@@ -8,6 +8,7 @@ final class CompanionWindowController: NSWindowController {
     private var resizeObserver: Any?
     private var contentResizeObserver: Any?
     private var suppressPositionSave = false
+    private var edgeDodger: EdgeDodger?
 
     convenience init(mainWidgetWindow: NSWindow?) {
         let panel = NSPanel(
@@ -170,6 +171,31 @@ final class CompanionWindowController: NSWindowController {
             let x = screen.visibleFrame.maxX - window.frame.width - 16
             let y = screen.visibleFrame.maxY - 200
             window.setFrameTopLeftPoint(NSPoint(x: x, y: y))
+        }
+    }
+
+    // MARK: - Edge dodge (move out of the mouse's way)
+
+    /// Creates the dodger on first use and starts/stops it to match the setting.
+    /// Only dodges in floating mode (docked follows the widget) while visible.
+    func updateEdgeDodge() {
+        if edgeDodger == nil {
+            let dodger = EdgeDodger(window: window)
+            dodger.shouldApply = { [weak self] in
+                guard let self, let window = self.window else { return false }
+                return AppSettings.shared.edgeDodgeEnabled
+                    && AppSettings.shared.companionEnabled
+                    && AppSettings.shared.companionMode == .floating
+                    && window.isVisible
+            }
+            dodger.bypassFlags = { AppSettings.shared.edgeDodgeBypassModifier.flag }
+            dodger.setSuppressSave = { [weak self] in self?.suppressPositionSave = $0 }
+            edgeDodger = dodger
+        }
+        if AppSettings.shared.edgeDodgeEnabled {
+            edgeDodger?.start()
+        } else {
+            edgeDodger?.stop()
         }
     }
 
