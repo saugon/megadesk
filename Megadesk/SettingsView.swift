@@ -154,17 +154,17 @@ struct SettingsView: View {
                 .disabled(!settings.edgeDodgeEnabled)
                 LabeledContent {
                     HStack(spacing: 8) {
-                        Slider(value: $settings.edgeDodgeHoverReveal, in: 8...160, step: 1)
+                        Slider(value: $settings.edgeDodgeHoverRevealPercent, in: 10...100, step: 5)
                             .frame(width: 160)
-                            .onChange(of: settings.edgeDodgeHoverReveal) { _, _ in settings.save() }
-                        Text("\(Int(settings.edgeDodgeHoverReveal))pt")
+                            .onChange(of: settings.edgeDodgeHoverRevealPercent) { _, _ in settings.save() }
+                        Text("\(Int(settings.edgeDodgeHoverRevealPercent))%")
                             .frame(width: 36, alignment: .trailing)
                             .foregroundStyle(.secondary)
                     }
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Grown width")
-                        Text("How much shows while the cursor hovers the peek")
+                        Text("How much of the panel shows while the cursor hovers the peek (100% shows it whole)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

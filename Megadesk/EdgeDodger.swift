@@ -135,10 +135,8 @@ final class EdgeDodger {
         }
 
         if isTucked {
-            let base = CGFloat(AppSettings.shared.edgeDodgeReveal)
-            let peeked = AppSettings.shared.edgeDodgeHoverPeekEnabled
-                ? max(base, CGFloat(AppSettings.shared.edgeDodgeHoverReveal))
-                : base
+            let base = baseReveal
+            let peeked = hoverReveal
             // Uses the *current* sliver size for hysteresis so the grow/shrink
             // edge doesn't flicker.
             let overSliver = visibleSliverRect(reveal: currentReveal).contains(mouse)
@@ -176,13 +174,41 @@ final class EdgeDodger {
         }
     }
 
+    /// The panel's own width. The tucked frame keeps the resting size, so this
+    /// is both what a percentage reveal is measured against and the point past
+    /// which revealing more would push the panel inward instead of showing more
+    /// of it.
+    private var panelWidth: CGFloat {
+        homeFrame.width > 0 ? homeFrame.width : (window?.frame.width ?? 0)
+    }
+
+    /// Caps a reveal at the panel's width (no-op if the width isn't known yet).
+    private func clampToPanel(_ reveal: CGFloat) -> CGFloat {
+        panelWidth > 0 ? min(reveal, panelWidth) : reveal
+    }
+
+    /// Sliver left visible while tucked and unhovered.
+    private var baseReveal: CGFloat {
+        clampToPanel(CGFloat(AppSettings.shared.edgeDodgeReveal))
+    }
+
+    /// Sliver while the cursor hovers it: a share of the panel's own width, so
+    /// the setting means the same thing whatever the panel currently measures
+    /// and 100% brings it fully into view.
+    private var hoverReveal: CGFloat {
+        let base = baseReveal
+        guard AppSettings.shared.edgeDodgeHoverPeekEnabled else { return base }
+        let share = panelWidth * CGFloat(AppSettings.shared.edgeDodgeHoverRevealPercent) / 100
+        return clampToPanel(max(base, share))
+    }
+
     private func tuckToNearestEdge() {
         guard let screen = window?.screen ?? NSScreen.main else { return }
         let vf = screen.visibleFrame
         let f = homeFrame
         // Always tuck to a side edge (left or right), never top or bottom.
         tuckedToRight = (vf.maxX - f.maxX) <= (f.minX - vf.minX)
-        currentReveal = CGFloat(AppSettings.shared.edgeDodgeReveal)
+        currentReveal = baseReveal
         guard let target = sideTuckedFrame(reveal: currentReveal) else { return }
         isTucked = true
         setSuppressSave(true)
@@ -255,7 +281,7 @@ final class EdgeDodger {
                 self.untuck()
             } else {
                 // Still lingering near the panel: shrink back to the base sliver.
-                let base = CGFloat(AppSettings.shared.edgeDodgeReveal)
+                let base = self.baseReveal
                 if abs(base - self.currentReveal) > 0.5, let target = self.sideTuckedFrame(reveal: base) {
                     self.currentReveal = base
                     self.animate(to: target)

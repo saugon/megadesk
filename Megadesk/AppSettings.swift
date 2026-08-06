@@ -117,10 +117,15 @@ final class AppSettings {
     var edgeDodgeTriggerMode: DodgeTriggerMode
     /// Sliver (pt) of the panel left visible when it tucks against the edge.
     var edgeDodgeReveal: Double
-    /// When on, hovering the tucked sliver enlarges it to `edgeDodgeHoverReveal`.
+    /// When on, hovering the tucked sliver enlarges it to
+    /// `edgeDodgeHoverRevealPercent` of the panel's width.
     var edgeDodgeHoverPeekEnabled: Bool
-    /// Sliver (pt) shown while the cursor hovers the tucked panel.
-    var edgeDodgeHoverReveal: Double
+    /// How much of the panel shows while the cursor hovers the tucked sliver,
+    /// as a percentage (10...100) of the panel's own width. Relative rather than
+    /// absolute because the panels differ in width and are resizable: the widget
+    /// is 78pt collapsed and 220-280pt normally, the companion sizes to its pet.
+    /// 100 reveals the panel whole.
+    var edgeDodgeHoverRevealPercent: Double
 
     // MARK: - Session state colors (stored as hex strings)
     var hexWorking:      String
@@ -210,7 +215,18 @@ final class AppSettings {
         edgeDodgeTriggerMode = DodgeTriggerMode(rawValue: ud.string(forKey: "megadesk.edgeDodgeTriggerMode") ?? "") ?? .dodgeUnlessHeld
         edgeDodgeReveal = ud.object(forKey: "megadesk.edgeDodgeReveal") as? Double ?? 26
         edgeDodgeHoverPeekEnabled = ud.object(forKey: "megadesk.edgeDodgeHoverPeekEnabled") as? Bool ?? true
-        edgeDodgeHoverReveal = ud.object(forKey: "megadesk.edgeDodgeHoverReveal") as? Double ?? 70
+        if let pct = ud.object(forKey: "megadesk.edgeDodgeHoverRevealPercent") as? Double {
+            edgeDodgeHoverRevealPercent = min(100, max(10, pct))
+        } else if let pt = ud.object(forKey: "megadesk.edgeDodgeHoverReveal") as? Double {
+            // The grown sliver used to be an absolute pt value. Convert it
+            // against the widget's own width so it keeps revealing the same
+            // slice of the panel it did before.
+            let saved = ud.double(forKey: "megadesk.windowWidth")
+            let reference = saved > 0 ? saved : 280
+            edgeDodgeHoverRevealPercent = min(100, max(10, pt / reference * 100))
+        } else {
+            edgeDodgeHoverRevealPercent = 50
+        }
         hexWorking       = ud.string(forKey: "megadesk.color.working")      ?? "#34C759"
         hexConfirmation  = ud.string(forKey: "megadesk.color.confirmation") ?? "#5AC8FA"
         hexWaiting       = ud.string(forKey: "megadesk.color.waiting")      ?? "#FF9500"
@@ -266,7 +282,7 @@ final class AppSettings {
         ud.set(edgeDodgeTriggerMode.rawValue, forKey: "megadesk.edgeDodgeTriggerMode")
         ud.set(edgeDodgeReveal, forKey: "megadesk.edgeDodgeReveal")
         ud.set(edgeDodgeHoverPeekEnabled, forKey: "megadesk.edgeDodgeHoverPeekEnabled")
-        ud.set(edgeDodgeHoverReveal, forKey: "megadesk.edgeDodgeHoverReveal")
+        ud.set(edgeDodgeHoverRevealPercent, forKey: "megadesk.edgeDodgeHoverRevealPercent")
         ud.set(hexWorking,          forKey: "megadesk.color.working")
         ud.set(hexConfirmation,     forKey: "megadesk.color.confirmation")
         ud.set(hexWaiting,          forKey: "megadesk.color.waiting")
@@ -325,7 +341,7 @@ final class AppSettings {
         edgeDodgeTriggerMode = .dodgeUnlessHeld
         edgeDodgeReveal = 26
         edgeDodgeHoverPeekEnabled = true
-        edgeDodgeHoverReveal = 70
+        edgeDodgeHoverRevealPercent = 50
         hexWorking       = "#34C759"
         hexConfirmation  = "#5AC8FA"
         hexWaiting       = "#FF9500"
