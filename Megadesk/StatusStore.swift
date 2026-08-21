@@ -537,8 +537,9 @@ final class StatusStore {
     /// Safety net: removes sessions whose Claude process is dead or unknown.
     /// Catches: kqueue failures, PID recycling, missing claudePid (old hook),
     /// and fallback sessions that the orphan checker skips.
-    /// Skips sessions whose terminal tab is still alive — a dead stored PID may
-    /// just mean Claude was restarted and the hook hasn't fired yet.
+    /// A dead stored PID whose terminal tab is still open is kept only briefly —
+    /// a restart fires its hook within seconds — then reaped, so closing Claude
+    /// but leaving the terminal open doesn't orphan the card forever.
     private func reapDeadSessions() {
         let staleThreshold = Date().timeIntervalSince1970 - 120
         var deadIds: [String] = []
@@ -548,13 +549,16 @@ final class StatusStore {
             if let pid = session.claudePid {
                 // Has a PID — check if the process is still alive.
                 if kill(pid_t(pid), 0) != 0 && errno != EPERM {
-                    // PID is dead, but don't remove if the terminal tab is still open —
-                    // a new Claude process may have started that hasn't fired hooks yet.
-                    if isTerminalTabAlive(session) {
-                        print("[Megadesk] reapDeadSessions: PID \(pid) dead for \(session.projectName) but terminal tab still alive — skipping")
+                    // PID is dead. If the tab is still open, Claude may have just
+                    // restarted in it and the hook hasn't fired yet, so keep the
+                    // card during a grace window. But once it goes stale, Claude is
+                    // gone for good (closed while the terminal stayed open), so reap
+                    // it instead of orphaning the card forever.
+                    if isTerminalTabAlive(session) && session.lastUpdated >= staleThreshold {
+                        print("[Megadesk] reapDeadSessions: PID \(pid) dead for \(session.projectName) but tab alive and recently updated — skipping")
                         continue
                     }
-                    print("[Megadesk] reapDeadSessions: removing \(session.projectName) (PID \(pid) dead, tab gone)")
+                    print("[Megadesk] reapDeadSessions: removing \(session.projectName) (PID \(pid) dead)")
                     processSources[session.terminalSessionId]?.cancel()
                     processSources.removeValue(forKey: session.terminalSessionId)
                     deadIds.append(session.terminalSessionId)
