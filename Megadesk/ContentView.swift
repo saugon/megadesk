@@ -193,26 +193,10 @@ struct ContentView: View {
         .frame(minWidth: isCompact ? 78 : 220, maxWidth: isCompact ? 78 : 280)
     }
 
-    var footerView: some View {
-        Group {
-            if !isCompact, let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
-                let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-                HStack {
-                    Text("⌘⇧M to hide")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.white.opacity(0.65))
-                    Spacer()
-                    Text("v\(version)  build \(build)")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.white.opacity(0.2))
-                }
-                .padding(.top, 10)
-                .padding(.horizontal, 12)
-                .padding(.bottom, 14)
-                .frame(minWidth: 220, maxWidth: 280)
-            }
-        }
-    }
+    /// Built once by AppDelegate and hosted in its own view, so it has to be a
+    /// real View: reading settings from a computed property here would capture
+    /// them at construction time and never update.
+    var footerView: some View { WidgetFooterView() }
 
     private var emptyState: some View {
         Text("No active instances")
@@ -370,5 +354,62 @@ struct ContentView: View {
     private func endEditing() {
         previousApp?.activate()
         previousApp = nil
+    }
+}
+
+
+/// Footer strip: the dodge toggle on the left, version on the right.
+private struct WidgetFooterView: View {
+    private let settings = AppSettings.shared
+    @AppStorage("megadesk.compact") private var isCompact = false
+
+    var body: some View {
+        if !isCompact, let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+            let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+            let on = settings.edgeDodgeEnabled
+            HStack(spacing: 6) {
+                Button {
+                    settings.edgeDodgeEnabled.toggle()
+                    settings.save()
+                } label: {
+                    HStack(spacing: 4) {
+                        // Cursor with motion lines while it reacts to the
+                        // mouse, struck through while it ignores it.
+                        Image(systemName: on ? "cursorarrow.motionlines" : "cursorarrow.slash")
+                            .font(.system(size: 11))
+                            // The two symbols measure 14x16 and 11x14, so the
+                            // box is fixed to the larger one: otherwise the
+                            // label and the footer height jump when it flips.
+                            .frame(width: 14, height: 16)
+                        Text("dodge mouse")
+                            .font(.system(size: 10, design: .monospaced))
+                    }
+                    // Only brightness and the symbol carry the state: nothing
+                    // around the label may change size, or the button and the
+                    // build info shift on every toggle.
+                    .foregroundColor(.white.opacity(on ? 0.95 : 0.25))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                Text("v\(version)  build \(build)")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.2))
+            }
+            .help(dodgeHelp)
+            .padding(.top, 10)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 14)
+            .frame(minWidth: 220, maxWidth: 280)
+        }
+    }
+
+    /// Tooltip for the footer toggle. The modifier's role flips with the
+    /// trigger mode, so the hint has to follow it.
+    private var dodgeHelp: String {
+        let key = settings.edgeDodgeBypassModifier.label
+        return settings.edgeDodgeTriggerMode == .dodgeUnlessHeld
+            ? "Slide the widget aside when the mouse comes near. Hold \(key) to keep it in place and reach it."
+            : "Slide the widget aside while \(key) is held."
     }
 }
