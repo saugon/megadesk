@@ -30,6 +30,9 @@ final class EdgeDodger {
     /// (grows while the cursor hovers the sliver, if hover-peek is enabled).
     private var tuckedToRight = true
     private var currentReveal: CGFloat = 0
+    /// The screen the panel tucked against, held for the whole tuck. See
+    /// `activeScreen` for why it can't just be read off the window.
+    private var tuckScreen: NSScreen?
     /// True once the user engages the panel (holds the bypass key with the
     /// cursor over it). While engaged the panel stays pinned in place until the
     /// cursor leaves it, even after the key is released.
@@ -174,6 +177,19 @@ final class EdgeDodger {
         }
     }
 
+    /// The screen every tucked position is measured against: the one the panel
+    /// tucked from, pinned until it comes back. It can't be read off the window
+    /// each time because `NSWindow.screen` is wherever *most* of the window is:
+    /// with a display butted against the edge we tuck to, the panel ends up
+    /// mostly over that neighbour, and measuring against the neighbour's own
+    /// edge would push it further away on every mouse event until it had walked
+    /// across the second display. Falls back if the display is unplugged
+    /// mid-tuck, so a stale frame can't strand the panel.
+    private var activeScreen: NSScreen? {
+        if let tuckScreen, NSScreen.screens.contains(tuckScreen) { return tuckScreen }
+        return window?.screen ?? NSScreen.main
+    }
+
     /// The panel's own width. The tucked frame keeps the resting size, so this
     /// is both what a percentage reveal is measured against and the point past
     /// which revealing more would push the panel inward instead of showing more
@@ -204,6 +220,7 @@ final class EdgeDodger {
 
     private func tuckToNearestEdge() {
         guard let screen = window?.screen ?? NSScreen.main else { return }
+        tuckScreen = screen
         let vf = screen.visibleFrame
         let f = homeFrame
         // Always tuck to a side edge (left or right), never top or bottom.
@@ -217,7 +234,7 @@ final class EdgeDodger {
 
     /// The panel's frame tucked to the current side, showing `reveal` pt.
     private func sideTuckedFrame(reveal: CGFloat) -> NSRect? {
-        guard let screen = window?.screen ?? NSScreen.main else { return nil }
+        guard let screen = activeScreen else { return nil }
         let vf = screen.visibleFrame
         var f = homeFrame
         f.origin.x = tuckedToRight ? vf.maxX - reveal : vf.minX + reveal - f.width
@@ -226,7 +243,7 @@ final class EdgeDodger {
 
     /// The on-screen sliver rectangle for a given reveal, used to detect hover.
     private func visibleSliverRect(reveal: CGFloat) -> NSRect {
-        guard let screen = window?.screen ?? NSScreen.main else { return .zero }
+        guard let screen = activeScreen else { return .zero }
         let vf = screen.visibleFrame
         let x = tuckedToRight ? vf.maxX - reveal : vf.minX
         return NSRect(x: x, y: homeFrame.minY, width: reveal, height: homeFrame.height)
@@ -235,6 +252,7 @@ final class EdgeDodger {
     private func untuck() {
         isTucked = false
         cancelPeekGrace()
+        tuckScreen = nil
         animate(to: homeFrame) { [weak self] in
             self?.setSuppressSave(false)
         }
