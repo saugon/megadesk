@@ -5,6 +5,11 @@ struct AlertsView: View {
     @Bindable private var settings = AppSettings.shared
     @State private var selectedAlertId: UUID?
     @State private var showingCompleted = false
+    /// The alert being created, if any. It already lives in the store so the
+    /// whole editor works on it unchanged, but it stays out of the list and
+    /// can't fire until it's confirmed.
+    @State private var draftId: UUID?
+    @FocusState private var titleFocused: Bool
 
     var body: some View {
         HStack(spacing: 0) {
@@ -16,12 +21,13 @@ struct AlertsView: View {
         }
         .padding(.top, 8)
         .frame(minWidth: 520, minHeight: 400)
+        .onDisappear { discardDraft() }
     }
 
     // MARK: - Sidebar
 
     private var activeAlerts: [MegadeskAlert] {
-        store.alerts.filter { $0.isCompleted != true }
+        store.alerts.filter { $0.isCompleted != true && $0.isDraft != true }
     }
 
     private var completedAlerts: [MegadeskAlert] {
@@ -39,6 +45,10 @@ struct AlertsView: View {
             .padding(.top, 8)
             .padding(.bottom, 4)
             .onChange(of: showingCompleted) { _, _ in selectedAlertId = nil }
+            .onChange(of: selectedAlertId) { _, newValue in
+                // Walking away from a half-filled new alert throws it out.
+                if let draftId, draftId != newValue { discardDraft() }
+            }
 
             if showingCompleted {
                 List(completedAlerts, selection: $selectedAlertId) { alert in
@@ -131,11 +141,19 @@ struct AlertsView: View {
                     Section("Alert") {
                         TextField("Title", text: stringBinding(id: id, keyPath: \.title))
                             .textFieldStyle(.roundedBorder)
+                            .focused($titleFocused)
+                            .onSubmit { if isDraft(id) { commitDraft() } }
 
-                        Toggle("Enabled", isOn: Binding(
-                            get: { store.alerts.first(where: { $0.id == id })?.isEnabled ?? false },
-                            set: { store.toggleAlert(id: id, enabled: $0) }
-                        ))
+                        // Only repeating alerts can be paused: a one-off is
+                        // either still coming or already done, and firing one
+                        // flips this flag on its own, so showing the switch
+                        // there just invites confusion.
+                        if !isOnce(alert.recurrence) {
+                            Toggle("Enabled", isOn: Binding(
+                                get: { store.alerts.first(where: { $0.id == id })?.isEnabled ?? false },
+                                set: { store.toggleAlert(id: id, enabled: $0) }
+                            ))
+                        }
                     }
 
                     Section("Schedule") {
@@ -181,7 +199,26 @@ struct AlertsView: View {
 
     // MARK: - Detail Toolbar
 
+    @ViewBuilder
     private func detailToolbar(id: UUID) -> some View {
+        if isDraft(id) {
+            HStack(spacing: 8) {
+                Spacer()
+                Button("Cancel") { discardDraft() }
+                    .buttonStyle(.bordered)
+                Button("Create") { commitDraft() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canCommitDraft)
+                    .help(canCommitDraft ? "Add this alert" : "Give the alert a title first")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        } else {
+            savedAlertToolbar(id: id)
+        }
+    }
+
+    private func savedAlertToolbar(id: UUID) -> some View {
         HStack(spacing: 8) {
             Spacer()
             Button {
@@ -531,9 +568,48 @@ struct AlertsView: View {
     // MARK: - Helpers
 
     private func addAlert() {
-        let alert = MegadeskAlert()
+        discardDraft()
+        // No placeholder title: the field starts empty and focused, and the
+        // alert isn't real until "Create".
+        var alert = MegadeskAlert(title: "")
+        alert.isDraft = true
         store.addAlert(alert)
+        draftId = alert.id
         selectedAlertId = alert.id
+        DispatchQueue.main.async { titleFocused = true }
+    }
+
+    private func isDraft(_ id: UUID) -> Bool { draftId == id }
+
+    private func isOnce(_ recurrence: Recurrence) -> Bool {
+        if case .once = recurrence { return true }
+        return false
+    }
+
+    private var canCommitDraft: Bool {
+        guard let draftId, let alert = store.alerts.first(where: { $0.id == draftId }) else { return false }
+        return !alert.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Turns the draft into a real alert: it shows up in the list and starts
+    /// counting down from here.
+    private func commitDraft() {
+        guard canCommitDraft, let id = draftId,
+              let i = store.alerts.firstIndex(where: { $0.id == id }) else { return }
+        store.alerts[i].isDraft = nil
+        store.alerts[i].title = store.alerts[i].title.trimmingCharacters(in: .whitespacesAndNewlines)
+        store.saveAlerts()
+        draftId = nil
+        titleFocused = false
+        selectedAlertId = id
+    }
+
+    private func discardDraft() {
+        guard let id = draftId else { return }
+        draftId = nil
+        titleFocused = false
+        store.removeAlert(id: id)
+        if selectedAlertId == id { selectedAlertId = nil }
     }
 
     private func removeSelected() {
@@ -550,6 +626,8 @@ struct AlertsView: View {
     }
 
     private func nextFireSummary(_ alert: MegadeskAlert) -> String {
+        // A one-off that already rang reads as fired, not as switched off.
+        if isOnce(alert.recurrence), alert.lastFiredAt != nil { return "Fired" }
         guard alert.isEnabled else { return "Disabled" }
         guard let next = alert.nextFireDate() else { return "Won't fire" }
         let formatter = DateFormatter()

@@ -30,8 +30,16 @@ final class ToastWindowController {
             title: alert.title,
             time: Self.timeString(),
             snoozeMinutes: snoozeMinutes,
-            onDismiss: { [weak self] in
+            onClose: { [weak self] in
                 self?.dismissToast(toastId: toastId)
+            },
+            // Closing the toast used to be all the X did, leaving the alert
+            // pending forever. Dismissing settles it.
+            onDismiss: {
+                StatusStore.shared.dismissFiredAlert(id: alert.id)
+            },
+            onMoveToWidget: {
+                StatusStore.shared.moveAlertToWidget(id: alert.id)
             },
             onSnooze: {
                 NotificationCenter.default.post(name: .megadeskSnoozeAlert, object: nil,
@@ -39,6 +47,7 @@ final class ToastWindowController {
             },
             onDisable: {
                 StatusStore.shared.toggleAlert(id: alert.id, enabled: false)
+                StatusStore.shared.dismissFiredAlert(id: alert.id)
             }
         )
         panel.contentView = contentView
@@ -207,15 +216,16 @@ private final class ToastDismissButton: NSView {
     private var isHovered = false
     private var trackingArea: NSTrackingArea?
 
-    init(action: @escaping () -> Void) {
+    init(symbol: String = "xmark", tooltip: String? = nil, action: @escaping () -> Void) {
         self.action = action
         self.imageView = NSImageView()
         super.init(frame: .zero)
 
         wantsLayer = true
         layer?.cornerRadius = 10
+        toolTip = tooltip
 
-        imageView.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Dismiss")
+        imageView.image = NSImage(systemSymbolName: symbol, accessibilityDescription: tooltip ?? "Dismiss")
         imageView.contentTintColor = NSColor(white: 0.5, alpha: 1)
         imageView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(imageView)
@@ -270,10 +280,14 @@ private final class ToastDismissButton: NSView {
 // MARK: - Toast Content View
 
 private final class ToastContentView: NSView {
-    init(title: String, time: String, snoozeMinutes: Int, onDismiss: @escaping () -> Void, onSnooze: @escaping () -> Void, onDisable: @escaping () -> Void) {
+    init(title: String, time: String, snoozeMinutes: Int,
+         onClose: @escaping () -> Void, onDismiss: @escaping () -> Void,
+         onMoveToWidget: @escaping () -> Void, onSnooze: @escaping () -> Void,
+         onDisable: @escaping () -> Void) {
         super.init(frame: NSRect(x: 0, y: 0, width: 280, height: 90))
-        setupUI(title: title, time: time, snoozeMinutes: snoozeMinutes,
-                onDismiss: onDismiss, onSnooze: onSnooze, onDisable: onDisable)
+        setupUI(title: title, time: time, snoozeMinutes: snoozeMinutes, onClose: onClose,
+                onDismiss: onDismiss, onMoveToWidget: onMoveToWidget,
+                onSnooze: onSnooze, onDisable: onDisable)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -285,7 +299,9 @@ private final class ToastContentView: NSView {
     }
 
     private func setupUI(title: String, time: String, snoozeMinutes: Int,
-                          onDismiss: @escaping () -> Void, onSnooze: @escaping () -> Void, onDisable: @escaping () -> Void) {
+                          onClose: @escaping () -> Void, onDismiss: @escaping () -> Void,
+                          onMoveToWidget: @escaping () -> Void, onSnooze: @escaping () -> Void,
+                          onDisable: @escaping () -> Void) {
         let bellIcon = NSImageView()
         bellIcon.image = NSImage(systemSymbolName: "bell.fill", accessibilityDescription: "Alert")
         bellIcon.contentTintColor = NSColor(AppSettings.shared.colorAlert)
@@ -302,20 +318,27 @@ private final class ToastContentView: NSView {
         timeLabel.textColor = NSColor(white: 0.6, alpha: 1)
         timeLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        let dismissBtn = ToastDismissButton(action: onDismiss)
+        let dismissBtn = ToastDismissButton(action: { onDismiss(); onClose() })
         dismissBtn.translatesAutoresizingMaskIntoConstraints = false
 
+        // Sends the reminder to the widget instead of settling it, for when the
+        // toast is in the way but the thing still has to get done.
+        let widgetBtn = ToastDismissButton(symbol: "macwindow", tooltip: "Move to widget",
+                                           action: { onMoveToWidget(); onClose() })
+        widgetBtn.translatesAutoresizingMaskIntoConstraints = false
+
         let snoozeTitle = snoozeMinutes == 1 ? "Snooze 1 min" : "Snooze \(snoozeMinutes) min"
-        let snoozeBtn = ToastButton(title: snoozeTitle, color: .systemBlue) { onSnooze(); onDismiss() }
+        let snoozeBtn = ToastButton(title: snoozeTitle, color: .systemBlue) { onSnooze(); onClose() }
         snoozeBtn.translatesAutoresizingMaskIntoConstraints = false
 
-        let disableBtn = ToastButton(title: "Disable", color: NSColor(white: 0.55, alpha: 1)) { onDisable(); onDismiss() }
+        let disableBtn = ToastButton(title: "Disable", color: NSColor(white: 0.55, alpha: 1)) { onDisable(); onClose() }
         disableBtn.translatesAutoresizingMaskIntoConstraints = false
 
         addSubview(bellIcon)
         addSubview(titleLabel)
         addSubview(timeLabel)
         addSubview(dismissBtn)
+        addSubview(widgetBtn)
         addSubview(snoozeBtn)
         addSubview(disableBtn)
 
@@ -326,7 +349,7 @@ private final class ToastContentView: NSView {
             bellIcon.heightAnchor.constraint(equalToConstant: 20),
 
             titleLabel.leadingAnchor.constraint(equalTo: bellIcon.trailingAnchor, constant: 10),
-            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: dismissBtn.leadingAnchor, constant: -8),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: widgetBtn.leadingAnchor, constant: -8),
             titleLabel.topAnchor.constraint(equalTo: topAnchor, constant: 14),
 
             timeLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
@@ -342,6 +365,11 @@ private final class ToastContentView: NSView {
             dismissBtn.topAnchor.constraint(equalTo: topAnchor, constant: 10),
             dismissBtn.widthAnchor.constraint(equalToConstant: 20),
             dismissBtn.heightAnchor.constraint(equalToConstant: 20),
+
+            widgetBtn.trailingAnchor.constraint(equalTo: dismissBtn.leadingAnchor, constant: -2),
+            widgetBtn.centerYAnchor.constraint(equalTo: dismissBtn.centerYAnchor),
+            widgetBtn.widthAnchor.constraint(equalToConstant: 20),
+            widgetBtn.heightAnchor.constraint(equalToConstant: 20),
         ])
     }
 }

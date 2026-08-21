@@ -8,6 +8,14 @@ struct MegadeskAlert: Identifiable, Codable, Equatable {
     var isEnabled: Bool
     var isCompleted: Bool?
     var lastFiredAt: Date?
+    /// True while the alert is being filled in for the first time and hasn't
+    /// been confirmed. A draft stays out of the list and never fires, so an
+    /// abandoned one can't turn into an alert nobody meant to create.
+    var isDraft: Bool?
+    /// Set when the user snoozes a fired alert: the moment it should go off
+    /// again. Kept apart from `lastFiredAt`, which records when it *did* go off
+    /// and is what tells a `.once` alert it is done, so it can't double as this.
+    var snoozedUntil: Date?
 
     // Optional constraints for interval recurrence: which days and what time window.
     var activeDays: Set<Int>?       // nil = every day, otherwise subset of 1(Sun)..7(Sat)
@@ -96,6 +104,11 @@ enum Recurrence: Codable, Equatable, Hashable {
 extension MegadeskAlert {
     func nextFireDate(after referenceDate: Date = Date()) -> Date? {
         let cal = Calendar.current
+
+        // A pending snooze outranks the schedule: it's an explicit "not now,
+        // in N minutes", whatever the recurrence would otherwise say (a .once
+        // alert that already fired has no next date at all).
+        if let snoozedUntil, snoozedUntil > referenceDate { return snoozedUntil }
 
         switch recurrence {
         case .once:

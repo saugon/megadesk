@@ -21,6 +21,11 @@ final class StatusStore {
     var alerts: [MegadeskAlert] = []
     private(set) var firedAlertIds: Set<UUID> = []
     private(set) var dismissedFiredAlertIds: Set<UUID> = []
+    /// Alerts the user sent from their toast to the widget. It only covers the
+    /// round the alert is in, not its settings, so "move to widget" parks this
+    /// one reminder without changing where the alert shows up next time. Kept on
+    /// disk so a restart can't swallow a reminder that is still waiting.
+    private(set) var widgetPinnedAlertIds: Set<UUID> = []
 
     /// Number of fired alerts that the user hasn't dismissed yet AND that are
     /// configured to show a badge. Computed instead of stored so it can never
@@ -32,6 +37,34 @@ final class StatusStore {
             firedAlertIds.contains($0.id) &&
             !dismissedFiredAlertIds.contains($0.id)
         }.count
+    }
+
+    /// Whether a fired alert belongs in the widget: either it's configured that
+    /// way, or the user moved it there from its toast.
+    func alertShowsInWidget(_ alert: MegadeskAlert) -> Bool {
+        alert.effectiveShowWidget || widgetPinnedAlertIds.contains(alert.id)
+    }
+
+    /// Parks a fired alert in the widget so closing its toast doesn't lose it.
+    func moveAlertToWidget(id: UUID) {
+        widgetPinnedAlertIds.insert(id)
+        dismissedFiredAlertIds.remove(id)
+        saveWidgetPins()
+    }
+
+    private func clearWidgetPin(_ id: UUID) {
+        guard widgetPinnedAlertIds.remove(id) != nil else { return }
+        saveWidgetPins()
+    }
+
+    private func saveWidgetPins() {
+        UserDefaults.standard.set(widgetPinnedAlertIds.map(\.uuidString),
+                                  forKey: "megadesk.widgetPinnedAlerts")
+    }
+
+    private func loadWidgetPins() {
+        let stored = UserDefaults.standard.stringArray(forKey: "megadesk.widgetPinnedAlerts") ?? []
+        widgetPinnedAlertIds = Set(stored.compactMap(UUID.init(uuidString:)))
     }
 
     private let sessionsURL: URL = {
@@ -909,6 +942,9 @@ final class StatusStore {
     func toggleAlert(id: UUID, enabled: Bool) {
         guard let i = alerts.firstIndex(where: { $0.id == id }) else { return }
         alerts[i].isEnabled = enabled
+        // Flipping the switch either way settles the alert's fate by hand, so a
+        // snooze waiting to go off is no longer wanted.
+        alerts[i].snoozedUntil = nil
         if enabled {
             // Reset so recurring/interval alerts don't fire instantly from a stale lastFiredAt.
             // For .once, clear lastFiredAt so it can fire again.
@@ -926,6 +962,7 @@ final class StatusStore {
         alerts.removeAll { $0.id == id }
         firedAlertIds.remove(id)
         dismissedFiredAlertIds.remove(id)
+        clearWidgetPin(id)
         ToastWindowController.shared.dismissToast(alertId: id)
         saveAlerts()
     }
@@ -934,7 +971,18 @@ final class StatusStore {
         guard let data = UserDefaults.standard.data(forKey: "megadesk.alerts"),
               let decoded = try? JSONDecoder().decode([MegadeskAlert].self, from: data)
         else { return }
-        alerts = decoded
+        // Drafts belong to an editing session that is over: if one survived, the
+        // window (or the app) went away before it was confirmed.
+        alerts = decoded.filter { $0.isDraft != true }
+        if alerts.count != decoded.count { saveAlerts() }
+
+        loadWidgetPins()
+        // Pins for alerts that no longer exist are dead weight.
+        let liveIds = Set(alerts.map(\.id))
+        if !widgetPinnedAlertIds.isSubset(of: liveIds) {
+            widgetPinnedAlertIds.formIntersection(liveIds)
+            saveWidgetPins()
+        }
 
         // Restore firedAlertIds for .once alerts that fired but weren't dismissed/completed
         for alert in alerts {
@@ -943,6 +991,23 @@ final class StatusStore {
                 firedAlertIds.insert(alert.id)
             }
         }
+
+        // A one-off alert that has had its turn and isn't waiting to be
+        // dismissed is done, so file it under Completed. Firing one disables it,
+        // which used to leave it in the list reading "Disabled" as if the user
+        // had switched it off, with no way back now that one-offs have no
+        // switch. Off without ever firing counts too: that's the same dead end,
+        // reached by hand.
+        var archived = false
+        for i in alerts.indices {
+            guard case .once = alerts[i].recurrence else { continue }
+            guard alerts[i].isCompleted != true,
+                  !firedAlertIds.contains(alerts[i].id),
+                  alerts[i].lastFiredAt != nil || !alerts[i].isEnabled else { continue }
+            alerts[i].isCompleted = true
+            archived = true
+        }
+        if archived { saveAlerts() }
     }
 
     func saveAlerts() {
@@ -963,6 +1028,15 @@ final class StatusStore {
         guard !dismissedFiredAlertIds.contains(id) else { return }
         dismissedFiredAlertIds.insert(id)
 
+        clearWidgetPin(id)
+
+        // Dismissing settles the alert, so drop any snooze still waiting to
+        // bring it back.
+        if let i = alerts.firstIndex(where: { $0.id == id }), alerts[i].snoozedUntil != nil {
+            alerts[i].snoozedUntil = nil
+            saveAlerts()
+        }
+
         // Mark non-recurring alerts as completed
         if let i = alerts.firstIndex(where: { $0.id == id }),
            case .once = alerts[i].recurrence {
@@ -980,9 +1054,25 @@ final class StatusStore {
         var toFire: [MegadeskAlert] = []
 
         for i in snapshot.indices {
+            guard snapshot[i].isDraft != true else { continue }
             guard snapshot[i].isEnabled else { continue }
             guard !firedAlertIds.contains(snapshot[i].id) else { continue }
-            // Skip if snoozed (lastFiredAt set to a future time)
+
+            // A snooze fires on its own terms: the alert it belongs to has
+            // already had its turn, so its schedule has nothing left to offer
+            // and the checks below would never let it through.
+            if let until = snapshot[i].snoozedUntil {
+                guard until <= now else { continue }
+                snapshot[i].snoozedUntil = nil
+                snapshot[i].lastFiredAt = now
+                firedAlertIds.insert(snapshot[i].id)
+                toFire.append(snapshot[i])
+                if case .once = snapshot[i].recurrence {
+                    snapshot[i].isEnabled = false
+                }
+                continue
+            }
+
             if let last = snapshot[i].lastFiredAt, last > now { continue }
 
             if let nextFire = snapshot[i].nextFireDate(after: now), nextFire <= now {
@@ -1042,10 +1132,18 @@ final class StatusStore {
                   let alertId = note.userInfo?["alertId"] as? UUID,
                   let minutes = note.userInfo?["minutes"] as? Int,
                   let i = self.alerts.firstIndex(where: { $0.id == alertId }) else { return }
-            // Snooze: set lastFiredAt forward so nextFireDate returns now+snooze
-            self.alerts[i].lastFiredAt = Date().addingTimeInterval(TimeInterval(minutes * 60))
+            // Snooze gets its own field. Pushing lastFiredAt into the future
+            // instead used to bury the alert: nextFireDate reads lastFiredAt to
+            // decide a .once alert is done and returns nil, and a recurring one
+            // just skipped to its next natural occurrence.
+            self.alerts[i].snoozedUntil = Date().addingTimeInterval(TimeInterval(minutes * 60))
+            // Firing a .once alert disables it and dismissing it completes it.
+            // Snoozing means it still owes us a visit, so undo both.
+            self.alerts[i].isEnabled = true
+            self.alerts[i].isCompleted = false
             self.firedAlertIds.remove(alertId)
             self.dismissedFiredAlertIds.remove(alertId)
+            self.clearWidgetPin(alertId)
             self.saveAlerts()
         }
 

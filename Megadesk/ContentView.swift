@@ -101,7 +101,7 @@ struct ContentView: View {
 
     private var widgetAlerts: [MegadeskAlert] {
         return store.alerts.filter {
-            $0.effectiveShowWidget &&
+            store.alertShowsInWidget($0) &&
             store.firedAlertIds.contains($0.id) &&
             !store.dismissedFiredAlertIds.contains($0.id)
         }

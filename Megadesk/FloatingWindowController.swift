@@ -733,7 +733,7 @@ final class FloatingWindowController: NSWindowController {
         let sessions = store.sessions.count
         let prs = store.trackedPRs.count
         let alerts = store.alerts.filter {
-            $0.effectiveShowWidget && store.firedAlertIds.contains($0.id)
+            store.alertShowsInWidget($0) && store.firedAlertIds.contains($0.id)
                 && !store.dismissedFiredAlertIds.contains($0.id)
         }.count
         let items = sessions + prs + alerts
@@ -1275,7 +1275,7 @@ private struct PeekTabInteractiveView: View {
         let forgotten    = s.filter { !$0.isWorking && $0.isForgotten }
         let sessionSlots = (working + confirmation + waiting + forgotten).map(Slot.session)
         let alertSlots = store.alerts.filter {
-            $0.effectiveShowWidget && store.firedAlertIds.contains($0.id)
+            store.alertShowsInWidget($0) && store.firedAlertIds.contains($0.id)
                 && !store.dismissedFiredAlertIds.contains($0.id)
         }.map(Slot.alert)
         let prSlots = store.trackedPRs.map(Slot.pr)
@@ -1453,7 +1453,7 @@ private struct PeekTabView: View {
     private var alertColors: [Color] {
         let set = AppSettings.shared
         return store.alerts
-            .filter { $0.effectiveShowWidget
+            .filter { store.alertShowsInWidget($0)
                 && store.firedAlertIds.contains($0.id)
                 && !store.dismissedFiredAlertIds.contains($0.id) }
             .map { _ in set.colorAlert }
