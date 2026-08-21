@@ -25,6 +25,25 @@ enum WhatsNew {
     }
 
     static let releases: [String: Release] = [
+        "0.10.0": Release(
+            hero: Highlight(
+                icon: "bell.badge",
+                title: "Alerts, tightened up",
+                detail: "Snooze brings the alert back instead of burying it, dismissing a toast files it away, creating one has a Create step with an empty title, and a new toast button parks a reminder in the widget."
+            ),
+            features: [
+                Highlight(
+                    icon: "cursorarrow.motionlines",
+                    title: "Dodge, one click away",
+                    detail: "The widget footer now toggles 'Move out of the way' without opening Settings."
+                ),
+            ],
+            more: [
+                "The grow-on-hover width is a percentage of the panel now, so 100% reveals the whole widget.",
+                "Dodging no longer walks the widget onto a second display.",
+                "Sessions whose Claude quit are cleared even if you leave the terminal open.",
+            ]
+        ),
         "0.9.1": Release(
             hero: Highlight(
                 icon: "arrow.right.to.line",
