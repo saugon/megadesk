@@ -132,6 +132,9 @@ struct PRCardView: View {
                     ZStack(alignment: .trailing) {
                         HStack(spacing: 3) {
                             if pr.hasConflicts { badge("conflict", color: .red) }
+                            if let queue = pr.queueLabel {
+                                badge(queue, color: pr.isQueueBlocked ? .red : .cyan)
+                            }
                             if pr.isBehindMain { badge("behind", color: .yellow) }
                         }
                         .opacity(isHovered ? 0 : 1)

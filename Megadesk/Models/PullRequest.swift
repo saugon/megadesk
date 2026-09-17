@@ -11,11 +11,28 @@ struct PullRequest: Identifiable, Codable {
     let statusCheckRollup: [StatusCheck]
     let url: String
     let updatedAt: String
+    /// Merge queue. Optional because only the GraphQL fetch fills them in, and
+    /// a repo without a queue leaves the entry null.
+    let isInMergeQueue: Bool?
+    /// QUEUED | AWAITING_CHECKS | MERGEABLE | UNMERGEABLE | LOCKED
+    let mergeQueueState: String?
+    /// 1-based place in the queue, when GitHub reports one.
+    let mergeQueuePosition: Int?
 
     var id: Int { number }
     var isMerged: Bool  { state == "MERGED" }
     var isClosed: Bool  { state == "CLOSED" }
     var hasConflicts: Bool { mergeable == "CONFLICTING" }
+    var isQueued: Bool { isInMergeQueue == true }
+    /// A queued PR that the queue itself has given up on: it needs the author
+    /// again, so it ranks with the broken ones rather than the waiting ones.
+    var isQueueBlocked: Bool { mergeQueueState == "UNMERGEABLE" || mergeQueueState == "LOCKED" }
+    /// Short label for the card badge: the place in line when GitHub gives one.
+    var queueLabel: String? {
+        guard isQueued else { return nil }
+        if let pos = mergeQueuePosition, pos > 0 { return "queue #\(pos)" }
+        return "queued"
+    }
     var isBehindMain: Bool { mergeStateStatus == "BEHIND" }
     var shortBranch: String { headRefName.components(separatedBy: "/").last ?? headRefName }
 
@@ -89,5 +106,72 @@ struct TrackedPR: Identifiable {
         }
 
         return nil
+    }
+}
+
+
+// MARK: - GraphQL response
+
+/// Decodes `gh api graphql` for one PR. Its shape is the API's, not the card's:
+/// the checks arrive nested under the head commit's rollup, so this maps them
+/// back onto the flat `PullRequest` the rest of the app works with.
+struct PRGraphQLResponse: Decodable {
+    let data: DataField?
+
+    struct DataField: Decodable { let repository: Repository? }
+    struct Repository: Decodable { let pullRequest: Node? }
+
+    struct Node: Decodable {
+        let number: Int
+        let title: String
+        let url: String
+        let updatedAt: String
+        let headRefName: String
+        let state: String
+        let mergeable: String?
+        let mergeStateStatus: String?
+        let isInMergeQueue: Bool?
+        let author: PRAuthor?
+        let mergeQueueEntry: QueueEntry?
+        let commits: Commits?
+
+        struct QueueEntry: Decodable {
+            let state: String?
+            let position: Int?
+        }
+
+        struct Commits: Decodable {
+            let nodes: [CommitNode]?
+            struct CommitNode: Decodable {
+                let commit: Commit?
+                struct Commit: Decodable {
+                    let statusCheckRollup: Rollup?
+                    struct Rollup: Decodable {
+                        let contexts: Contexts?
+                        struct Contexts: Decodable { let nodes: [StatusCheck]? }
+                    }
+                }
+            }
+        }
+
+        func toPullRequest() -> PullRequest {
+            PullRequest(
+                number: number,
+                title: title,
+                author: author ?? PRAuthor(login: ""),
+                headRefName: headRefName,
+                state: state,
+                // The API omits these while it works out mergeability; the card
+                // reads them as plain strings and treats anything else as unknown.
+                mergeable: mergeable ?? "UNKNOWN",
+                mergeStateStatus: mergeStateStatus ?? "UNKNOWN",
+                statusCheckRollup: commits?.nodes?.first?.commit?.statusCheckRollup?.contexts?.nodes ?? [],
+                url: url,
+                updatedAt: updatedAt,
+                isInMergeQueue: isInMergeQueue,
+                mergeQueueState: mergeQueueEntry?.state,
+                mergeQueuePosition: mergeQueueEntry?.position
+            )
+        }
     }
 }

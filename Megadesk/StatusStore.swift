@@ -862,6 +862,27 @@ final class StatusStore {
         }
     }
 
+    /// One PR with everything the card shows. `contexts` is capped at 100, which
+    /// is plenty: the rollup only needs to know if anything is failing or still
+    /// running, and both survive truncation on any realistic check count.
+    private static let prGraphQLQuery = """
+    query($owner:String!,$repo:String!,$number:Int!){
+      repository(owner:$owner,name:$repo){
+        pullRequest(number:$number){
+          number title url updatedAt headRefName state mergeable mergeStateStatus
+          isInMergeQueue
+          author{ login }
+          mergeQueueEntry{ state position }
+          commits(last:1){ nodes{ commit{ statusCheckRollup{ contexts(first:100){ nodes{
+            __typename
+            ... on CheckRun{ status conclusion }
+            ... on StatusContext{ state }
+          } } } } } }
+        }
+      }
+    }
+    """
+
     func fetchPR(repo: String, number: Int) {
         let id = "\(repo)#\(number)"
         guard let idx = trackedPRs.firstIndex(where: { $0.id == id }) else { return }
@@ -873,12 +894,24 @@ final class StatusStore {
             return
         }
 
+        // owner/repo — GraphQL wants the two halves separately.
+        let repoParts = repo.split(separator: "/", maxSplits: 1).map(String.init)
+        guard repoParts.count == 2 else {
+            trackedPRs[idx].fetchState = .error("bad repo")
+            return
+        }
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ghPath)
+        // GraphQL rather than `gh pr view --json`: the CLI has no merge queue
+        // fields, and the queue is what tells a PR that is waiting its turn from
+        // one that needs somebody to do something.
         process.arguments = [
-            "pr", "view", "\(number)",
-            "--repo", repo,
-            "--json", "number,title,author,headRefName,state,mergeable,mergeStateStatus,statusCheckRollup,url,updatedAt"
+            "api", "graphql",
+            "-f", "owner=\(repoParts[0])",
+            "-f", "repo=\(repoParts[1])",
+            "-F", "number=\(number)",
+            "-f", "query=\(Self.prGraphQLQuery)"
         ]
 
         let pipe = Pipe()
@@ -910,8 +943,12 @@ final class StatusStore {
                     }
 
                     do {
-                        let pr = try JSONDecoder().decode(PullRequest.self, from: data)
-                        self.trackedPRs[i].data = pr
+                        let response = try JSONDecoder().decode(PRGraphQLResponse.self, from: data)
+                        guard let node = response.data?.repository?.pullRequest else {
+                            self.trackedPRs[i].fetchState = .error("not found or no auth")
+                            return
+                        }
+                        self.trackedPRs[i].data = node.toPullRequest()
                         self.trackedPRs[i].fetchState = .loaded
                     } catch {
                         self.trackedPRs[i].fetchState = .error("parse error")
