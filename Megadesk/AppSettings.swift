@@ -120,6 +120,12 @@ final class AppSettings {
     /// When on, hovering the tucked sliver enlarges it to
     /// `edgeDodgeHoverRevealPercent` of the panel's width.
     var edgeDodgeHoverPeekEnabled: Bool
+    /// Seconds the panel waits, after the cursor leaves the area it occupied,
+    /// before sliding back. 0 returns as soon as the cursor is clear.
+    var edgeDodgeReturnDelay: Double
+    /// Seconds the slide back takes. Getting out of the way stays quick and
+    /// fixed: that one has to beat the cursor, so it isn't up for tuning.
+    var edgeDodgeReturnDuration: Double
     /// How much of the panel shows while the cursor hovers the tucked sliver,
     /// as a percentage (10...100) of the panel's own width. Relative rather than
     /// absolute because the panels differ in width and are resizable: the widget
@@ -214,6 +220,8 @@ final class AppSettings {
         edgeDodgeBypassModifier = DodgeModifier(rawValue: ud.string(forKey: "megadesk.edgeDodgeBypassModifier") ?? "") ?? .command
         edgeDodgeTriggerMode = DodgeTriggerMode(rawValue: ud.string(forKey: "megadesk.edgeDodgeTriggerMode") ?? "") ?? .dodgeUnlessHeld
         edgeDodgeReveal = ud.object(forKey: "megadesk.edgeDodgeReveal") as? Double ?? 26
+        edgeDodgeReturnDelay = ud.object(forKey: "megadesk.edgeDodgeReturnDelay") as? Double ?? 0
+        edgeDodgeReturnDuration = ud.object(forKey: "megadesk.edgeDodgeReturnDuration") as? Double ?? 0.22
         edgeDodgeHoverPeekEnabled = ud.object(forKey: "megadesk.edgeDodgeHoverPeekEnabled") as? Bool ?? true
         if let pct = ud.object(forKey: "megadesk.edgeDodgeHoverRevealPercent") as? Double {
             edgeDodgeHoverRevealPercent = min(100, max(10, pct))
@@ -281,6 +289,8 @@ final class AppSettings {
         ud.set(edgeDodgeBypassModifier.rawValue, forKey: "megadesk.edgeDodgeBypassModifier")
         ud.set(edgeDodgeTriggerMode.rawValue, forKey: "megadesk.edgeDodgeTriggerMode")
         ud.set(edgeDodgeReveal, forKey: "megadesk.edgeDodgeReveal")
+        ud.set(edgeDodgeReturnDelay, forKey: "megadesk.edgeDodgeReturnDelay")
+        ud.set(edgeDodgeReturnDuration, forKey: "megadesk.edgeDodgeReturnDuration")
         ud.set(edgeDodgeHoverPeekEnabled, forKey: "megadesk.edgeDodgeHoverPeekEnabled")
         ud.set(edgeDodgeHoverRevealPercent, forKey: "megadesk.edgeDodgeHoverRevealPercent")
         ud.set(hexWorking,          forKey: "megadesk.color.working")
@@ -340,6 +350,8 @@ final class AppSettings {
         edgeDodgeBypassModifier = .command
         edgeDodgeTriggerMode = .dodgeUnlessHeld
         edgeDodgeReveal = 26
+        edgeDodgeReturnDelay = 0
+        edgeDodgeReturnDuration = 0.22
         edgeDodgeHoverPeekEnabled = true
         edgeDodgeHoverRevealPercent = 50
         hexWorking       = "#34C759"

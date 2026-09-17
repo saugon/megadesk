@@ -140,6 +140,44 @@ struct SettingsView: View {
                 }
                 .disabled(!settings.edgeDodgeEnabled)
                 LabeledContent {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.edgeDodgeReturnDelay, in: 0...2, step: 0.05)
+                            .frame(width: 160)
+                            .onChange(of: settings.edgeDodgeReturnDelay) { _, _ in settings.save() }
+                        Text(settings.edgeDodgeReturnDelay < 0.025
+                             ? "none"
+                             : String(format: "%.2fs", settings.edgeDodgeReturnDelay))
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Return delay")
+                        Text("How long it waits, once the cursor is clear, before sliding back")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!settings.edgeDodgeEnabled)
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.edgeDodgeReturnDuration, in: 0.05...1, step: 0.01)
+                            .frame(width: 160)
+                            .onChange(of: settings.edgeDodgeReturnDuration) { _, _ in settings.save() }
+                        Text(String(format: "%.2fs", settings.edgeDodgeReturnDuration))
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Return duration")
+                        Text("How long the slide back takes. Lower is snappier; getting out of the way stays quick")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!settings.edgeDodgeEnabled)
+                LabeledContent {
                     Toggle("", isOn: $settings.edgeDodgeHoverPeekEnabled)
                         .labelsHidden()
                         .onChange(of: settings.edgeDodgeHoverPeekEnabled) { _, _ in settings.save() }

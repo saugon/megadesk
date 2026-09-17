@@ -14,9 +14,24 @@ import AppKit
 final class EdgeDodger {
 
     /// Proximity margin (pt) around the panel that triggers the dodge, and the
-    /// area the cursor must leave before the panel returns.
-    private let margin: CGFloat = 36
+    /// area the cursor must leave before the panel returns. Taller than it is
+    /// wide: the panel only ever slides sideways, so a cursor coming from above
+    /// or below needs to be seen sooner to be worth dodging, while a wide side
+    /// margin would fire on cursors that were never going to reach it.
+    private let horizontalMargin: CGFloat = 36
+    private let verticalMargin: CGFloat = 90
+
+    /// The area around a frame that counts as "the cursor is on top of us".
+    private func proximityArea(_ rect: NSRect) -> NSRect {
+        rect.insetBy(dx: -horizontalMargin, dy: -verticalMargin)
+    }
+    /// Getting out of the way, and growing or shrinking the sliver, run at a
+    /// fixed clip: those chase the cursor and have to keep up with it.
     private let animationDuration: TimeInterval = 0.22
+    /// Coming back is the one the user sets: nothing is racing then.
+    private var returnDuration: TimeInterval {
+        max(0.01, AppSettings.shared.edgeDodgeReturnDuration)
+    }
 
     private weak var window: NSWindow?
     private var globalMonitor: Any?
@@ -26,6 +41,8 @@ final class EdgeDodger {
     private var homeFrame: NSRect = .zero
     private var isTucked = false
     private var isAnimating = false
+    /// Identifies the slide in flight, so a superseded one stays quiet.
+    private var animationToken = 0
     /// Which side the panel tucked to, and how much sliver is currently shown
     /// (grows while the cursor hovers the sliver, if hover-peek is enabled).
     private var tuckedToRight = true
@@ -42,6 +59,8 @@ final class EdgeDodger {
     /// Grace period before an engaged panel is allowed to hide once the cursor
     /// leaves it, so a quick out-and-back doesn't flicker hide/show.
     private let disengageDelay: TimeInterval = 0.25
+    /// Pending slide back, once the cursor is clear of the panel's path.
+    private var returnWorkItem: DispatchWorkItem?
     /// Pending revert of a hover-grown sliver after the cursor leaves it.
     private var peekGraceWorkItem: DispatchWorkItem?
     /// Grace period before a hover-grown sliver shrinks back once the cursor
@@ -82,6 +101,7 @@ final class EdgeDodger {
         if let l = localMonitor { NSEvent.removeMonitor(l); localMonitor = nil }
         cancelDisengage()
         cancelPeekGrace()
+        cancelReturn()
         isEngaged = false
         if isTucked { untuck() }
     }
@@ -95,9 +115,10 @@ final class EdgeDodger {
             isEngaged = false
             cancelDisengage()
             cancelPeekGrace()
+            cancelReturn()
             return
         }
-        guard !isAnimating, let window else { return }
+        guard let window else { return }
 
         let mouse = NSEvent.mouseLocation
         let holding = NSEvent.modifierFlags
@@ -107,6 +128,19 @@ final class EdgeDodger {
         // while held (default) or be what enables dodging in the first place.
         let mode = AppSettings.shared.edgeDodgeTriggerMode
         let dodgingSuspended = (mode == .dodgeUnlessHeld) ? holding : !holding
+
+        if isAnimating {
+            // Mid-slide. The one move worth interrupting is the way back: if the
+            // cursor returns before the panel is home, turn around instead of
+            // finishing the trip and only then noticing. Sliding out and the
+            // sliver's grow/shrink both keep isTucked set, so this only catches
+            // the return.
+            if !isTucked, !isEngaged, !dodgingSuspended,
+               proximityArea(homeFrame).contains(mouse) {
+                tuckToNearestEdge()
+            }
+            return
+        }
 
         // Once engaged, stay pinned in place even after the modifier is
         // released, so it can't slide away while the user is interacting with
@@ -147,6 +181,7 @@ final class EdgeDodger {
             if overSliver {
                 // Cursor over the sliver: cancel any pending revert and grow it.
                 cancelPeekGrace()
+                cancelReturn()
                 if abs(peeked - currentReveal) > 0.5, let target = sideTuckedFrame(reveal: peeked) {
                     currentReveal = peeked
                     animate(to: target)
@@ -165,13 +200,15 @@ final class EdgeDodger {
             // Base sliver: stay tucked while the cursor is anywhere over the
             // panel's path (its resting spot, the sliver, or the space between).
             // Return the widget only once it leaves that whole area.
-            let occupied = homeFrame.union(window.frame).insetBy(dx: -margin, dy: -margin)
+            let occupied = proximityArea(homeFrame.union(window.frame))
             if !occupied.contains(mouse) {
-                untuck()
+                scheduleReturn()
+            } else {
+                cancelReturn()  // came back into the area: stay tucked
             }
         } else {
             homeFrame = window.frame  // keep the resting position current
-            if window.frame.insetBy(dx: -margin, dy: -margin).contains(mouse) {
+            if proximityArea(window.frame).contains(mouse) {
                 tuckToNearestEdge()
             }
         }
@@ -226,6 +263,7 @@ final class EdgeDodger {
         // Always tuck to a side edge (left or right), never top or bottom.
         tuckedToRight = (vf.maxX - f.maxX) <= (f.minX - vf.minX)
         currentReveal = baseReveal
+        cancelReturn()
         guard let target = sideTuckedFrame(reveal: currentReveal) else { return }
         isTucked = true
         setSuppressSave(true)
@@ -252,8 +290,9 @@ final class EdgeDodger {
     private func untuck() {
         isTucked = false
         cancelPeekGrace()
+        cancelReturn()
         tuckScreen = nil
-        animate(to: homeFrame) { [weak self] in
+        animate(to: homeFrame, duration: returnDuration) { [weak self] in
             self?.setSuppressSave(false)
         }
     }
@@ -280,6 +319,30 @@ final class EdgeDodger {
         disengageWorkItem = nil
     }
 
+    /// Waits out the configured delay before sliding back, so a cursor that
+    /// only passed by doesn't make the panel bounce in and out. Only returns if
+    /// the cursor is still clear when it fires; coming back cancels it.
+    private func scheduleReturn() {
+        let delay = AppSettings.shared.edgeDodgeReturnDelay
+        guard delay > 0 else { untuck(); return }
+        guard returnWorkItem == nil else { return }  // already pending
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, let window = self.window else { return }
+            self.returnWorkItem = nil
+            guard self.isTucked, !self.isEngaged else { return }
+            let occupied = self.proximityArea(self.homeFrame.union(window.frame))
+            if occupied.contains(NSEvent.mouseLocation) { return }  // came back
+            self.untuck()
+        }
+        returnWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func cancelReturn() {
+        returnWorkItem?.cancel()
+        returnWorkItem = nil
+    }
+
     /// After the sliver grew on hover, wait before shrinking it back so a brief
     /// move away (or a dart across the screen) doesn't revert it. Only reverts if
     /// the cursor is still off the sliver when it fires, then re-evaluates.
@@ -292,7 +355,7 @@ final class EdgeDodger {
             let mouse = NSEvent.mouseLocation
             // Cursor came back over the sliver: keep it grown.
             if self.visibleSliverRect(reveal: self.currentReveal).contains(mouse) { return }
-            let occupied = self.homeFrame.union(window.frame).insetBy(dx: -self.margin, dy: -self.margin)
+            let occupied = self.proximityArea(self.homeFrame.union(window.frame))
             if !occupied.contains(mouse) {
                 // Cursor moved well clear of the panel: there's nothing to dodge,
                 // so bring the widget back instead of hiding it to the sliver.
@@ -315,21 +378,29 @@ final class EdgeDodger {
         peekGraceWorkItem = nil
     }
 
-    private func animate(to frame: NSRect, completion: (() -> Void)? = nil) {
+    private func animate(to frame: NSRect, duration: TimeInterval? = nil,
+                         completion: (() -> Void)? = nil) {
         guard let window else { completion?(); return }
         isAnimating = true
+        // Turning around mid-slide starts a second animation over the first.
+        // Only the latest one may report back: the one it replaced would
+        // otherwise clear isAnimating (and re-evaluate against a frame still in
+        // motion) while the new slide is halfway through.
+        animationToken &+= 1
+        let token = animationToken
         NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = animationDuration
+            ctx.duration = duration ?? animationDuration
             ctx.allowsImplicitAnimation = true
             window.animator().setFrame(frame, display: true)
         }, completionHandler: { [weak self] in
-            self?.isAnimating = false
+            guard let self, token == self.animationToken else { return }
+            self.isAnimating = false
             completion?()
             // Re-evaluate against the cursor's current position. A fast move to
             // the edge can finish while we're mid-animation, with no further
             // mouse event to drive the follow-up (e.g. the hover grow). Reading
             // the live location avoids waiting for the next movement.
-            self?.evaluate()
+            self.evaluate()
         })
     }
 }
