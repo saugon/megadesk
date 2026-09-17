@@ -17,6 +17,19 @@ enum SessionSortOrder: String, CaseIterable {
     }
 }
 
+/// How the tracked PR list is ordered in the widget.
+enum PRSortOrder: String, CaseIterable {
+    case byAddition = "addition"
+    case byState    = "state"
+
+    var label: String {
+        switch self {
+        case .byAddition: return "As added"
+        case .byState:    return "By state"
+        }
+    }
+}
+
 enum ToastPosition: String, CaseIterable {
     case topRight  = "topRight"
     case topCenter = "topCenter"
@@ -92,6 +105,8 @@ final class AppSettings {
     // MARK: - Behavior
     var forgottenMinutes: Int
     var sortOrder: SessionSortOrder
+    /// Order of the tracked PR list: as added, or worst state first.
+    var prSortOrder: PRSortOrder
     var idleOpacity: Double
     var cardFontSize: Double  // session card name size; status text is cardFontSize - 2
     var showSpinnerVerb: Bool
@@ -208,6 +223,7 @@ final class AppSettings {
         let ud = UserDefaults.standard
         forgottenMinutes = ud.object(forKey: "megadesk.forgottenMinutes") as? Int ?? 5
         sortOrder    = SessionSortOrder(rawValue: ud.string(forKey: "megadesk.sortOrder") ?? "") ?? .byState
+        prSortOrder  = PRSortOrder(rawValue: ud.string(forKey: "megadesk.prSortOrder") ?? "") ?? .byAddition
         idleOpacity  = ud.object(forKey: "megadesk.idleOpacity") as? Double ?? 1.0
         cardFontSize = ud.object(forKey: "megadesk.cardFontSize") as? Double ?? 13
         showSpinnerVerb = ud.object(forKey: "megadesk.showSpinnerVerb") as? Bool ?? false
@@ -277,6 +293,7 @@ final class AppSettings {
         let ud = UserDefaults.standard
         ud.set(forgottenMinutes,    forKey: "megadesk.forgottenMinutes")
         ud.set(sortOrder.rawValue,  forKey: "megadesk.sortOrder")
+        ud.set(prSortOrder.rawValue, forKey: "megadesk.prSortOrder")
         ud.set(idleOpacity,         forKey: "megadesk.idleOpacity")
         ud.set(cardFontSize,        forKey: "megadesk.cardFontSize")
         ud.set(showSpinnerVerb,     forKey: "megadesk.showSpinnerVerb")
@@ -338,6 +355,7 @@ final class AppSettings {
     func resetToDefaults() {
         forgottenMinutes = 5
         sortOrder        = .byState
+        prSortOrder      = .byAddition
         idleOpacity      = 1.0
         cardFontSize     = 13
         showSpinnerVerb  = false

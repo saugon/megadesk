@@ -1278,7 +1278,7 @@ private struct PeekTabInteractiveView: View {
             store.alertShowsInWidget($0) && store.firedAlertIds.contains($0.id)
                 && !store.dismissedFiredAlertIds.contains($0.id)
         }.map(Slot.alert)
-        let prSlots = store.trackedPRs.map(Slot.pr)
+        let prSlots = store.sortedTrackedPRs.map(Slot.pr)
 
         let groups = [alertSlots, sessionSlots, prSlots].filter { !$0.isEmpty }
         var result: [Slot] = []
@@ -1461,7 +1461,7 @@ private struct PeekTabView: View {
 
     /// Tracked PRs, colored by CI/merge state (mirrors PRCardView).
     private var prColors: [Color] {
-        store.trackedPRs.map(prColor)
+        store.sortedTrackedPRs.map(prColor)
     }
 
     private func prColor(_ tracked: TrackedPR) -> Color {

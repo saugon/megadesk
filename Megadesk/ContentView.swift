@@ -215,7 +215,7 @@ struct ContentView: View {
             // PR cards — independent scroll
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(spacing: 4) {
-                    ForEach(store.trackedPRs) { tracked in
+                    ForEach(store.sortedTrackedPRs) { tracked in
                         PRCardView(
                             trackedPR: tracked,
                             onRefresh: { store.fetchPR(repo: tracked.repo, number: tracked.number) },
@@ -282,7 +282,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var compactPRSection: some View {
-        ForEach(store.trackedPRs) { tracked in
+        ForEach(store.sortedTrackedPRs) { tracked in
             CompactPRCardView(trackedPR: tracked)
         }
     }

@@ -14,6 +14,37 @@ final class StatusStore {
 
     // MARK: PR Tracking
     var trackedPRs: [TrackedPR] = []
+
+    /// The tracked PRs in display order. `trackedPRs` itself stays in the order
+    /// they were added, which is what gets persisted and what "As added" shows.
+    var sortedTrackedPRs: [TrackedPR] {
+        guard AppSettings.shared.prSortOrder == .byState else { return trackedPRs }
+        // Sorting on the rank alone would reshuffle equals on every refresh, so
+        // the original position breaks ties and same-state PRs keep their order.
+        return trackedPRs.enumerated()
+            .sorted { a, b in
+                let ra = Self.stateRank(a.element), rb = Self.stateRank(b.element)
+                return ra == rb ? a.offset < b.offset : ra < rb
+            }
+            .map(\.element)
+    }
+
+    /// Whatever needs attention first. A PR whose data hasn't arrived yet sits
+    /// below the actionable ones and above the ones already settled.
+    private static func stateRank(_ tracked: TrackedPR) -> Int {
+        guard let pr = tracked.data else { return 6 }
+        if pr.isMerged { return 7 }
+        if pr.isClosed { return 8 }
+        if pr.ciStatus == .failing { return 0 }
+        if pr.hasConflicts { return 1 }
+        // The queue kicked it back: it needs the author, like a failure does.
+        if pr.isQueued && pr.isQueueBlocked { return 2 }
+        if pr.ciStatus == .pending { return 3 }
+        // Waiting its turn in the queue: nothing to do but let it land, so it
+        // sits below what is still running and above what has not been merged.
+        if pr.isQueued { return 4 }
+        return 5
+    }
     var prLastFetchedAt: Date?
     private var prTimer: Timer?
 

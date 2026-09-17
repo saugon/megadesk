@@ -58,6 +58,22 @@ struct SettingsView: View {
                     .labelsHidden()
                     .onChange(of: settings.sortOrder) { _, _ in settings.save() }
                 }
+                LabeledContent {
+                    Picker("", selection: $settings.prSortOrder) {
+                        ForEach(PRSortOrder.allCases, id: \.self) {
+                            Text($0.label).tag($0)
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: settings.prSortOrder) { _, _ in settings.save() }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Sort PRs")
+                        Text("By state puts failing CI first, then conflicts, then running checks, then ready, with merged and closed last")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Toggle("Show permission mode", isOn: $settings.showPermissionMode)
                     .onChange(of: settings.showPermissionMode) { _, _ in settings.save() }
             }
