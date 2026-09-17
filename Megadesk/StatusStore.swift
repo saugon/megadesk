@@ -253,6 +253,17 @@ final class StatusStore {
                 key = s.terminalSessionId
             }
             if let existing = seen[key] {
+                // Two Claude processes both still running are two sessions,
+                // whatever tab id they carry: the id is captured from whichever
+                // Ghostty window was in front at the time, so it can name the
+                // wrong tab. Collapsing them here would delete the card of a
+                // session that is very much alive. Same pid, or a dead one, is
+                // the case this dedup is for: a tab whose Claude was restarted.
+                if existing.claudePid != s.claudePid,
+                   isClaudePidAlive(existing), isClaudePidAlive(s) {
+                    seen[s.terminalSessionId] = s
+                    continue
+                }
                 if s.lastUpdated > existing.lastUpdated { seen[key] = s }
             } else {
                 seen[key] = s

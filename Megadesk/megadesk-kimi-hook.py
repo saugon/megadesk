@@ -47,17 +47,69 @@ def _find_agent_pid() -> int:
     return os.getppid()  # fallback
 
 
-def _get_ghostty_terminal_id() -> str:
-    """Query the focused Ghostty terminal's unique ID via AppleScript."""
+def _get_ghostty_terminal_id(cwd: str) -> str:
+    """The ID of the Ghostty terminal this session runs in.
+
+    AppleScript can only point at the *focused* terminal, which is the right one
+    when a session starts in the window you are looking at, and the wrong one
+    whenever the event arrives with another window in front (a start in the
+    background, a daemon-dispatched event). A stolen ID is worse than no ID: it
+    aims the card at someone else's tab, and two sessions carrying the same one
+    collapse into a single card, so a live session loses its card entirely.
+
+    So the focused terminal only counts when its working directory matches this
+    session's, and otherwise we look for exactly one terminal sitting in that
+    directory. Anything ambiguous returns empty, which costs precise focus but
+    keeps the card.
+    """
     import subprocess
-    try:
-        return subprocess.check_output(
-            ["osascript", "-e",
-             'tell application "Ghostty" to get id of focused terminal of selected tab of front window'],
-            stderr=subprocess.DEVNULL, text=True, timeout=3,
-        ).strip()
-    except Exception:
+
+    def _osascript(script: str) -> str:
+        try:
+            return subprocess.check_output(
+                ["osascript", "-e", script],
+                stderr=subprocess.DEVNULL, text=True, timeout=3,
+            ).strip()
+        except Exception:
+            return ""
+
+    want = (cwd or "").rstrip("/")
+    if not want:
         return ""
+
+    # Tab-separated because a path may contain a comma. `tab` is defined outside
+    # the tell block: inside it, Ghostty's own `tab` class shadows the constant.
+    focused = _osascript(
+        'set sep to ASCII character 9\n'
+        'tell application "Ghostty" to return (id of focused terminal of '
+        'selected tab of front window) & sep & (working directory of '
+        'focused terminal of selected tab of front window)'
+    )
+    if "\t" in focused:
+        term_id, _, term_cwd = focused.partition("\t")
+        if term_cwd.rstrip("/") == want:
+            return term_id
+
+    listing = _osascript(
+        'set sep to ASCII character 9\n'
+        'tell application "Ghostty"\n'
+        '  set out to ""\n'
+        '  repeat with w in windows\n'
+        '    repeat with t in tabs of w\n'
+        '      repeat with term in terminals of t\n'
+        '        set out to out & (id of term) & sep & (working directory of term) & linefeed\n'
+        '      end repeat\n'
+        '    end repeat\n'
+        '  end repeat\n'
+        '  return out\n'
+        'end tell'
+    )
+    matches = []
+    for line in listing.splitlines():
+        term_id, _, term_cwd = line.partition("\t")
+        if term_id and term_cwd.rstrip("/") == want:
+            matches.append(term_id)
+    return matches[0] if len(matches) == 1 else ""
 
 
 def main():
@@ -120,7 +172,7 @@ def main():
             pass
 
     if terminal == "ghostty" and (hook_event == "SessionStart" or not ghostty_terminal_id):
-        ghostty_terminal_id = _get_ghostty_terminal_id()
+        ghostty_terminal_id = _get_ghostty_terminal_id(cwd)
 
     session_data = {
         "session_id": session_id,
