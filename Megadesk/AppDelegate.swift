@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var updaterController: SPUStandardUpdaterController!
     private var contextSaveController: ContextSaveWindowController?
     private var companionController: CompanionWindowController?
+    private var tasksController: TasksWindowController?
     private var alertBadgeObserver: Any?
     private var originalMenuBarIcon: NSImage?
 
@@ -66,6 +67,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Open the Alerts panel when requested (e.g. from the interactive peek tab).
         NotificationCenter.default.addObserver(forName: .megadeskShowAlerts, object: nil, queue: .main) { [weak self] _ in
             self?.showMain(section: .alerts)
+        }
+
+        // Tasks: the module's own store runs the reminder clock, so it has to
+        // be alive whether or not anything is looking at it.
+        _ = TaskStore.shared
+        NotificationCenter.default.addObserver(forName: .megadeskShowTasks, object: nil, queue: .main) { [weak self] _ in
+            self?.openTasks()
+        }
+        // Switching the module off shuts the window with it.
+        NotificationCenter.default.addObserver(forName: .megadeskCloseTasks, object: nil, queue: .main) { [weak self] _ in
+            self?.tasksController?.closeWindow()
         }
 
         // Companion ghost
@@ -282,6 +294,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alertsItem = NSMenuItem(title: "Alerts...", action: #selector(openAlerts), keyEquivalent: "")
         alertsItem.target = self
         menu.addItem(alertsItem)
+        let tasksItem = NSMenuItem(title: "Tasks...", action: #selector(openTasks), keyEquivalent: "")
+        tasksItem.target = self
+        tasksItem.tag = 11
+        menu.addItem(tasksItem)
         let contextItem = NSMenuItem(title: "Context Note...", action: #selector(openContextSave), keyEquivalent: "")
         contextItem.target = self
         menu.addItem(contextItem)
@@ -417,6 +433,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.set(!current, forKey: key)
     }
 
+    /// The Settings/Alerts window and the Tasks window can be open at the same
+    /// time. The app only drops back to being a menu bar app once neither is
+    /// left: whichever closed first used to take the Dock icon and the menu bar
+    /// away while the other was still on screen.
+    func regularWindowDidClose(_ window: NSWindow?) {
+        let stillOpen = [mainController?.window, tasksController?.window]
+            .compactMap { $0 }
+            .contains { $0 !== window && $0.isVisible }
+        if !stillOpen { NSApp.setActivationPolicy(.accessory) }
+    }
+
     private func showMain(section: MainSection) {
         if mainController == nil {
             mainController = MainWindowController()
@@ -446,6 +473,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openAlerts() {
         showMain(section: .alerts)
+    }
+
+    @objc private func openTasks() {
+        guard AppSettings.shared.tasksEnabled else { return }
+        if tasksController == nil {
+            tasksController = TasksWindowController()
+        }
+        tasksController?.show()
     }
 
     // MARK: - Alert badge
@@ -519,6 +554,7 @@ extension AppDelegate: NSMenuDelegate {
         menu.item(at: 1)?.state = (windowController?.isCompact ?? false) ? .on : .off
         let prEnabled = UserDefaults.standard.object(forKey: "megadesk.prTracking") as? Bool ?? true
         menu.item(withTag: 10)?.state = prEnabled ? .on : .off
+        menu.item(withTag: 11)?.isHidden = !AppSettings.shared.tasksEnabled
 
         // Add fired-alert items at the very top
         let store = StatusStore.shared

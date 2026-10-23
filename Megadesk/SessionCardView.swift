@@ -97,6 +97,9 @@ struct SessionCardView: View {
     let spinnerTick: Int
     let displayName: String
     let hasCustomName: Bool
+    /// Open tasks pointing at this session. Zero hides the indicator, which is
+    /// also what happens with the task module switched off.
+    let linkedTaskCount: Int
     let isFlashing: Bool
     let toolDetail: String?
     let spinnerInfo: TerminalFocuser.SpinnerInfo?
@@ -229,9 +232,24 @@ struct SessionCardView: View {
 
             // Right column: duration on top, edit/revert button below (aligned)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(formatDuration(session.timeInState))
-                    .font(.system(size: statusFontSize, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.35))
+                HStack(spacing: 4) {
+                    // Rides along the duration row rather than adding one of
+                    // its own, so the card keeps the height it always had.
+                    if linkedTaskCount > 0 {
+                        HStack(spacing: 2) {
+                            Image(systemName: "checklist")
+                                .font(.system(size: statusFontSize - 1))
+                            Text("\(linkedTaskCount)")
+                                .font(.system(size: statusFontSize - 1, weight: .semibold, design: .monospaced))
+                        }
+                        .foregroundColor(.white.opacity(0.5))
+                        .help(linkedTaskCount == 1 ? "1 task linked to this session"
+                                                   : "\(linkedTaskCount) tasks linked to this session")
+                    }
+                    Text(formatDuration(session.timeInState))
+                        .font(.system(size: statusFontSize, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.35))
+                }
 
                 if isEditing {
                     Button(action: revertToDefault) {

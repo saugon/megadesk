@@ -34,6 +34,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        (NSApp.delegate as? AppDelegate)?.regularWindowDidClose(window)
     }
 }

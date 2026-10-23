@@ -4,6 +4,8 @@ struct CompactSessionCardView: View {
     let session: Session
     let tick: Int
     let displayName: String
+    /// Open tasks pointing at this session, shown as a dot in the corner.
+    let linkedTaskCount: Int
     let onFocus: () -> Bool
 
     @State private var isHovered = false
@@ -26,6 +28,17 @@ struct CompactSessionCardView: View {
                     .fill(cardBackground)
                     .animation(.easeInOut(duration: 0.15), value: isHovered)
             )
+            .overlay(alignment: .topTrailing) {
+                // A dot, not a badge: at 78pt wide there's no room for a count,
+                // and it draws over the padding so the card doesn't grow.
+                if linkedTaskCount > 0 {
+                    Circle()
+                        .fill(Color.white.opacity(0.45))
+                        .frame(width: 4, height: 4)
+                        .padding(3)
+                        .allowsHitTesting(false)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

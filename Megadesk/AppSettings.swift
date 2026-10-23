@@ -30,6 +30,20 @@ enum PRSortOrder: String, CaseIterable {
     }
 }
 
+/// How a task reminder shows up: the same toast alerts use, or the companion
+/// saying it in the toast's place.
+enum TaskReminderStyle: String, CaseIterable {
+    case toast
+    case companion
+
+    var label: String {
+        switch self {
+        case .toast:     return "Toast"
+        case .companion: return "Companion"
+        }
+    }
+}
+
 enum ToastPosition: String, CaseIterable {
     case topRight  = "topRight"
     case topCenter = "topCenter"
@@ -173,6 +187,16 @@ final class AppSettings {
     var toastPosition: ToastPosition
     var snoozeMinutes: Int
 
+    // MARK: - Tasks
+    /// Whether the task module is on at all. Off takes the bar out of the
+    /// widget and the indicator off the cards, keeps the window shut and stops
+    /// every reminder. The tasks themselves are left alone.
+    var tasksEnabled: Bool
+    var taskReminderStyle: TaskReminderStyle
+    /// Size of the pet in a companion-style reminder. Its own knob: that pet is
+    /// a separate instance from the one in the widget.
+    var taskCompanionFontSize: Double
+
     // MARK: - Companion
     var companionEnabled: Bool
     var companionMode: CompanionMode
@@ -268,6 +292,9 @@ final class AppSettings {
         alertPlaySound        = ud.object(forKey: "megadesk.alert.playSound") as? Bool ?? true
         toastPosition         = ToastPosition(rawValue: ud.string(forKey: "megadesk.alert.toastPosition") ?? "") ?? .center
         snoozeMinutes         = ud.object(forKey: "megadesk.alert.snoozeMinutes") as? Int ?? 5
+        tasksEnabled          = ud.object(forKey: "megadesk.tasks.enabled") as? Bool ?? true
+        taskReminderStyle     = TaskReminderStyle(rawValue: ud.string(forKey: "megadesk.tasks.reminderStyle") ?? "") ?? .toast
+        taskCompanionFontSize = ud.object(forKey: "megadesk.tasks.companionFontSize") as? Double ?? 16
         companionEnabled      = ud.object(forKey: "megadesk.companion.enabled") as? Bool ?? false
         companionMode         = CompanionMode(rawValue: ud.string(forKey: "megadesk.companion.mode") ?? "") ?? .floating
         companionWaitingThresholdMinutes      = ud.object(forKey: "megadesk.companion.waitingThreshold") as? Int ?? 15
@@ -327,6 +354,9 @@ final class AppSettings {
         ud.set(alertPlaySound,        forKey: "megadesk.alert.playSound")
         ud.set(toastPosition.rawValue, forKey: "megadesk.alert.toastPosition")
         ud.set(snoozeMinutes,         forKey: "megadesk.alert.snoozeMinutes")
+        ud.set(tasksEnabled,          forKey: "megadesk.tasks.enabled")
+        ud.set(taskReminderStyle.rawValue, forKey: "megadesk.tasks.reminderStyle")
+        ud.set(taskCompanionFontSize, forKey: "megadesk.tasks.companionFontSize")
         ud.set(companionEnabled,      forKey: "megadesk.companion.enabled")
         ud.set(companionMode.rawValue, forKey: "megadesk.companion.mode")
         ud.set(companionWaitingThresholdMinutes,      forKey: "megadesk.companion.waitingThreshold")
@@ -389,6 +419,9 @@ final class AppSettings {
         alertPlaySound        = true
         toastPosition         = .center
         snoozeMinutes         = 5
+        tasksEnabled          = true
+        taskReminderStyle     = .toast
+        taskCompanionFontSize = 16
         companionEnabled      = false
         companionMode         = .floating
         companionWaitingThresholdMinutes      = 15

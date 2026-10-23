@@ -1208,6 +1208,7 @@ private struct PeekTabInteractiveView: View {
                 spinnerTick: store.spinnerTick,
                 displayName: store.displayName(for: s),
                 hasCustomName: store.hasCustomName(for: s),
+                linkedTaskCount: TaskStore.shared.activeTaskCount(forSessionKey: s.terminalSessionId),
                 isFlashing: false,
                 toolDetail: store.toolDetail(for: s),
                 spinnerInfo: store.spinnerInfo(for: s),

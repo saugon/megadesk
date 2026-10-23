@@ -226,6 +226,49 @@ struct SettingsView: View {
                 .disabled(!settings.edgeDodgeEnabled || !settings.edgeDodgeHoverPeekEnabled)
             }
 
+            Section("Tasks") {
+                LabeledContent {
+                    Toggle("", isOn: $settings.tasksEnabled)
+                        .labelsHidden()
+                        .onChange(of: settings.tasksEnabled) { _, _ in settings.save() }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Task module")
+                        Text("The counter bar in the widget, the indicator on session cards, the tasks window and its reminders. Switching it off keeps every task saved")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                LabeledContent {
+                    Picker("", selection: $settings.taskReminderStyle) {
+                        ForEach(TaskReminderStyle.allCases, id: \.self) {
+                            Text($0.label).tag($0)
+                        }
+                    }
+                    .labelsHidden()
+                    .onChange(of: settings.taskReminderStyle) { _, _ in settings.save() }
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Reminder style")
+                        Text("Companion puts a pet where the toast would go, with the same buttons. It's its own pet, separate from the widget's")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!settings.tasksEnabled)
+                LabeledContent("Companion size") {
+                    HStack(spacing: 8) {
+                        Slider(value: $settings.taskCompanionFontSize, in: 8...36, step: 1)
+                            .frame(width: 160)
+                            .onChange(of: settings.taskCompanionFontSize) { _, _ in settings.save() }
+                        Text("\(Int(settings.taskCompanionFontSize))pt")
+                            .frame(width: 36, alignment: .trailing)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(!settings.tasksEnabled || settings.taskReminderStyle != .companion)
+            }
+
             Section("Alert Defaults") {
                 LabeledContent("Notify via") {
                     Picker("", selection: Binding(

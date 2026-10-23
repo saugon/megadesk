@@ -1,35 +1,45 @@
 import AppKit
 
+extension Notification.Name {
+    /// Posted whenever the toast stack grows or shrinks, so anything that
+    /// stacks alongside it (the companion-style task reminder) can move out of
+    /// the way instead of landing on top.
+    static let megadeskToastStackChanged = Notification.Name("megadesk.toastStackChanged")
+}
+
+/// What a toast belongs to. Alerts and task reminders share the panel, the
+/// snooze and the settle round-trip, but each settles against its own store.
+enum ToastOwner: Equatable {
+    case alert(UUID)
+    case task(UUID)
+}
+
 final class ToastWindowController {
     static let shared = ToastWindowController()
 
-    private var activeToasts: [(panel: NSPanel, toastId: UUID, alertId: UUID)] = []
+    private var activeToasts: [(panel: NSPanel, toastId: UUID, owner: ToastOwner)] = []
     private let toastWidth: CGFloat = 280
     private let toastHeight: CGFloat = 90
     private let spacing: CGFloat = 8
     private let margin: CGFloat = 16
 
+    /// How many toasts are stacked right now. The companion-style task
+    /// reminder reads it so it doesn't land on top of one.
+    var activeToastCount: Int { activeToasts.count }
+
     func showToast(for alert: MegadeskAlert) {
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: toastWidth, height: toastHeight),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        panel.level = .statusBar
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = true
-        panel.hidesOnDeactivate = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
-        panel.isMovableByWindowBackground = false
+        let panel = makePanel()
 
         let toastId = UUID()
         let snoozeMinutes = AppSettings.shared.snoozeMinutes
         let contentView = ToastContentView(
             title: alert.title,
             time: Self.timeString(),
+            iconSymbol: "bell.fill",
+            iconLabel: "Alert",
             snoozeMinutes: snoozeMinutes,
+            secondaryTitle: "Disable",
+            showMoveToWidget: true,
             onClose: { [weak self] in
                 self?.dismissToast(toastId: toastId)
             },
@@ -45,7 +55,7 @@ final class ToastWindowController {
                 NotificationCenter.default.post(name: .megadeskSnoozeAlert, object: nil,
                                                 userInfo: ["alertId": alert.id, "minutes": snoozeMinutes])
             },
-            onDisable: {
+            onSecondary: {
                 StatusStore.shared.toggleAlert(id: alert.id, enabled: false)
                 StatusStore.shared.dismissFiredAlert(id: alert.id)
             }
@@ -63,17 +73,115 @@ final class ToastWindowController {
         panel.setFrameOrigin(origin)
         panel.orderFrontRegardless()
 
-        activeToasts.append((panel: panel, toastId: toastId, alertId: alert.id))
+        activeToasts.append((panel: panel, toastId: toastId, owner: .alert(alert.id)))
+        notifyStackChanged()
+    }
+
+    /// A task reminder takes the same panel, the same snooze and the same
+    /// settle as an alert. Only two things differ: it settles against the task
+    /// store, and its second button completes the task instead of disabling a
+    /// schedule — which is also what stops a repeating reminder for good.
+    func showToast(for task: MegadeskTask) {
+        // One panel per task: a repeating reminder coming back around replaces
+        // its own toast instead of stacking copies of itself until they walk
+        // off the screen — and so that settling the task takes every panel it
+        // has with it. Same rule the companion-style reminder follows.
+        if let index = activeToasts.firstIndex(where: { $0.owner == .task(task.id) }) {
+            activeToasts.remove(at: index).panel.orderOut(nil)
+        }
+
+        let panel = makePanel()
+
+        let toastId = UUID()
+        let snoozeMinutes = AppSettings.shared.snoozeMinutes
+        let taskId = task.id
+        let contentView = ToastContentView(
+            title: task.title,
+            time: Self.timeString(),
+            iconSymbol: "checklist",
+            iconLabel: "Task reminder",
+            snoozeMinutes: snoozeMinutes,
+            secondaryTitle: "Complete",
+            showMoveToWidget: false,
+            onClose: { [weak self] in
+                self?.dismissToast(toastId: toastId)
+            },
+            onDismiss: {
+                TaskStore.shared.dismissFiredReminder(id: taskId)
+            },
+            onMoveToWidget: {},
+            onSnooze: {
+                NotificationCenter.default.post(name: .megadeskSnoozeTaskReminder, object: nil,
+                                                userInfo: ["taskId": taskId, "minutes": snoozeMinutes])
+            },
+            onSecondary: {
+                TaskStore.shared.setCompleted(id: taskId, true)
+            }
+        )
+        panel.contentView = contentView
+
+        if let cv = panel.contentView {
+            cv.wantsLayer = true
+            cv.layer?.cornerRadius = 12
+            cv.layer?.masksToBounds = true
+        }
+
+        panel.setFrameOrigin(toastOrigin(index: activeToasts.count))
+        panel.orderFrontRegardless()
+
+        activeToasts.append((panel: panel, toastId: toastId, owner: .task(taskId)))
+        // A replaced toast left a gap in the stack; this closes it.
+        repositionToasts()
+        notifyStackChanged()
+    }
+
+    private func makePanel() -> NSPanel {
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: toastWidth, height: toastHeight),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = .statusBar
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.hidesOnDeactivate = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .transient]
+        panel.isMovableByWindowBackground = false
+        return panel
     }
 
     func dismissToast(alertId: UUID) {
-        guard let index = activeToasts.firstIndex(where: { $0.alertId == alertId }) else { return }
+        dismissToast(owner: .alert(alertId))
+    }
+
+    func dismissToast(taskId: UUID) {
+        dismissToast(owner: .task(taskId))
+    }
+
+    private func dismissToast(owner: ToastOwner) {
+        guard let index = activeToasts.firstIndex(where: { $0.owner == owner }) else { return }
         animateDismiss(at: index)
+    }
+
+    /// Pulls every task reminder off the screen, leaving alert toasts alone.
+    func dismissAllTaskToasts() {
+        for entry in activeToasts.reversed() {
+            guard case .task = entry.owner else { continue }
+            guard let index = activeToasts.firstIndex(where: { $0.toastId == entry.toastId }) else { continue }
+            animateDismiss(at: index)
+        }
     }
 
     func dismissAll() {
         for entry in activeToasts { entry.panel.orderOut(nil) }
         activeToasts.removeAll()
+        notifyStackChanged()
+    }
+
+    private func notifyStackChanged() {
+        NotificationCenter.default.post(name: .megadeskToastStackChanged, object: nil)
     }
 
     private func dismissToast(toastId: UUID) {
@@ -92,6 +200,7 @@ final class ToastWindowController {
             panel.orderOut(nil)
             self?.repositionToasts()
         })
+        notifyStackChanged()
     }
 
     private func toastOrigin(index: Int) -> NSPoint {
@@ -280,14 +389,16 @@ private final class ToastDismissButton: NSView {
 // MARK: - Toast Content View
 
 private final class ToastContentView: NSView {
-    init(title: String, time: String, snoozeMinutes: Int,
+    init(title: String, time: String, iconSymbol: String, iconLabel: String, snoozeMinutes: Int,
+         secondaryTitle: String, showMoveToWidget: Bool,
          onClose: @escaping () -> Void, onDismiss: @escaping () -> Void,
          onMoveToWidget: @escaping () -> Void, onSnooze: @escaping () -> Void,
-         onDisable: @escaping () -> Void) {
+         onSecondary: @escaping () -> Void) {
         super.init(frame: NSRect(x: 0, y: 0, width: 280, height: 90))
-        setupUI(title: title, time: time, snoozeMinutes: snoozeMinutes, onClose: onClose,
-                onDismiss: onDismiss, onMoveToWidget: onMoveToWidget,
-                onSnooze: onSnooze, onDisable: onDisable)
+        setupUI(title: title, time: time, iconSymbol: iconSymbol, iconLabel: iconLabel, snoozeMinutes: snoozeMinutes,
+                secondaryTitle: secondaryTitle, showMoveToWidget: showMoveToWidget,
+                onClose: onClose, onDismiss: onDismiss, onMoveToWidget: onMoveToWidget,
+                onSnooze: onSnooze, onSecondary: onSecondary)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -298,12 +409,13 @@ private final class ToastContentView: NSView {
         path.fill()
     }
 
-    private func setupUI(title: String, time: String, snoozeMinutes: Int,
+    private func setupUI(title: String, time: String, iconSymbol: String, iconLabel: String, snoozeMinutes: Int,
+                          secondaryTitle: String, showMoveToWidget: Bool,
                           onClose: @escaping () -> Void, onDismiss: @escaping () -> Void,
                           onMoveToWidget: @escaping () -> Void, onSnooze: @escaping () -> Void,
-                          onDisable: @escaping () -> Void) {
+                          onSecondary: @escaping () -> Void) {
         let bellIcon = NSImageView()
-        bellIcon.image = NSImage(systemSymbolName: "bell.fill", accessibilityDescription: "Alert")
+        bellIcon.image = NSImage(systemSymbolName: iconSymbol, accessibilityDescription: iconLabel)
         bellIcon.contentTintColor = NSColor(AppSettings.shared.colorAlert)
         bellIcon.translatesAutoresizingMaskIntoConstraints = false
 
@@ -322,7 +434,8 @@ private final class ToastContentView: NSView {
         dismissBtn.translatesAutoresizingMaskIntoConstraints = false
 
         // Sends the reminder to the widget instead of settling it, for when the
-        // toast is in the way but the thing still has to get done.
+        // toast is in the way but the thing still has to get done. Only alerts
+        // have a widget card to go to.
         let widgetBtn = ToastDismissButton(symbol: "macwindow", tooltip: "Move to widget",
                                            action: { onMoveToWidget(); onClose() })
         widgetBtn.translatesAutoresizingMaskIntoConstraints = false
@@ -331,25 +444,29 @@ private final class ToastContentView: NSView {
         let snoozeBtn = ToastButton(title: snoozeTitle, color: .systemBlue) { onSnooze(); onClose() }
         snoozeBtn.translatesAutoresizingMaskIntoConstraints = false
 
-        let disableBtn = ToastButton(title: "Disable", color: NSColor(white: 0.55, alpha: 1)) { onDisable(); onClose() }
-        disableBtn.translatesAutoresizingMaskIntoConstraints = false
+        let secondaryBtn = ToastButton(title: secondaryTitle, color: NSColor(white: 0.55, alpha: 1)) { onSecondary(); onClose() }
+        secondaryBtn.translatesAutoresizingMaskIntoConstraints = false
 
         addSubview(bellIcon)
         addSubview(titleLabel)
         addSubview(timeLabel)
         addSubview(dismissBtn)
-        addSubview(widgetBtn)
+        if showMoveToWidget { addSubview(widgetBtn) }
         addSubview(snoozeBtn)
-        addSubview(disableBtn)
+        addSubview(secondaryBtn)
 
-        NSLayoutConstraint.activate([
+        // Whatever sits leftmost in the button cluster is what the title has to
+        // stop short of.
+        let titleTrailingAnchor = showMoveToWidget ? widgetBtn.leadingAnchor : dismissBtn.leadingAnchor
+
+        var constraints: [NSLayoutConstraint] = [
             bellIcon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
             bellIcon.topAnchor.constraint(equalTo: topAnchor, constant: 18),
             bellIcon.widthAnchor.constraint(equalToConstant: 20),
             bellIcon.heightAnchor.constraint(equalToConstant: 20),
 
             titleLabel.leadingAnchor.constraint(equalTo: bellIcon.trailingAnchor, constant: 10),
-            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: widgetBtn.leadingAnchor, constant: -8),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: titleTrailingAnchor, constant: -8),
             titleLabel.topAnchor.constraint(equalTo: topAnchor, constant: 14),
 
             timeLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
@@ -358,18 +475,24 @@ private final class ToastContentView: NSView {
             snoozeBtn.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor, constant: -8),
             snoozeBtn.topAnchor.constraint(equalTo: timeLabel.bottomAnchor, constant: 8),
 
-            disableBtn.leadingAnchor.constraint(equalTo: snoozeBtn.trailingAnchor, constant: 4),
-            disableBtn.centerYAnchor.constraint(equalTo: snoozeBtn.centerYAnchor),
+            secondaryBtn.leadingAnchor.constraint(equalTo: snoozeBtn.trailingAnchor, constant: 4),
+            secondaryBtn.centerYAnchor.constraint(equalTo: snoozeBtn.centerYAnchor),
 
             dismissBtn.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
             dismissBtn.topAnchor.constraint(equalTo: topAnchor, constant: 10),
             dismissBtn.widthAnchor.constraint(equalToConstant: 20),
             dismissBtn.heightAnchor.constraint(equalToConstant: 20),
+        ]
 
-            widgetBtn.trailingAnchor.constraint(equalTo: dismissBtn.leadingAnchor, constant: -2),
-            widgetBtn.centerYAnchor.constraint(equalTo: dismissBtn.centerYAnchor),
-            widgetBtn.widthAnchor.constraint(equalToConstant: 20),
-            widgetBtn.heightAnchor.constraint(equalToConstant: 20),
-        ])
+        if showMoveToWidget {
+            constraints += [
+                widgetBtn.trailingAnchor.constraint(equalTo: dismissBtn.leadingAnchor, constant: -2),
+                widgetBtn.centerYAnchor.constraint(equalTo: dismissBtn.centerYAnchor),
+                widgetBtn.widthAnchor.constraint(equalToConstant: 20),
+                widgetBtn.heightAnchor.constraint(equalToConstant: 20),
+            ]
+        }
+
+        NSLayoutConstraint.activate(constraints)
     }
 }

@@ -55,6 +55,12 @@
 		AA000052 /* EdgeDodger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000052 /* EdgeDodger.swift */; };
 		AA000048 /* CompanionHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000047 /* CompanionHistoryView.swift */; };
 		AA000049 /* dwight.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000048 /* dwight.json */; };
+		AA000060 /* MegadeskTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000060 /* MegadeskTask.swift */; };
+		AA000061 /* TaskStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000061 /* TaskStore.swift */; };
+		AA000062 /* TaskBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000062 /* TaskBarView.swift */; };
+		AA000063 /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000063 /* TasksView.swift */; };
+		AA000064 /* TasksWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000064 /* TasksWindowController.swift */; };
+		AA000065 /* TaskReminderCompanionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000065 /* TaskReminderCompanionController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -108,6 +114,12 @@
 		AB000047 /* CompanionHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionHistoryView.swift; sourceTree = "<group>"; };
 		AB000048 /* dwight.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = dwight.json; sourceTree = "<group>"; };
 
+		AB000060 /* MegadeskTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MegadeskTask.swift; sourceTree = "<group>"; };
+		AB000061 /* TaskStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStore.swift; sourceTree = "<group>"; };
+		AB000062 /* TaskBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskBarView.swift; sourceTree = "<group>"; };
+		AB000063 /* TasksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksView.swift; sourceTree = "<group>"; };
+		AB000064 /* TasksWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksWindowController.swift; sourceTree = "<group>"; };
+		AB000065 /* TaskReminderCompanionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskReminderCompanionController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -159,6 +171,11 @@
 				AB000051 /* WhatsNew.swift */,
 				AB000052 /* EdgeDodger.swift */,
 				AB000047 /* CompanionHistoryView.swift */,
+				AB000061 /* TaskStore.swift */,
+				AB000062 /* TaskBarView.swift */,
+				AB000063 /* TasksView.swift */,
+				AB000064 /* TasksWindowController.swift */,
+				AB000065 /* TaskReminderCompanionController.swift */,
 				AD000006 /* Pets */,
 				AD000002 /* Models */,
 				AD000003 /* Services */,
@@ -176,6 +193,7 @@
 				AB000025 /* Alert.swift */,
 				AB000036 /* CompanionMessage.swift */,
 				AB000042 /* CompanionPet.swift */,
+				AB000060 /* MegadeskTask.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -356,6 +374,12 @@
 				AA000051 /* WhatsNew.swift in Sources */,
 				AA000052 /* EdgeDodger.swift in Sources */,
 				AA000048 /* CompanionHistoryView.swift in Sources */,
+				AA000060 /* MegadeskTask.swift in Sources */,
+				AA000061 /* TaskStore.swift in Sources */,
+				AA000062 /* TaskBarView.swift in Sources */,
+				AA000063 /* TasksView.swift in Sources */,
+				AA000064 /* TasksWindowController.swift in Sources */,
+				AA000065 /* TaskReminderCompanionController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

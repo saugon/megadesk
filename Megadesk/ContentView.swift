@@ -18,6 +18,7 @@ struct ContentView: View {
     @State private var store = StatusStore.shared
     @AppStorage("megadesk.compact") private var isCompact = false
     @AppStorage("megadesk.prTracking") private var prTrackingEnabled = true
+    @State private var taskStore = TaskStore.shared
     @State private var previousApp: NSRunningApplication?
     @State private var isAddingPR = false
     @State private var newPRText = ""
@@ -42,6 +43,10 @@ struct ContentView: View {
     private var fixedOverhead: CGFloat {
         var h: CGFloat = 66  // titlebar safe area (28) + footer (38)
         h += 17              // "sessions" label (9pt font + 6pt padding)
+        if tasksEnabled {
+            h += 17          // "tasks" label
+            h += 34          // task bar row (counters + padding)
+        }
         if !widgetAlerts.isEmpty {
             h += 17          // "alerts" label
             h += CGFloat(widgetAlerts.count) * 52  // alert cards (~52pt incl. spacing)
@@ -102,6 +107,8 @@ struct ContentView: View {
         return prAllocWhenOverflowing
     }
 
+    private var tasksEnabled: Bool { AppSettings.shared.tasksEnabled }
+
     private var activeSessionIndex: Int? {
         store.sessions.firstIndex { $0.sessionId == store.activeSessionId }
     }
@@ -116,6 +123,13 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 4) {
+            // Tasks sit above the alerts: a summary the whole width of the
+            // widget, since the list itself lives in its own window.
+            if tasksEnabled {
+                sectionLabel(isCompact ? "t" : "tasks")
+                TaskBarView(isCompact: isCompact)
+            }
+
             if isCompact {
                 sectionLabel("s")
             }
@@ -131,6 +145,7 @@ struct ContentView: View {
                         session: session,
                         tick: store.tick,
                         displayName: store.displayName(for: session),
+                        linkedTaskCount: taskStore.activeTaskCount(forSessionKey: session.terminalSessionId),
                         onFocus: { store.focusTerminal(session: session) }
                     )
                 }
@@ -155,6 +170,7 @@ struct ContentView: View {
                                     spinnerTick: store.spinnerTick,
                                     displayName: store.displayName(for: session),
                                     hasCustomName: store.hasCustomName(for: session),
+                                    linkedTaskCount: taskStore.activeTaskCount(forSessionKey: session.terminalSessionId),
                                     isFlashing: store.activeSessionId == session.sessionId,
                                     toolDetail: store.toolDetail(for: session),
                                     spinnerInfo: store.spinnerInfo(for: session),
