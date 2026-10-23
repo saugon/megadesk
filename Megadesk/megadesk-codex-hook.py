@@ -35,6 +35,44 @@ def _find_codex_pid() -> int:
     return os.getppid()  # fallback
 
 
+def _is_untracked_thread(thread_id: str) -> bool:
+    """True when the thread is not a session anyone sits at.
+
+    Two kinds fire notify like a TUI session does:
+    - `codex exec` runs, the non-interactive mode scripts and agents call. Each
+      run is a new thread in whatever terminal launched it, so tracking them
+      buries the board in cards for runs nobody can go back to. The rollout's
+      first record names the originator.
+    - Codex's own background threads, which the app-server starts next to a
+      real one and never writes a rollout for.
+
+    Thread ids are UUIDv7, so the id carries the day the rollout was filed
+    under (local time); the neighbouring days cover a run around midnight.
+    A missing rollout only counts when Codex does file rollouts in those
+    folders, and anything unreadable counts as interactive: a card too many
+    beats a session that never shows up.
+    """
+    from datetime import datetime, timedelta
+    try:
+        started = datetime.fromtimestamp(int(thread_id.replace("-", "")[:12], 16) / 1000)
+    except ValueError:
+        return False
+    codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    folders = [
+        codex_home / "sessions" / (started + timedelta(days=offset)).strftime("%Y/%m/%d")
+        for offset in (0, -1, 1)
+    ]
+    for folder in folders:
+        for rollout in folder.glob(f"rollout-*-{thread_id}.jsonl"):
+            try:
+                with rollout.open() as fh:
+                    meta = json.loads(fh.readline()).get("payload", {})
+            except (OSError, json.JSONDecodeError, AttributeError):
+                return False
+            return meta.get("originator") == "codex_exec" or meta.get("source") == "exec"
+    return folders[0].is_dir()
+
+
 # Mapping of Codex notify event types to session states
 EVENT_STATE_MAP = {
     "agent-turn-complete": "waiting",
@@ -58,6 +96,9 @@ def main():
 
     session_id = data.get("thread-id", "")
     if not session_id:
+        return
+
+    if _is_untracked_thread(session_id):
         return
 
     cwd = data.get("cwd", os.getcwd())

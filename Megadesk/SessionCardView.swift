@@ -203,7 +203,9 @@ struct SessionCardView: View {
                         .foregroundColor(labelColor)
                         .lineLimit(1)
                     if session.isWorking && !session.needsConfirmation && activeSpinner == nil {
-                        let detail = toolDetail ?? (session.toolName.isEmpty ? nil : session.toolName)
+                        let detail = session.isWorkingInBackground
+                            ? (session.backgroundAgents == 1 ? "1 agent running" : "\(session.backgroundAgents) agents running")
+                            : toolDetail ?? (session.toolName.isEmpty ? nil : session.toolName)
                         if let detail {
                             Text(detail)
                                 .font(.system(size: statusFontSize, design: .monospaced))

@@ -10,6 +10,9 @@ enum TerminalType: String, Codable {
 struct Session: Identifiable, Codable {
     let sessionId: String
     let cwd: String
+    /// Where the session started. `cwd` follows every `cd`, so it can't name
+    /// the card; nil for providers (and hook versions) that don't record it.
+    let projectDir: String?
     let state: String
     let stateSince: Double
     let createdAt: Double?
@@ -25,13 +28,22 @@ struct Session: Identifiable, Codable {
     /// "bypassPermissions". nil until an event that carries it arrives.
     let permissionMode: String?
 
+    /// Agent CLIs (`claude -p`, `codex exec`) running under this session's
+    /// process, typically launched from a background shell after the turn
+    /// ended. Filled in by StatusStore, not read from the state file.
+    var backgroundAgents = 0
+
     var id: String { sessionId }
 
     var projectName: String {
-        URL(fileURLWithPath: cwd).lastPathComponent
+        URL(fileURLWithPath: projectDir ?? cwd).lastPathComponent
     }
 
-    var isWorking: Bool { state == "working" }
+    /// The turn is running, or it ended but left agents working for it.
+    var isWorking: Bool { state == "working" || backgroundAgents > 0 }
+
+    /// Working only because of `backgroundAgents`: the session itself is idle.
+    var isWorkingInBackground: Bool { state != "working" && backgroundAgents > 0 }
 
     var isStale: Bool {
         Date().timeIntervalSince1970 - lastUpdated > 300
@@ -95,6 +107,7 @@ struct Session: Identifiable, Codable {
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
         case cwd
+        case projectDir = "project_dir"
         case state
         case stateSince = "state_since"
         case createdAt = "created_at"
@@ -114,7 +127,8 @@ struct Session: Identifiable, Codable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         sessionId   = try c.decode(String.self, forKey: .sessionId)
         cwd         = try c.decode(String.self, forKey: .cwd)
-        state       = try c.decode(String.self, forKey: .state)
+        projectDir  = try c.decodeIfPresent(String.self, forKey: .projectDir).flatMap { $0.isEmpty ? nil : $0 }
+        state      = try c.decode(String.self, forKey: .state)
         stateSince  = try c.decode(Double.self, forKey: .stateSince)
         createdAt   = try c.decodeIfPresent(Double.self, forKey: .createdAt)
         lastUpdated = try c.decode(Double.self, forKey: .lastUpdated)
@@ -138,6 +152,7 @@ struct Session: Identifiable, Codable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(sessionId,          forKey: .sessionId)
         try c.encode(cwd,                forKey: .cwd)
+        try c.encodeIfPresent(projectDir, forKey: .projectDir)
         try c.encode(state,              forKey: .state)
         try c.encode(stateSince,         forKey: .stateSince)
         try c.encodeIfPresent(createdAt, forKey: .createdAt)

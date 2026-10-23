@@ -139,9 +139,43 @@ final class StatusStore {
     var spinnerInfos: [String: TerminalFocuser.SpinnerInfo] = [:]
     private var isScrapingSpinners = false
 
+    // claude pid → agent CLIs running beneath it (see refreshBackgroundAgents).
+    private var backgroundAgentCounts: [Int32: Int] = [:]
+    private var backgroundAgentsSeenAt: [Int32: Date] = [:]
+
+    // Sessions whose Claude transcript ends in a `continued-in` record — the
+    // conversation lives under a new id now, so these are ghosts. Kept in memory
+    // as well as deleted on disk: the old `claude` process may still be running
+    // and writing the state file, and the card must not come back.
+    private var continuedSessionIds: Set<String> = []
+    // Sessions hidden by `isHeadless` — still reaped, just not shown, so the
+    // daemon's state files don't pile up in ~/.claude/megadesk/sessions.
+    private var hiddenSessions: [Session] = []
+    // `terminal` is recomputed from the environment on every hook event and is
+    // NOT preserved across writes, so a single event dispatched through Claude's
+    // daemon rewrites a perfectly healthy session as `unknown` (the
+    // daemon-unknown-terminal gotcha). These two say how much that field can be
+    // trusted per session: what was ever seen with a real terminal, and when an
+    // uninterrupted run of `unknown` started.
+    // Persisted, because it has to survive a relaunch: a session flipped to
+    // `unknown` while Megadesk was closed would otherwise look like it never had
+    // a terminal at all, and a live card would be hidden on the first tick.
+    private var everHadTerminal: Set<String> = []
+    private var savedTerminalHistory: Set<String> = []
+    private static let terminalHistoryKey = "megadesk.sessionsWithTerminal"
+    private var unknownSince: [String: Double] = [:]
+    // sessionId → size+mtime of its transcript when last probed, so multi-MB
+    // JSONLs are only re-read when they actually changed.
+    private var closureProbeStamps: [String: Double] = [:]
+    private var isProbingClosures = false
+    /// Transcript tails are read here, never on the main thread.
+    private static let closureQueue = DispatchQueue(label: "com.megadesk.closure", qos: .utility)
+
     init() {
         loadCustomNames()
+        loadTerminalHistory()
         loadSessions()
+        probeContinuedSessions()
         startWatching()
         startTimer()
         spinnerTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
@@ -214,22 +248,47 @@ final class StatusStore {
         return found
     }
 
+    /// What a custom name is filed under: the tab, so the name survives a new
+    /// session in it. For Ghostty that is the terminal id, because the hook
+    /// sets `terminalSessionId` to the session id there, and a `/clear`, a
+    /// resume or a compact would otherwise drop the name. The terminal id is
+    /// also what survives the daemon's `unknown` rewrite.
+    private func nameKey(for session: Session) -> String {
+        session.ghosttyTerminalId.isEmpty
+            ? session.terminalSessionId
+            : "ghostty:\(session.ghosttyTerminalId)"
+    }
+
     func displayName(for session: Session) -> String {
-        customNames[session.terminalSessionId] ?? session.projectName
+        customNames[nameKey(for: session)] ?? session.projectName
     }
 
     func hasCustomName(for session: Session) -> Bool {
-        customNames[session.terminalSessionId] != nil
+        customNames[nameKey(for: session)] != nil
     }
 
     func setCustomName(session: Session, name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         if trimmed.isEmpty || trimmed == session.projectName {
-            customNames.removeValue(forKey: session.terminalSessionId)
+            customNames.removeValue(forKey: nameKey(for: session))
         } else {
-            customNames[session.terminalSessionId] = trimmed
+            customNames[nameKey(for: session)] = trimmed
         }
         saveCustomNames()
+    }
+
+    /// Names given before they were filed by tab sit under the session id;
+    /// move them to the tab while that session is still around to link them.
+    private func migrateCustomNames(_ list: [Session]) {
+        var moved = false
+        for s in list {
+            let key = nameKey(for: s)
+            guard key != s.terminalSessionId,
+                  let name = customNames.removeValue(forKey: s.terminalSessionId) else { continue }
+            if customNames[key] == nil { customNames[key] = name }
+            moved = true
+        }
+        if moved { saveCustomNames() }
     }
 
     // MARK: - Private
@@ -247,6 +306,19 @@ final class StatusStore {
         }
     }
 
+    private func loadTerminalHistory() {
+        everHadTerminal = Set(UserDefaults.standard.stringArray(forKey: Self.terminalHistoryKey) ?? [])
+        savedTerminalHistory = everHadTerminal
+    }
+
+    /// Only writes when the set actually moved — `loadSessions` runs every second.
+    /// It is pruned to the sessions still on disk, so it can't grow without bound.
+    private func saveTerminalHistoryIfChanged() {
+        guard everHadTerminal != savedTerminalHistory else { return }
+        savedTerminalHistory = everHadTerminal
+        UserDefaults.standard.set(Array(everHadTerminal), forKey: Self.terminalHistoryKey)
+    }
+
     func loadSessions() {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(
@@ -259,14 +331,52 @@ final class StatusStore {
 
         let decoder = JSONDecoder()
         var loaded: [Session] = []
+        var hidden: [Session] = []
+        var seenIds: Set<String> = []
+        let now = Date().timeIntervalSince1970
+        let staleThreshold = now - 120
 
         for file in files where file.pathExtension == "json" {
             guard let data = try? Data(contentsOf: file),
                   let session = try? decoder.decode(Session.self, from: data)
             else { continue }
 
+            // The conversation moved to another session id (its transcript ends
+            // in a `continued-in` record), so this one no longer exists — even
+            // though its `claude` process can linger for days and keep the card
+            // looking alive. Hide it right away, and drop the state file once it
+            // has stopped being written to, so a resumed-then-continued session
+            // isn't reaped out from under a hook that is still updating it.
+            // Deletion is by session id, never by terminal id: after a compact
+            // the successor sits in the very same tab.
+            if continuedSessionIds.contains(session.sessionId) {
+                if session.lastUpdated < staleThreshold { try? fm.removeItem(at: file) }
+                continue
+            }
+
+            // Track how long this session has been claiming to have no terminal,
+            // and remember the ones that ever had a real one.
+            if session.terminal == .unknown {
+                unknownSince[session.sessionId] = unknownSince[session.sessionId] ?? now
+            } else {
+                unknownSince.removeValue(forKey: session.sessionId)
+                everHadTerminal.insert(session.sessionId)
+            }
+            seenIds.insert(session.sessionId)
+
+            if isHeadless(session, now: now) {
+                hidden.append(session)
+                continue
+            }
+
             loaded.append(session)
         }
+        hiddenSessions = hidden
+        migrateCustomNames(loaded)
+        // Drop bookkeeping for state files that are gone.
+        unknownSince = unknownSince.filter { seenIds.contains($0.key) }
+        everHadTerminal.formIntersection(seenIds)
+        saveTerminalHistoryIfChanged()
 
         // Deduplicate — one terminal tab = one card.
         // Primary key: terminalSessionId. For Ghostty sessions whose
@@ -320,7 +430,13 @@ final class StatusStore {
                 byPid[pid] = s
             }
         }
-        let collapsed = pidless + Array(byPid.values)
+        let collapsed = (pidless + Array(byPid.values)).map { s -> Session in
+            var s = s
+            if s.provider == .claude, let pid = s.claudePid {
+                s.backgroundAgents = backgroundAgentCounts[pid] ?? 0
+            }
+            return s
+        }
 
         sessions = sorted(collapsed)
         updateProcessWatchers()
@@ -397,10 +513,15 @@ final class StatusStore {
                 self?.reapDeadSessions()
                 self?.checkOrphanedSessions()
             }
+            // Every 30 seconds, look for conversations that were continued elsewhere.
+            if (self?.tick ?? 0) % 30 == 0 {
+                self?.probeContinuedSessions()
+            }
             // Every 2 seconds, sync the active session indicator with the current terminal tab.
             if (self?.tick ?? 0) % 2 == 0 {
                 self?.syncActiveSession()
                 self?.scrapeSpinnerVerbs()
+                self?.refreshBackgroundAgents()
             }
         }
     }
@@ -467,6 +588,8 @@ final class StatusStore {
     }
 
     func spinnerInfo(for session: Session) -> TerminalFocuser.SpinnerInfo? {
+        // The session's own turn is over; whatever verb is left is stale.
+        if session.isWorkingInBackground { return nil }
         if let scraped = spinnerInfos[session.sessionId] { return scraped }
         // For non-iTerm2 sessions, derive from JSONL tool detail reactively
         // (no polling delay — updates as soon as the watcher fires).
@@ -486,7 +609,7 @@ final class StatusStore {
         // iTerm2 sessions: scrape the terminal via AppleScript.
         // Non-iTerm2 (Ghostty, etc.) are handled reactively in spinnerInfo(for:).
         let itermCandidates = sessions.filter {
-            $0.isWorking && !$0.needsConfirmation && $0.terminal == .iterm2
+            $0.isWorking && !$0.isWorkingInBackground && !$0.needsConfirmation && $0.terminal == .iterm2
         }
 
         // Clean up stale entries
@@ -616,11 +739,28 @@ final class StatusStore {
     /// a restart fires its hook within seconds — then reaped, so closing Claude
     /// but leaving the terminal open doesn't orphan the card forever.
     private func reapDeadSessions() {
-        let staleThreshold = Date().timeIntervalSince1970 - 120
+        let now = Date().timeIntervalSince1970
+        let staleThreshold = now - 120
+        let codexStaleThreshold = now - 600
         var deadIds: [String] = []
-        for session in sessions {
-            // Codex sessions don't report PIDs and update infrequently — skip reaping
-            if session.provider == .codex { continue }
+        var deadCodexIds: [String] = []
+        // Looked up at most once per pass, and only if a Codex session needs it.
+        var codexTUIDirs: Set<String>?
+        // Hidden sessions are still reaped: they were only taken off the board,
+        // and without this their state files would accumulate forever.
+        for session in sessions + hiddenSessions {
+            // Codex only reports when a turn completes, so a live session can go
+            // a long while without an update; hence the longer window. A dead pid
+            // after that much silence means the run is over: a TUI that was
+            // closed, or a `codex exec` from before the hook skipped them.
+            if session.provider == .codex {
+                guard session.lastUpdated < codexStaleThreshold else { continue }
+                if !isCodexAlive(session, tuiDirs: &codexTUIDirs) {
+                    print("[Megadesk] reapDeadSessions: removing Codex \(session.projectName) (not running, silent 10 min)")
+                    deadCodexIds.append(session.sessionId)
+                }
+                continue
+            }
             if let pid = session.claudePid {
                 // Has a PID — check if the process is still alive.
                 if kill(pid_t(pid), 0) != 0 && errno != EPERM {
@@ -648,6 +788,48 @@ final class StatusStore {
         for id in deadIds {
             removeSessionFiles(withTerminalId: id)
         }
+        // By session id, not terminal id: a Codex run started from another
+        // agent's tab carries that tab's id, and deleting by it would take the
+        // live session's card along.
+        if !deadCodexIds.isEmpty {
+            for id in deadCodexIds {
+                try? FileManager.default.removeItem(at: sessionsURL.appendingPathComponent("\(id).json"))
+            }
+            loadSessions()
+        }
+    }
+
+    /// True for a session that has no terminal of its own to jump to: Claude
+    /// running under the 2.1.x daemon, in a pty of the bg-pty-host that is not a
+    /// pane of anything. Clicking the card can't take you anywhere, it just
+    /// lands on some pane that happens to share the cwd.
+    ///
+    /// `terminal` alone is not enough to conclude that. The hook recomputes it
+    /// from the environment on every event and doesn't preserve it, so one event
+    /// dispatched through the daemon flips a live iTerm2/Ghostty session to
+    /// `unknown` until its next ordinary event — and the same write moves its
+    /// `terminal_session_id` to the session id, which is why a custom name can't
+    /// be relied on to protect it either. Hence the guards: Ghostty is
+    /// recognised by the terminal id the hook *does* preserve, anything ever
+    /// seen with a real terminal is trusted to still have one (persisted, so a
+    /// relaunch doesn't forget), and the card only goes once we have watched it
+    /// claim `unknown` for an uninterrupted 120s — the same window the other
+    /// reapers wait before believing what they see. What the file says on its
+    /// own, without having been observed, is never enough.
+    private func isHeadless(_ session: Session, now: Double) -> Bool {
+        guard session.terminal == .unknown else { return false }
+        // The daemon flip loses `terminal`, but never `ghostty_terminal_id`.
+        guard session.ghosttyTerminalId.isEmpty else { return false }
+        // Only Claude has this daemon. Codex and Kimi keep their cards.
+        guard session.provider == .claude else { return false }
+        // A name means the card was adopted on purpose — that one stays.
+        guard customNames[nameKey(for: session)] == nil else { return false }
+        guard !everHadTerminal.contains(session.sessionId) else { return false }
+        // A flip that a later event undoes never reaches 120s: the good event
+        // clears `unknownSince` and files the session under `everHadTerminal`
+        // for good. Trusting `lastUpdated` here instead would skip the waiting
+        // entirely on a cold start and hide a live card on the first tick.
+        return now - (unknownSince[session.sessionId] ?? now) >= 120
     }
 
     /// Returns true if the session's terminal tab is still open, based on the
@@ -664,10 +846,254 @@ final class StatusStore {
         }
     }
 
+    // MARK: - Continued conversations
+
+    /// Finds the sessions whose Claude transcript ends in a `continued-in`
+    /// record: the conversation was continued under a new session id (a compact,
+    /// a `--resume`), so the old one is gone. Its `claude` process can outlive it
+    /// by days, which is why the PID reaper never catches these.
+    ///
+    /// Transcripts are multi-MB and there are dozens, so only the tail is read,
+    /// only for Claude sessions (Codex and Kimi have no transcript in this
+    /// format), only when the file changed since the last probe, and always off
+    /// the main thread. A session that is already flagged is never probed again.
+    private func probeContinuedSessions() {
+        guard !isProbingClosures else { return }
+        let candidates = sessions
+            .filter { $0.provider == .claude && !continuedSessionIds.contains($0.sessionId) }
+            .map { (id: $0.sessionId, cwd: $0.cwd) }
+        guard !candidates.isEmpty else { return }
+
+        isProbingClosures = true
+        let stamps = closureProbeStamps
+        Self.closureQueue.async { [weak self] in
+            var continued: Set<String> = []
+            var newStamps: [String: Double] = [:]
+            for candidate in candidates {
+                guard let url = Self.transcriptURL(cwd: candidate.cwd, sessionId: candidate.id),
+                      let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+                else { continue }
+                let size = (attrs[.size] as? NSNumber)?.doubleValue ?? 0
+                let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+                let stamp = size + mtime
+                newStamps[candidate.id] = stamp
+                // Unchanged since the last look, and it wasn't closed then either.
+                if stamps[candidate.id] == stamp { continue }
+                if Self.transcriptEndsContinued(url) { continued.insert(candidate.id) }
+            }
+
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isProbingClosures = false
+                self.closureProbeStamps = newStamps
+                guard !continued.isEmpty else { return }
+                for id in continued {
+                    print("[Megadesk] probeContinuedSessions: \(id) was continued elsewhere — dropping card")
+                }
+                self.continuedSessionIds.formUnion(continued)
+                self.loadSessions()
+            }
+        }
+    }
+
+    /// Locates a session's transcript. Claude names the folder after the cwd with
+    /// every non-alphanumeric character turned into a dash; the scan is the
+    /// fallback for anything that doesn't map cleanly.
+    private static func transcriptURL(cwd: String, sessionId: String) -> URL? {
+        let fm = FileManager.default
+        let projects = fm.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects")
+        let slug = String(cwd.map { $0.isASCII && ($0.isLetter || $0.isNumber) ? $0 : "-" })
+        let direct = projects.appendingPathComponent(slug).appendingPathComponent("\(sessionId).jsonl")
+        if fm.fileExists(atPath: direct.path) { return direct }
+        guard let dirs = try? fm.contentsOfDirectory(at: projects, includingPropertiesForKeys: nil) else {
+            return nil
+        }
+        for dir in dirs {
+            let candidate = dir.appendingPathComponent("\(sessionId).jsonl")
+            if fm.fileExists(atPath: candidate.path) { return candidate }
+        }
+        return nil
+    }
+
+    /// True when the transcript closed with a `continued-in` record. It is not
+    /// always the very last line — Claude usually appends bookkeeping after it
+    /// (`cost-state`, `file-history-snapshot`, `system`), so the tail is walked
+    /// backwards and the first thing that settles the question wins: a
+    /// `continued-in` means the conversation moved on, a `user` or `assistant`
+    /// turn means it was still being used and nothing was continued.
+    ///
+    /// Anything unreadable, truncated, or merely inconclusive returns false: a
+    /// card is only ever dropped on a positive, unambiguous reading.
+    private static func transcriptEndsContinued(_ url: URL) -> Bool {
+        guard let fh = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? fh.close() }
+        guard let size = try? fh.seekToEnd() else { return false }
+        let window: UInt64 = 64 * 1024
+        let start = size > window ? size - window : 0
+        guard (try? fh.seek(toOffset: start)) != nil,
+              let data = try? fh.readToEnd(), !data.isEmpty
+        else { return false }
+
+        // Lossy on purpose: the window can start mid-character, and that first
+        // partial line is discarded below anyway.
+        let text = String(decoding: data, as: UTF8.self)
+        var inspected = 0
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false).reversed() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { continue }
+            // A line the window cut in half, or anything else unparseable: stop
+            // rather than guess.
+            guard let lineData = trimmed.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any]
+            else { return false }
+            switch json["type"] as? String {
+            case "continued-in": return true
+            case "user", "assistant": return false
+            default: break  // trailing bookkeeping — keep walking back
+            }
+            inspected += 1
+            if inspected >= 50 { return false }
+        }
+        return false
+    }
+
     /// Returns true if the session's Claude process is still running.
     private func isClaudePidAlive(_ session: Session) -> Bool {
         guard let pid = session.claudePid else { return false }
         return kill(pid_t(pid), 0) == 0 || errno == EPERM
+    }
+
+    /// Whether a Codex session is still running. Recent Codex builds hand TUI
+    /// sessions to a shared `codex app-server` daemon and fire notify from
+    /// there, so the pid the hook records is the daemon's, alive for as long
+    /// as any Codex is. For those, the session counts as running while a Codex
+    /// TUI sits in its directory. `tuiDirs` caches that lookup for the caller.
+    private func isCodexAlive(_ session: Session, tuiDirs: inout Set<String>?) -> Bool {
+        guard let pid = session.claudePid, isClaudePidAlive(session) else { return false }
+        guard Self.executablePath(of: pid_t(pid))?.contains("/app-server") == true else { return true }
+        if tuiDirs == nil { tuiDirs = Self.codexTUIDirectories() }
+        return tuiDirs?.contains((session.cwd as NSString).standardizingPath) ?? false
+    }
+
+    private static func executablePath(of pid: pid_t) -> String? {
+        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
+        return String(cString: buffer)
+    }
+
+    /// Working directories of the running Codex TUIs (any `codex` executable
+    /// that isn't part of the app-server).
+    private static func codexTUIDirectories() -> Set<String> {
+        let capacity = proc_listallpids(nil, 0)
+        guard capacity > 0 else { return [] }
+        var pids = [pid_t](repeating: 0, count: Int(capacity) + 64)
+        let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+        guard count > 0 else { return [] }
+
+        var dirs: Set<String> = []
+        for pid in pids.prefix(Int(count)) where pid > 0 {
+            guard let path = executablePath(of: pid),
+                  path.hasSuffix("/codex"), !path.contains("/app-server") else { continue }
+            var info = proc_vnodepathinfo()
+            let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+            guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { continue }
+            let cwd = withUnsafeBytes(of: &info.pvi_cdir.vip_path) { raw in
+                String(cString: raw.bindMemory(to: CChar.self).baseAddress!)
+            }
+            if !cwd.isEmpty { dirs.insert((cwd as NSString).standardizingPath) }
+        }
+        return dirs
+    }
+
+    // MARK: - Background agents
+
+    /// Counts the agent CLIs running under each Claude session, so a session
+    /// whose turn ended while it left agents working (a background shell
+    /// driving `claude -p` or `codex exec`) still reads as working. Those
+    /// agents get no card of their own, so without this the board shows the
+    /// session waiting for input while its work is still going.
+    private func refreshBackgroundAgents() {
+        let roots = Set(sessions.compactMap { $0.provider == .claude ? $0.claudePid : nil })
+        var counts = roots.isEmpty ? [:] : Self.agentCounts(under: roots)
+        // A driver script runs its agents one after another, with git and gh
+        // calls in between; hold the last count briefly so the card doesn't
+        // flicker to waiting in every gap.
+        let now = Date()
+        for pid in counts.keys { backgroundAgentsSeenAt[pid] = now }
+        for (pid, seen) in backgroundAgentsSeenAt where counts[pid] == nil {
+            if now.timeIntervalSince(seen) < 10, roots.contains(pid), let last = backgroundAgentCounts[pid] {
+                counts[pid] = last
+            } else if now.timeIntervalSince(seen) >= 10 {
+                backgroundAgentsSeenAt.removeValue(forKey: pid)
+            }
+        }
+        guard counts != backgroundAgentCounts else { return }
+        backgroundAgentCounts = counts
+        loadSessions()
+    }
+
+    /// For each root pid, how many `claude`/`codex` processes descend from it.
+    /// MCP servers and Codex's app-server are long-running children of the
+    /// session itself, not work it handed off, so they don't count.
+    private static func agentCounts(under roots: Set<Int32>) -> [Int32: Int] {
+        let capacity = proc_listallpids(nil, 0)
+        guard capacity > 0 else { return [:] }
+        var pids = [pid_t](repeating: 0, count: Int(capacity) + 64)
+        let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+        guard count > 0 else { return [:] }
+
+        var parent: [pid_t: pid_t] = [:]
+        for pid in pids.prefix(Int(count)) where pid > 0 {
+            var info = proc_bsdshortinfo()
+            let size = Int32(MemoryLayout<proc_bsdshortinfo>.size)
+            guard proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, &info, size) == size else { continue }
+            parent[pid] = pid_t(info.pbsi_ppid)
+        }
+
+        var counts: [Int32: Int] = [:]
+        for pid in parent.keys where !roots.contains(Int32(pid)) {
+            // Walk up to the session that owns it, if any.
+            var ancestor = parent[pid] ?? 0
+            var depth = 0
+            while ancestor > 1, !roots.contains(Int32(ancestor)), depth < 32 {
+                ancestor = parent[ancestor] ?? 0
+                depth += 1
+            }
+            guard ancestor > 1, roots.contains(Int32(ancestor)) else { continue }
+            // The process name is the binary's (Claude's is its version
+            // number), so go by argv[0], the name it was launched under.
+            let args = arguments(of: pid)
+            guard let launched = args.first.map({ ($0 as NSString).lastPathComponent }),
+                  launched == "claude" || launched == "codex",
+                  !args.contains(where: { $0.contains("mcp") || $0 == "app-server" }) else { continue }
+            counts[Int32(ancestor), default: 0] += 1
+        }
+        return counts
+    }
+
+    /// A process's argv, read with KERN_PROCARGS2: an argc, the executable
+    /// path, padding, then the arguments, all NUL-separated.
+    private static func arguments(of pid: pid_t) -> [String] {
+        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var size = 0
+        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else { return [] }
+        var buffer = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0 else { return [] }
+
+        let argc = buffer.withUnsafeBytes { $0.load(as: Int32.self) }
+        var index = MemoryLayout<Int32>.size
+        // Skip the executable path and the NULs padding it.
+        while index < size, buffer[index] != 0 { index += 1 }
+        while index < size, buffer[index] == 0 { index += 1 }
+
+        var args: [String] = []
+        while index < size, args.count < Int(argc) {
+            let start = index
+            while index < size, buffer[index] != 0 { index += 1 }
+            args.append(String(decoding: buffer[start..<index], as: UTF8.self))
+            index += 1
+        }
+        return args
     }
 
     /// Queries iTerm2 and Ghostty for active terminal sessions and removes
