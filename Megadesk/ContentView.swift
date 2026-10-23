@@ -24,6 +24,9 @@ struct ContentView: View {
 
     // Measured natural heights of each section's scrollable content (inside each ScrollView).
     @State private var sessionsContentHeight: CGFloat = 0
+    // While the pointer is over the session list the user may be scrolling
+    // through it, so a reorder doesn't pull the list back to the active card.
+    @State private var isHoveringSessions = false
     @State private var prContentHeight: CGFloat = 0
 
     // Persisted locked height — non-zero when user has manually set a height.
@@ -99,6 +102,10 @@ struct ContentView: View {
         return prAllocWhenOverflowing
     }
 
+    private var activeSessionIndex: Int? {
+        store.sessions.firstIndex { $0.sessionId == store.activeSessionId }
+    }
+
     private var widgetAlerts: [MegadeskAlert] {
         return store.alerts.filter {
             store.alertShowsInWidget($0) &&
@@ -138,30 +145,47 @@ struct ContentView: View {
 
                 // Sessions section — independent scroll
                 sectionLabel("sessions")
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(spacing: 4) {
-                        ForEach(store.sessions) { session in
-                            SessionCardView(
-                                session: session,
-                                tick: store.tick,
-                                spinnerTick: store.spinnerTick,
-                                displayName: store.displayName(for: session),
-                                hasCustomName: store.hasCustomName(for: session),
-                                isFlashing: store.activeSessionId == session.sessionId,
-                                toolDetail: store.toolDetail(for: session),
-                                spinnerInfo: store.spinnerInfo(for: session),
-                                onFocus: { store.focusTerminal(session: session) },
-                                onRename: { name in store.setCustomName(session: session, name: name) },
-                                onEditStart: beginEditing,
-                                onEditEnd: endEditing
-                            )
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: true) {
+                        VStack(spacing: 4) {
+                            ForEach(store.sessions) { session in
+                                SessionCardView(
+                                    session: session,
+                                    tick: store.tick,
+                                    spinnerTick: store.spinnerTick,
+                                    displayName: store.displayName(for: session),
+                                    hasCustomName: store.hasCustomName(for: session),
+                                    isFlashing: store.activeSessionId == session.sessionId,
+                                    toolDetail: store.toolDetail(for: session),
+                                    spinnerInfo: store.spinnerInfo(for: session),
+                                    onFocus: { store.focusTerminal(session: session) },
+                                    onRename: { name in store.setCustomName(session: session, name: name) },
+                                    onEditStart: beginEditing,
+                                    onEditEnd: endEditing
+                                )
+                                .id(session.sessionId)
+                            }
                         }
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear.preference(key: SessionsHeightKey.self, value: geo.size.height)
+                            }
+                        )
                     }
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear.preference(key: SessionsHeightKey.self, value: geo.size.height)
-                        }
-                    )
+                    // Switching to a terminal highlights its card; bring it fully
+                    // into view. No anchor scrolls the least needed, so a card
+                    // that is already visible doesn't move the list.
+                    .onChange(of: store.activeSessionId) { _, id in
+                        guard let id else { return }
+                        withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(id) }
+                    }
+                    // A reorder (sorting by state, cards coming and going) can
+                    // carry the active card out of view; follow it.
+                    .onChange(of: activeSessionIndex) { _, _ in
+                        guard !isHoveringSessions, let id = store.activeSessionId else { return }
+                        withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(id) }
+                    }
+                    .onHover { isHoveringSessions = $0 }
                 }
                 .onPreferenceChange(SessionsHeightKey.self) { h in
                     if h != sessionsContentHeight { sessionsContentHeight = h }
